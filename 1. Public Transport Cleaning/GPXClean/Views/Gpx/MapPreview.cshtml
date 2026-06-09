@@ -1,0 +1,210 @@
+﻿@model Travel_Time_and_Delay_Web_Application.Models.GpxPreviewVm
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = "Preview GPX on Map";
+}
+
+<style>
+    #loadingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    #loadingCard {
+        width: min(520px, 92vw);
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px 18px 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        border: 1px solid #e5e5e5;
+    }
+
+    #loadingTitle {
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    #loadingMsg {
+        font-size: 0.9rem;
+        color: #555;
+        margin-bottom: 12px;
+    }
+
+    .progress {
+        height: 10px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #e9ecef;
+    }
+
+    .progress-bar {
+        width: 30%;
+        height: 100%;
+        background: #0d6efd;
+        animation: indeterminate 1.1s infinite ease-in-out;
+    }
+
+    @@keyframes indeterminate {
+        0% {
+            transform: translateX(-120%);
+        }
+
+        100% {
+            transform: translateX(420%);
+        }
+    }
+
+    .disabled-clicks {
+        pointer-events: none;
+        opacity: .75;
+    }
+</style>
+
+<div id="loadingOverlay">
+    <div id="loadingCard">
+        <div id="loadingTitle">Cleaning selected files…</div>
+        <div id="loadingMsg">Grouping trips and preparing cleaned preview. Please wait.</div>
+        <div class="progress">
+            <div class="progress-bar"></div>
+        </div>
+        <div class="small text-muted mt-2">
+            Don’t refresh or go back while processing.
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+<div class="container-fluid py-3">
+    <div class="row">
+        <div class="col-md-3">
+            <h4 class="mb-3">Files</h4>
+
+            <form id="processForm" class="border rounded p-3 d-flex flex-column gap-2"
+                  method="post" action="/gpx/process-selected">
+                @Html.AntiForgeryToken()
+
+                <input type="hidden" name="batchId" value="@Model.BatchId" />
+
+                <div style="max-height: 60vh; overflow:auto;">
+                    @{
+                        var idx = 0;
+                    }
+                    @foreach (var f in Model.Files)
+                    {
+                        // ✅ stable id
+                        var safeId = "chk_" + idx;
+                        idx++;
+
+                        <div class="form-check">
+                            <input class="form-check-input file-check"
+                                   type="checkbox"
+                                   value="@f.FileName"
+                                   id="@safeId"
+                                   checked
+                                   name="selectedFiles" />
+                            <label class="form-check-label text-break" for="@safeId">
+                                @f.FileName <small class="text-muted">
+                                    (@(f.Points?.Count ?? 0) pts)
+                                </small>
+                            </label>
+                        </div>
+                    }
+                </div>
+
+                <button id="btnClean"
+                        type="submit"
+                        formaction="/gpx/cleaned-only-view"
+                        class="btn btn-primary w-100">
+                    Continue (Clean Selected)
+                </button>
+
+                <a id="btnBack" href="/gpx/upload" class="btn btn-outline-secondary w-100">
+                    Back
+                </a>
+            </form>
+        </div>
+
+        <div class="col-md-9">
+            <div id="map" style="height: 80vh; border-radius: 8px; border:1px solid #ddd;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const vm = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model));
+    const files = vm.files ?? vm.Files ?? [];
+
+    // one-time debug (not inside loop)
+    console.log("files:", files);
+    console.log("first file:", files[0]);
+    console.log("first point:", (files[0]?.points ?? files[0]?.Points)?.[0]);
+
+    function toLatLngArray(pts) {
+      return (pts || []).map(p => {
+        if (Array.isArray(p) && p.length >= 2) return [p[0], p[1]];
+        const lat = (p.lat ?? p.Lat ?? p.latitude ?? p.Latitude ?? p.item1 ?? p.Item1);
+        const lon = (p.lon ?? p.Lon ?? p.longitude ?? p.Longitude ?? p.item2 ?? p.Item2);
+        return (lat != null && lon != null) ? [lat, lon] : null;
+      }).filter(Boolean);
+    }
+
+    const layers = {};
+    const bounds = L.latLngBounds();
+
+    files.forEach(f => {
+      const name = f.fileName ?? f.FileName ?? '';
+      const pts = f.points ?? f.Points ?? [];
+
+      const latlngs = toLatLngArray(pts);
+
+      if (latlngs.length >= 2) {
+        const layer = L.polyline(latlngs, { weight: 3 }).addTo(map);
+        layers[name] = layer;
+        latlngs.forEach(ll => bounds.extend(ll));
+      }
+    });
+
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+    else map.setView([12.8797, 121.7740], 6);
+
+    document.querySelectorAll('.file-check').forEach(cb => {
+      cb.addEventListener('change', e => {
+        const key = e.target.value || '';
+        const layer = layers[key];
+        if (!layer) return;
+        if (e.target.checked) layer.addTo(map);
+        else map.removeLayer(layer);
+      });
+    });
+
+    // loading overlay on submit
+    (function () {
+      const form = document.getElementById("processForm");
+      const overlay = document.getElementById("loadingOverlay");
+      const btnClean = document.getElementById("btnClean");
+      const btnBack = document.getElementById("btnBack");
+
+      if (!form || !overlay) return;
+
+      form.addEventListener("submit", function () {
+        overlay.style.display = "flex";
+        if (btnClean) btnClean.disabled = true;
+        if (btnBack) btnBack.classList.add("disabled-clicks");
+      });
+    })();
+</script>

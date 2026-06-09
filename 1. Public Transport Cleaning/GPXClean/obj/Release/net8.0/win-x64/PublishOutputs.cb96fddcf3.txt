@@ -1,0 +1,6 @@
+D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\Public Transport Cleaning\GPXClean\bin\Release\net8.0\win-x64\publish\appsettings.Development.json
+D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\Public Transport Cleaning\GPXClean\bin\Release\net8.0\win-x64\publish\appsettings.json
+D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\Public Transport Cleaning\GPXClean\bin\Release\net8.0\win-x64\publish\GPXClean.pdb
+D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\Public Transport Cleaning\GPXClean\bin\Release\net8.0\win-x64\publish\aspnetcorev2_inprocess.dll
+D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\Public Transport Cleaning\GPXClean\bin\Release\net8.0\win-x64\publish\e_sqlite3.dll
+D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\Public Transport Cleaning\GPXClean\bin\Release\net8.0\win-x64\publish\GPXClean.exe

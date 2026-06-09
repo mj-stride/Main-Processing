@@ -1,0 +1,146 @@
+﻿@{
+    ViewData["Title"] = "GPX Processor";
+}
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+<style>
+    #loadingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    #loadingCard {
+        width: min(520px, 92vw);
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px 18px 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        border: 1px solid #e5e5e5;
+    }
+
+    #loadingTitle {
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 1.05rem;
+    }
+
+    #loadingMsg {
+        font-size: 0.92rem;
+        color: #555;
+        margin-bottom: 12px;
+    }
+
+    .progress {
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #e9ecef;
+    }
+
+    .progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #0d6efd, #4dabf7);
+        transition: width 0.35s ease;
+    }
+</style>
+
+<!-- LOADING OVERLAY -->
+<div id="loadingOverlay">
+    <div id="loadingCard">
+        <div id="loadingTitle">Preparing preview…</div>
+        <div id="loadingMsg">Uploading ZIP(s) and extracting GPX points. Please wait.</div>
+        <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div class="small text-muted mt-2">Don’t refresh or go back while processing.</div>
+    </div>
+</div>
+
+<div class="container py-5" style="max-width: 760px;">
+    <h1 class="mb-4">GPX Processor</h1>
+
+    <div class="card">
+        <div class="card-body">
+
+            <!-- ✅ POST to ATTRIBUTE ROUTE -->
+            <form id="uploadForm"
+                  method="post"
+                  action="/gpx/preview-map"
+                  enctype="multipart/form-data"
+                  onsubmit="return startUpload();">
+
+                @Html.AntiForgeryToken()
+
+                <div class="mb-3">
+                    <label class="form-label">ZIP files</label>
+                    <input class="form-control"
+                           type="file"
+                           name="files"
+                           id="zipFiles"
+                           multiple
+                           accept=".zip"
+                           required />
+                    <div class="form-text">Select one or more .zip files containing .gpx files.</div>
+                </div>
+
+                <button id="btnPreview" type="submit" class="btn btn-primary">
+                    Preview on Map
+                </button>
+            </form>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    let fakeProgressTimer = null;
+
+    function startFakeProgress() {
+        const bar = document.getElementById("progressBar");
+        if (!bar) return;
+
+        bar.style.width = "0%";
+        let progress = 0;
+
+        if (fakeProgressTimer) clearInterval(fakeProgressTimer);
+
+        fakeProgressTimer = setInterval(() => {
+            if (progress < 60) {
+                progress += (Math.random() * 10) + 6;
+            } else if (progress < 85) {
+                progress += (Math.random() * 6) + 2;
+            } else if (progress < 95) {
+                progress += (Math.random() * 2) + 0.5;
+            } else {
+                progress = 10;
+            }
+
+            bar.style.width = Math.min(progress, 95).toFixed(0) + "%";
+        }, 350);
+    }
+
+    function startUpload() {
+        const overlay = document.getElementById("loadingOverlay");
+        const fileInput = document.getElementById("zipFiles");
+        const btn = document.getElementById("btnPreview");
+
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            return true;
+        }
+
+        overlay.style.display = "flex";
+        if (btn) btn.disabled = true;
+
+        overlay.getBoundingClientRect(); // force paint
+        startFakeProgress();
+
+        return true;
+    }
+</script>
