@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "D:\\5\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj": {}
+    "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj": {}
   },
   "projects": {
-    "D:\\5\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj": {
+    "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\5\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj",
+        "projectUniqueName": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj",
         "projectName": "GPXClean",
-        "projectPath": "D:\\5\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj",
-        "packagesPath": "C:\\Users\\MaryJoyLeanda\\.nuget\\packages\\",
-        "outputPath": "D:\\5\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\obj\\",
+        "projectPath": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\GPXClean.csproj",
+        "packagesPath": "C:\\Users\\Ivan Obias\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\MaryJoyLeanda\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\Ivan Obias\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -79,7 +79,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.301/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.314/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
