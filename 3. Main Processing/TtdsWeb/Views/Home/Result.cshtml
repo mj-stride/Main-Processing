@@ -1,0 +1,452 @@
+﻿@model TtdsWeb.Models.MultiAnalyzeViewModel
+@using System.Text.Json
+@using System.Text.Json.Serialization
+
+@{
+    var jsonOpts = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase, // 👈 ensure camelCase for JS
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Multi Dataset Analysis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 10px;
+        }
+
+        #top-wrap {
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 10px;
+            align-items: start;
+        }
+
+        #map {
+            height: 520px;
+            width: 100%;
+            border: 1px solid #bbb;
+        }
+
+        #ds-toggle {
+            border: 1px solid #ccc;
+            padding: 8px;
+        }
+
+        .ds-row {
+            margin-bottom: 4px;
+        }
+
+        .cp-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: black;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        .dataset-section {
+            margin-top: 28px;
+            border-top: 2px solid #ddd;
+            padding-top: 16px;
+        }
+
+        .ds-title {
+            font-size: 20px;
+            margin: 0 0 10px 0;
+        }
+
+        .grid-two {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 12px;
+            align-items: start;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        th, td {
+            border: 1px solid gray;
+            padding: 6px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #eee;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 360px !important;
+        }
+
+        .sum-table td, .sum-table th {
+            text-align: left;
+        }
+
+        .sum-table th {
+            width: 240px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🗺️ Multi Dataset Travel Time & Delay Analysis</h2>
+
+    <div id="top-wrap">
+        <div><div id="map"></div></div>
+        <div id="ds-toggle">
+            <h4 style="margin-top:0">Datasets on map</h4>
+            <div id="ds-list"></div> <!-- checkboxes injected by JS -->
+        </div>
+    </div>
+
+    <!-- One full section per dataset -->
+    @for (int idx = 0; idx < Model.Datasets.Count; idx++)
+    {
+        var ds = Model.Datasets[idx];
+        <div class="dataset-section" id="ds-@idx">
+            <h3 class="ds-title">📁 @ds.Name</h3>
+
+            <div class="grid-two">
+                <div>
+                    <h4>📉 Travel & Running Speeds</h4>
+                    <canvas id="speedChart-@idx"></canvas>
+                </div>
+                <div>
+                    <h4>📊 Delay Cause Pie</h4>
+                    <canvas id="pieChart-@idx"></canvas>
+
+                    <h4 style="margin-top:16px">📈 CP-to-CP Delay Bar</h4>
+                    <canvas id="barChart-@idx"></canvas>
+                </div>
+            </div>
+
+            <h4>🧮 Summary</h4>
+            <table class="sum-table">
+                <tbody>
+                    <tr><th>Total Travel Time (min)</th><td>@ds.Summary.TotalTravelTimeMin</td></tr>
+                    <tr><th>Total Distance (km)</th><td>@ds.Summary.TotalDistanceKm</td></tr>
+                    <tr><th>Avg Travel Speed</th><td>@ds.Summary.AvgTravelSpeed</td></tr>
+                    <tr><th>Avg Running Speed</th><td>@ds.Summary.AvgRunningSpeed</td></tr>
+                    <tr><th>Total Delay (min)</th><td>@ds.Summary.TotalDelayMin</td></tr>
+                    <tr><th>Total Delay Length (m)</th><td>@ds.Summary.TotalDelayLength</td></tr>
+                </tbody>
+            </table>
+
+            <h4>📊 Segment Analysis</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Travel Time (sec)</th>
+                        <th>Travel Time (min)</th>
+                        <th>Distance (m)</th>
+                        <th>Travel Speed (km/h)</th>
+                        <th>Running Speed (km/h)</th>
+                        <th>Delays</th>
+                        <th>Delay Length (m)</th>
+                        <th>Delay Causes</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in ds.Results)
+                    {
+                        <tr>
+                            <td>@r.From</td>
+                            <td>@r.To</td>
+                            <td>@r.StartTime</td>
+                            <td>@r.EndTime</td>
+                            <td>@r.TravelTimeSec</td>
+                            @* <td>@r.TravelTimeMin</td> *@
+                            <td>@r.DistanceM</td>
+                            <td>@r.TravelSpeedKph</td>
+                            <td>@r.RunningSpeedKph</td>
+                            <td>@r.Delays</td>
+                            <td>@r.DelayLengthM</td>
+                            <td>@r.DelayCauses</td>
+                            <td>@r.Note</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (Model.OverallSummary != null)
+    {
+        <h2>📌 Overall Summary (All Selected Datasets)</h2>
+        <table class="sum-table">
+            <tbody>
+                <tr><th>Avg Travel Time (min)</th><td>@Model.OverallSummary.TotalTravelTimeMin</td></tr>
+                <tr><th>Avg Distance (km)</th><td>@Model.OverallSummary.TotalDistanceKm</td></tr>
+                <tr><th>Avg Travel Speed</th><td>@Model.OverallSummary.AvgTravelSpeed</td></tr>
+                <tr><th>Avg Running Speed</th><td>@Model.OverallSummary.AvgRunningSpeed</td></tr>
+                <tr><th>Avg Delay (min)</th><td>@Model.OverallSummary.TotalDelayMin</td></tr>
+                <tr><th>Avg Delay Length (m)</th><td>@Model.OverallSummary.TotalDelayLength</td></tr>
+            </tbody>
+        </table>
+    }
+
+    <br />
+    <a href="/">← Back to Upload</a>
+
+    <script>
+              // ============= Server data =============
+              const cpData   = @Html.Raw(JsonSerializer.Serialize(Model.CpData, jsonOpts));
+              const datasets = @Html.Raw(JsonSerializer.Serialize(Model.Datasets, jsonOpts));
+              // =======================================
+
+              const CAUSE_MAP = {
+                  "Loading and Unloading": { color: "blue" },
+                  "Intersection": { color: "orange" },
+                  "Traffic Light": { color: "red" },
+                  "Pedestrian Crossing": { color: "purple" },
+                  "Animal Crossing": { color: "brown" },
+                  "Vehicle Crossing": { color: "maroon" },
+                  "Road Construction": { color: "gray" },
+                  "Blocked by Vehicle": { color: "black" },
+                  "Others": { color: "pink" }
+              };
+
+              // ---------- Map ----------
+              const map = L.map('map');
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+              const bounds = L.latLngBounds();
+
+              // CP labels
+              const cpMarkers = {};
+              (cpData || []).forEach(cp => {
+                  const m = L.circleMarker([cp.lat, cp.lon], { radius: 4, color: 'gray', fillColor: 'gray', fillOpacity: 1 }).addTo(map);
+                  m.bindTooltip(`CP: ${cp.cp_id}`, { permanent: true, direction: 'right', offset: [8,0], className: 'cp-label' });
+                  cpMarkers[cp.cp_id] = m;
+                  bounds.extend([cp.lat, cp.lon]);
+              });
+
+              // Dataset layer groups & toggles
+              const DS_COLORS = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+              const dsLayers = {}; // id -> LayerGroup
+              const dsListDiv = document.getElementById('ds-list');
+
+              (datasets || []).forEach((ds, i) => {
+                  const id = ds.id || ds.Id || `ds-${i}`;
+
+                  // Checkbox UI
+                  const wrap = document.createElement('div'); wrap.className = 'ds-row';
+                  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.id = 'ds-toggle-' + i; cb.dataset.id = id;
+                  const lbl = document.createElement('label'); lbl.htmlFor = cb.id; lbl.textContent = ' ' + (ds.name || ds.Name || ('Dataset ' + (i+1)));
+                  wrap.appendChild(cb); wrap.appendChild(lbl); dsListDiv.appendChild(wrap);
+
+                  // Layer group
+                  const g = L.layerGroup().addTo(map);
+                  dsLayers[id] = g;
+
+                  // Draw segments
+                  (ds.segments || ds.Segments || []).forEach(seg => {
+                      if (!seg.path || seg.path.length < 2) return; // 👈 allow 2+ points
+
+                      const color = seg.color || DS_COLORS[i % DS_COLORS.length];
+                      const latlngs = seg.path.map(p => [p[0], p[1]]);
+                      latlngs.forEach(ll => bounds.extend(ll));
+
+                      L.polyline(latlngs, { color: color, weight: 5, opacity: 0.9 })
+                          .bindPopup(
+                              `<b>${seg.fromCp ?? ''} → ${seg.toCp ?? ''}</b><br>
+                               Direction: ${seg.direction ?? 'N/A'}<br>
+                               Speed: ${seg.speed ?? 'N/A'} km/h<br>
+                               Cause: ${seg.cause ?? 'None'}<br>
+                               Status: ${seg.status ?? 'Unknown'}`
+                          )
+                          .addTo(g); // 👈 chain correctly
+                  });
+
+                 function safeNum(v) {
+            if (v === null || v === undefined) return 0;
+            if (typeof v !== 'number') v = Number(v);
+            return (isFinite(v) ? v : 0);
+        }
+
+              if (bounds.isValid()) map.fitBounds(bounds.pad(0.10));
+              else map.setView([14.6, 121.0], 12);
+
+              // ---------- Charts ----------
+               // ---------- CHARTS (per dataset) ----------
+              function safeNum(v) {
+                  if (v === null || v === undefined) return 0;
+                  if (typeof v !== 'number') v = Number(v);
+                  return (isFinite(v) ? v : 0);
+              }
+
+              // Build step series for (distance km vs speed)
+              function buildStepSeries(rows, speedKey) {
+                  const pts = [];
+                  let km = 0, prevY = null;
+                  rows.forEach(r => {
+                      const d_m = safeNum(r["Distance (m)"]);
+                      const y   = safeNum(r[speedKey]);
+                      if (!isFinite(d_m) || d_m <= 0) return;
+                      const nextKm = km + d_m / 1000;
+                      if (isFinite(y)) {
+                          if (prevY == null) { pts.push({ x: km, y }); }
+                          else if (y !== prevY) { pts.push({ x: km, y: prevY }); pts.push({ x: km, y }); }
+                          pts.push({ x: nextKm, y }); prevY = y;
+                      }
+                      km = nextKm;
+                  });
+                  return pts;
+              }
+
+              // 🔎 Optional: quick diagnostic to see what JSON looks like in the browser
+              console.log("Datasets (first):", (datasets || [])[0]);
+
+              (datasets || []).forEach((ds, i) => {
+                  const pieCtx = document.getElementById('pieChart-' + i)?.getContext('2d');
+                  const barCtx = document.getElementById('barChart-' + i)?.getContext('2d');
+                  const spdCtx = document.getElementById('speedChart-' + i)?.getContext('2d');
+                  if (!pieCtx || !barCtx || !spdCtx) return;
+
+                  // ✅ Use camelCase results, fallback to PascalCase
+                  const results = ds.results || ds.Results || [];
+                  console.log(`Dataset #${i} (${ds.name || ds.Name}) results count:`, results.length);
+
+                  // ✅ Map each result row to a chart-friendly shape with casing-safe lookups
+                  const resLite = results.map(r => {
+                      const DistanceM       = r.distanceM       ?? r.DistanceM       ?? 0;
+                      const TravelSpeedKph  = r.travelSpeedKph  ?? r.TravelSpeedKph  ?? 0;
+                      const RunningSpeedKph = r.runningSpeedKph ?? r.RunningSpeedKph ?? 0;
+                      const DelayLengthM    = r.delayLengthM    ?? r.DelayLengthM    ?? 0;
+                      const Delays          = r.delays          ?? r.Delays          ?? 0;
+                      const From            = r.from            ?? r.From            ?? '';
+                      const To              = r.to              ?? r.To              ?? '';
+                      const DelayCauses     = r.delayCauses     ?? r.DelayCauses     ?? '';
+
+                      return {
+                          "From": From,
+                          "To": To,
+                          "Distance (m)": safeNum(DistanceM),
+                          "Travel Speed (km/h)": safeNum(TravelSpeedKph),
+                          "Running Speed (km/h)": safeNum(RunningSpeedKph),
+                          "Delays": Delays,
+                          "Delay Length (m)": safeNum(DelayLengthM),
+                          "Delay Causes": DelayCauses
+                      };
+                  });
+
+                  // ---- Delay cause totals & per-CP pair stacks ----
+                  const delayCauseCounts = {};
+                  const delayCPCounts = {};
+                  resLite.forEach(row => {
+                      const from = row['From']; const to = row['To'];
+                      const cpPair = `${from} - ${to}`;
+                      const causes = (row['Delay Causes'] || '')
+                                      .split(',')
+                                      .map(s => s.trim())
+                                      .filter(Boolean);
+
+                      if (!causes.length) return;
+
+                      // total per cause
+                      causes.forEach(cause => {
+                          delayCauseCounts[cause] = (delayCauseCounts[cause] || 0) + 1;
+                      });
+
+                      // per CP-pair per cause
+                      if (!delayCPCounts[cpPair]) delayCPCounts[cpPair] = {};
+                      causes.forEach(cause => {
+                          delayCPCounts[cpPair][cause] = (delayCPCounts[cpPair][cause] || 0) + 1;
+                      });
+                  });
+
+                  // ---- Pie Chart (Delay Causes) ----
+                  const pieLabels = Object.keys(delayCauseCounts);
+                  const pieData   = pieLabels.map(lbl => delayCauseCounts[lbl]);
+                  const pieColors = pieLabels.map(lbl => (CAUSE_MAP[lbl]?.color || 'gray'));
+
+                  new Chart(pieCtx, {
+                      type: 'pie',
+                      data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors }] },
+                      options: {
+                          plugins: {
+                              title: { display: true, text: 'Delay Causes' },
+                              datalabels: {
+                                  formatter: (value, ctx) => {
+                                      const total = ctx.chart.data.datasets[0].data.reduce((s,v) => s+v, 0);
+                                      const pct = total ? ((value/total)*100).toFixed(1) : 0;
+                                      const label = ctx.chart.data.labels[ctx.dataIndex];
+                                      return `${label}\n${pct}%`;
+                                  },
+                                  color: '#fff', font: { weight: 'bold', size: 10 }, align: 'center'
+                              }
+                          }
+                      },
+                      plugins: [ChartDataLabels]
+                  });
+
+                  // ---- Stacked Bar (Delays per CP Segment by Cause) ----
+                  const stackedLabels = Object.keys(delayCPCounts);
+                  const allCauses = Object.keys(CAUSE_MAP);
+                  const stackedSets = allCauses.map(cause => ({
+                      label: cause,
+                      backgroundColor: CAUSE_MAP[cause].color,
+                      data: stackedLabels.map(lbl => delayCPCounts[lbl]?.[cause] || 0),
+                      stack: 'causes'
+                  }));
+
+                  new Chart(barCtx, {
+                      type: 'bar',
+                      data: { labels: stackedLabels, datasets: stackedSets },
+                      options: {
+                          plugins: { title: { display: true, text: 'Delays per CP Segment (Stacked by Cause)' }, legend: { position: 'bottom' } },
+                          responsive: true,
+                          scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+                      }
+                  });
+
+                  // ---- Step chart (Distance km vs speeds) ----
+                  const travelStep  = buildStepSeries(resLite, "Travel Speed (km/h)");
+                  const runningStep = buildStepSeries(resLite, "Running Speed (km/h)");
+                  const totalMeters = resLite.reduce((s, r) => s + safeNum(r["Distance (m)"]), 0);
+                  const maxKm = Math.ceil(totalMeters / 1000);
+
+                  new Chart(spdCtx, {
+                      type: 'line',
+                      data: { datasets: [
+                          { label: "Travel Speed (KPH)",  data: travelStep,  parsing: false, fill: false, borderColor: "#1f77b4", borderWidth: 2, pointRadius: 3, tension: 0 },
+                          { label: "Running Speed (KPH)", data: runningStep, parsing: false, fill: false, borderColor: "#ff7f0e", borderWidth: 2, pointRadius: 3, tension: 0 }
+                      ]},
+                      options: {
+                          responsive: true,
+                          plugins: { title: { display: true, text: "Travel Speed and Running Speed Comparison" }, legend: { position: 'top' } },
+                          scales: {
+                              x: { type: 'linear', title: { display: true, text: "Distance (km)" }, ticks: { stepSize: 1, callback: v => Math.round(v) }, min: 0, max: maxKm || 1 },
+                              y: { title: { display: true, text: "Speed (km/h)" }, beginAtZero: true }
+                          }
+                      }
+                  });
+              });
+    </script>
+</body>
+</html>

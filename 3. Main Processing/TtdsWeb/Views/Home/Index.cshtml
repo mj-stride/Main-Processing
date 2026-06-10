@@ -1,0 +1,23 @@
+﻿@{
+    ViewData["Title"] = "Upload CSV";
+    Layout = "_Layout";
+}
+
+<h3>Upload CSV</h3>
+<form asp-action="Upload" asp-controller="Home" method="post" enctype="multipart/form-data">
+    <div class="mb-3">
+        <input type="file" name="files" class="form-control" multiple accept=".csv" required />
+    </div>
+    <button type="submit" class="btn btn-primary">Upload</button>
+</form>
+<hr style="margin-top:40px;">
+
+<div style="text-align:center; margin-top:20px;">
+    <form method="post" action="/reset_session">
+        <button type="submit"
+                class="btn btn-danger"
+                style="padding:10px 20px; font-size:14px;">
+            🔄 Reset / Clear Previous CP
+        </button>
+    </form>
+</div>

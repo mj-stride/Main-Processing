@@ -1,0 +1,1424 @@
+﻿@model TtdsWeb.Models.MultiAnalyzeViewModel
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using System.Linq
+
+@{
+    var jsonOpts = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    // Helpers (nullable-safe)
+    string hhmmss(double? minutes) => TimeSpan.FromMinutes(minutes ?? 0).ToString(@"hh\:mm\:ss");
+    string kmFmt(double? v) => (v ?? 0).ToString("0.##");
+    string kphFmt(double? v) => (v ?? 0).ToString("0.##");
+
+    // Safe numeric conversion (works for double / double? / int / etc.)
+    double safeDouble(object? v)
+    {
+        if (v == null) return 0;
+        if (v is double d) return d;
+        if (v is float f) return f;
+        if (v is int i) return i;
+        if (v is long l) return l;
+        if (double.TryParse(v.ToString(), out var x)) return x;
+        return 0;
+    }
+}
+@functions {
+    // Extracts: tripNo and dtToken from "...-<tripNo>_YYYYMMDD-HHMMSS_..."
+    // Example: GPX_1_...-3_20250716-180525_snapped.csv  -> tripNo=3, dtToken=20250716-180525, date=20250716
+    (string vehCode, string vehName, string tripNo, string dtToken, string date)? ParseTripInfo(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        // 1 = Private Car, 2 = UV, 3 = Jeepney, 4 = BUS
+        var mv = System.Text.RegularExpressions.Regex.Match(
+            name,
+            @"\bGPX_(\d+)_",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
+
+        var vehCode = mv.Success ? mv.Groups[1].Value : "0";
+        var vehName = vehCode switch
+        {
+            "1" => "PrivateCar",
+            "2" => "UV",
+            "3" => "Jeepney",
+            "4" => "BUS",
+            _ => "UnknownVehicle"
+        };
+
+        var m = System.Text.RegularExpressions.Regex.Match(
+            name,
+            @"-(\d+)_((\d{8})-(\d{6}))",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
+
+        if (!m.Success)
+            return (vehCode, vehName, "0", "00000000-000000", "00000000");
+
+        var tripNo = m.Groups[1].Value;
+        var dtToken = m.Groups[2].Value;
+        var date = m.Groups[3].Value;
+
+        return (vehCode, vehName, tripNo, dtToken, date);
+    }
+
+
+    string PeriodFolder(string? peakCodeOrLabel)
+    {
+        var p = (peakCodeOrLabel ?? "").ToUpperInvariant();
+        if (p.Contains("AM")) return "AM";
+        if (p.Contains("MID")) return "MID";
+        if (p.Contains("PM")) return "PM";
+        return "OFF";
+    }
+}
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Multi Dataset Analysis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+    <script>
+        // Force white background for all Chart.js canvases (screen + export)
+        Chart.register({
+          id: 'whiteBackground',
+          beforeDraw(chart) {
+            const ctx = chart.canvas.getContext('2d');
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, chart.width, chart.height);
+            ctx.restore();
+          }
+        });
+
+        // When the ALL zip form is submitted (if you still keep it)
+        (function () {
+          const f = document.getElementById('allZipForm');
+          if (!f) return;
+
+          f.addEventListener('submit', function () {
+            const r = document.getElementById('regionSelect');
+            const rd = document.getElementById('roadSelect');
+
+            const reg = r?.value || 'UnknownRegion';
+            const road = rd?.value || 'UnknownRoad';
+
+            document.getElementById('allZipRegion').value = reg;
+            document.getElementById('allZipRoad').value = road;
+          });
+        })();
+    </script>
+    <script>
+        function dataUrlFromCanvas(canvas) {
+          try {
+            // PNG is safest for charts
+            return canvas.toDataURL("image/png");
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function getSelectedDatasetIds() {
+          // adjust selector to match your checkbox names
+          return Array.from(document.querySelectorAll('input[name="selected_files"]:checked'))
+            .map(x => x.value);
+        }
+
+        function buildGraphsPayload(region, road) {
+          // IMPORTANT: add data-export-name to each canvas you want exported
+          const canvases = Array.from(document.querySelectorAll("canvas[data-export-name]"));
+
+          const graphs = canvases.map(c => {
+            const fileName = c.getAttribute("data-export-name") || "graph.png";
+            const folder = `${safePart(region)}/${safePart(road)}/${date}/${veh}/Graphs/${period}`;
+
+
+            return {
+              folder,
+              fileName: fileName.toLowerCase().endsWith(".png") ? fileName : (fileName + ".png"),
+              dataUrl: dataUrlFromCanvas(c)
+            };
+          }).filter(g => g.dataUrl);
+
+          return graphs;
+        }
+
+        async function exportAllWithGraphs() {
+          const region = (document.querySelector("#Region")?.value || "UnknownRegion").trim();
+          const road = (document.querySelector("#RoadNameOrSections")?.value || "UnknownRoad").trim();
+
+          const payload = {
+            region,
+            roadNameOrSections: road,
+            selectedIds: getSelectedDatasetIds(),
+            graphs: buildGraphsPayload(region, road)
+          };
+
+          const res = await fetch("/export_all_with_graphs_zip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const msg = await res.text();
+            alert("Export failed: " + msg);
+            return;
+          }
+
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${region}_${road}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+
+          window.URL.revokeObjectURL(url);
+        }
+
+        document.getElementById("btnExportAllWithGraphs")
+          ?.addEventListener("click", exportAllWithGraphs);
+    </script>
+
+    <script>
+        function getFilters() {
+          const reg = document.getElementById('regionSelect')?.value || 'UnknownRegion';
+          const road = document.getElementById('roadSelect')?.value || 'UnknownRoad';
+          const period = document.getElementById('periodSelect')?.value || 'ALL';
+          return { reg, road, period };
+        }
+
+        function wireForm(formId, regionHiddenId, roadHiddenId) {
+          const f = document.getElementById(formId);
+          if (!f) return;
+
+          f.addEventListener('submit', function () {
+            const { reg, road } = getFilters();
+            const r = document.getElementById(regionHiddenId);
+            const rd = document.getElementById(roadHiddenId);
+            if (r) r.value = reg;
+            if (rd) rd.value = road;
+          });
+        }
+
+        // wire the existing POST forms
+        wireForm('dirZipForm', 'dirZipRegion', 'dirZipRoad');
+        wireForm('segZipForm', 'segZipRegion', 'segZipRoad');
+        wireForm('shapesZipForm', 'shapesZipRegion', 'shapesZipRoad');
+        wireForm('allZipForm', 'allZipRegion', 'allZipRoad');
+    </script>
+
+    <style>
+        /* ===== Center export buttons ===== */
+        .export-actions {
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+            .export-actions form {
+                width: 100%;
+                display: flex;
+                justify-content: center;
+            }
+
+            .export-actions .km-btn {
+                min-width: 360px;
+                justify-content: center;
+            }
+
+        canvas {
+            background-color: white;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            padding: 10px;
+        }
+
+        #top-wrap {
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 10px;
+            align-items: start;
+        }
+
+        #map {
+            height: 520px;
+            width: 100%;
+            border: 1px solid #bbb;
+        }
+
+        #ds-toggle {
+            border: 1px solid #ccc;
+            padding: 8px;
+        }
+
+        .ds-row {
+            margin-bottom: 4px;
+        }
+
+        .cp-label {
+            font-size: 12px;
+            font-weight: bold;
+            color: black;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        .peak-section {
+            margin-top: 28px;
+            border-top: 3px solid #333;
+            padding-top: 14px;
+        }
+
+        .peak-title {
+            font-size: 22px;
+            margin: 0 0 12px 0;
+        }
+
+        .dataset-section {
+            margin-top: 20px;
+            border-top: 2px solid #ddd;
+            padding-top: 16px;
+        }
+
+        .ds-title {
+            font-size: 20px;
+            margin: 0 0 10px 0;
+        }
+
+        .grid-two {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 12px;
+            align-items: start;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 12px;
+        }
+
+        th, td {
+            border: 1px solid gray;
+            padding: 6px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #eee;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 360px !important;
+        }
+
+        .sum-table td, .sum-table th {
+            text-align: left;
+        }
+
+        .sum-table th {
+            width: 240px;
+        }
+
+        .muted {
+            color: #666;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        /* ===== Export / KM-style Buttons ===== */
+        .km-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border: 0;
+            border-radius: 10px;
+            background: #1976d2;
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 2px 0 rgba(0,0,0,.12);
+        }
+
+            .km-btn:hover {
+                filter: brightness(1.05);
+            }
+
+            .km-btn:active {
+                transform: translateY(1px);
+            }
+
+            .km-btn:focus {
+                outline: 2px solid rgba(25,118,210,.35);
+                outline-offset: 2px;
+            }
+
+            .km-btn .km-ico {
+                width: 18px;
+                height: 18px;
+                display: inline-block;
+            }
+
+    </style>
+</head>
+
+<body>
+
+    <h2>🗺️ Multi Dataset Travel Time & Delay Analysis (Analyze Multi)</h2>
+
+    @{
+        var regions = Model.RegionList ?? new List<string>();
+        var roadsByRegion = Model.RoadsByRegion ?? new Dictionary<string, List<string>>();
+
+        var defaultRegion = Model.SelectedRegion ?? regions.FirstOrDefault() ?? "";
+        var defaultRoad = Model.SelectedRoad
+        ?? (roadsByRegion.ContainsKey(defaultRegion) ? roadsByRegion[defaultRegion].FirstOrDefault() : "")
+        ?? "";
+    }
+
+    @* FILTERS (used for ZIP folder naming) *@
+    <div class="filter-box" style="border:1px solid #ccc; padding:10px; margin:12px 0;">
+        <h4 style="margin:0 0 10px 0;">Preview Filters</h4>
+
+        <label><b>Region:</b></label>
+        <select id="regionSelect" name="region" form="exportForm">
+            @foreach (var r in regions)
+            {
+                <option value="@r" selected="@(r == defaultRegion)">@r</option>
+            }
+        </select>
+
+        <label><b>Road / Section:</b></label>
+        <select id="roadSelect" name="roadNameOrSections" form="exportForm">
+            @if (!string.IsNullOrWhiteSpace(defaultRegion) && roadsByRegion.ContainsKey(defaultRegion))
+            {
+                foreach (var rd in roadsByRegion[defaultRegion])
+                {
+                    <option value="@rd" selected="@(rd == defaultRoad)">@rd</option>
+                }
+            }
+        </select>
+
+        <label><b>Period:</b></label>
+        <select id="periodSelect" name="period" form="exportForm">
+            <option value="ALL">ALL</option>
+            <option value="AM">AM</option>
+            <option value="MID">MID</option>
+            <option value="PM">PM</option>
+        </select>
+
+        <div class="muted">These values will be used for the ZIP folder naming.</div>
+    </div>
+
+    <div id="top-wrap">
+        <div><div id="map"></div></div>
+
+        <div id="ds-toggle">
+            <h4 style="margin-top:0">Datasets on map</h4>
+            <div id="ds-list"></div>
+            <div class="muted">Tip: toggle datasets to hide/show on map.</div>
+        </div>
+    </div>
+
+    @* =========================
+       PER-PEAK RENDERING
+       ========================= *@
+
+    @if (Model.PeakGroups != null && Model.PeakGroups.Any())
+    {
+        for (int pg = 0; pg < Model.PeakGroups.Count; pg++)
+        {
+            var g = Model.PeakGroups[pg];
+
+            <div class="peak-section" id="peak-@pg">
+                <h2 class="peak-title">🗺️ Map for @g.PeakLabel</h2>
+                <div class="muted">⏱️ @g.PeakLabel (@g.PeakCode)</div>
+
+                @* Overall Summary *@
+                @if (g.OverallSummary != null)
+                {
+                    <h2>📌 Overall Summary (This Peak Period)</h2>
+                    <table class="sum-table">
+                        <tbody>
+                            <tr><th>Avg Travel Time (min)</th><td>@g.OverallSummary.TotalTravelTimeMin</td></tr>
+                            <tr><th>Avg Distance (km)</th><td>@g.OverallSummary.TotalDistanceKm</td></tr>
+                            <tr><th>Avg Travel Speed</th><td>@g.OverallSummary.AvgTravelSpeed</td></tr>
+                            <tr><th>Avg Running Speed</th><td>@g.OverallSummary.AvgRunningSpeed</td></tr>
+                            <tr><th>Avg Delay (min)</th><td>@g.OverallSummary.TotalDelayMin</td></tr>
+                            <tr><th>Avg Delay Length (m)</th><td>@g.OverallSummary.TotalDelayLength</td></tr>
+                        </tbody>
+                    </table>
+                }
+
+                @* Directional Averages (per peak) *@
+                @if (g.DirectionSummaries != null && g.DirectionSummaries.Any())
+                {
+                    var dirDict = g.DirectionSummaries
+                    .GroupBy(d => (d.Direction ?? "Unknown").ToUpperInvariant())
+                    .ToDictionary(x => x.Key, x => x.First());
+
+                    var sb = dirDict.ContainsKey("SB") ? dirDict["SB"] : null;
+                    var nb = dirDict.ContainsKey("NB") ? dirDict["NB"] : null;
+                    var eb = dirDict.ContainsKey("EB") ? dirDict["EB"] : null;
+                    var wb = dirDict.ContainsKey("WB") ? dirDict["WB"] : null;
+
+                    <h2>📌 Directional Averages (This Peak Period)</h2>
+
+                    <table class="sum-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                @if (sb != null)
+                                {
+                                    <th>Southbound</th>
+                                }
+                                @if (nb != null)
+                                {
+                                    <th>Northbound</th>
+                                }
+                                @if (eb != null)
+                                {
+                                    <th>Eastbound</th>
+                                }
+                                @if (wb != null)
+                                {
+                                    <th>Westbound</th>
+                                }
+                                <th>Units</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Avg Travel Time</td>
+                                @if (sb != null)
+                                {
+                                    <td>@hhmmss(sb.AvgTravelTimeMin)</td>
+                                }
+                                @if (nb != null)
+                                {
+                                    <td>@hhmmss(nb.AvgTravelTimeMin)</td>
+                                }
+                                @if (eb != null)
+                                {
+                                    <td>@hhmmss(eb.AvgTravelTimeMin)</td>
+                                }
+                                @if (wb != null)
+                                {
+                                    <td>@hhmmss(wb.AvgTravelTimeMin)</td>
+                                }
+                                <td>hh:mm:ss</td>
+                            </tr>
+                            <tr>
+                                <td>Avg Distance</td>
+                                @if (sb != null)
+                                {
+                                    <td>@kmFmt(sb.AvgDistanceKm)</td>
+                                }
+                                @if (nb != null)
+                                {
+                                    <td>@kmFmt(nb.AvgDistanceKm)</td>
+                                }
+                                @if (eb != null)
+                                {
+                                    <td>@kmFmt(eb.AvgDistanceKm)</td>
+                                }
+                                @if (wb != null)
+                                {
+                                    <td>@kmFmt(wb.AvgDistanceKm)</td>
+                                }
+                                <td>km</td>
+                            </tr>
+                            <tr>
+                                <td>Avg Travel Speed</td>
+                                @if (sb != null)
+                                {
+                                    <td>@kphFmt(sb.AvgTravelSpeed)</td>
+                                }
+                                @if (nb != null)
+                                {
+                                    <td>@kphFmt(nb.AvgTravelSpeed)</td>
+                                }
+                                @if (eb != null)
+                                {
+                                    <td>@kphFmt(eb.AvgTravelSpeed)</td>
+                                }
+                                @if (wb != null)
+                                {
+                                    <td>@kphFmt(wb.AvgTravelSpeed)</td>
+                                }
+                                <td>kph</td>
+                            </tr>
+                            <tr>
+                                <td>Avg Running Speed</td>
+                                @if (sb != null)
+                                {
+                                    <td>@kphFmt(sb.AvgRunningSpeed)</td>
+                                }
+                                @if (nb != null)
+                                {
+                                    <td>@kphFmt(nb.AvgRunningSpeed)</td>
+                                }
+                                @if (eb != null)
+                                {
+                                    <td>@kphFmt(eb.AvgRunningSpeed)</td>
+                                }
+                                @if (wb != null)
+                                {
+                                    <td>@kphFmt(wb.AvgRunningSpeed)</td>
+                                }
+                                <td>kph</td>
+                            </tr>
+                            <tr>
+                                <td>Avg Delay Time</td>
+                                @if (sb != null)
+                                {
+                                    <td>@hhmmss(sb.AvgDelayMin)</td>
+                                }
+                                @if (nb != null)
+                                {
+                                    <td>@hhmmss(nb.AvgDelayMin)</td>
+                                }
+                                @if (eb != null)
+                                {
+                                    <td>@hhmmss(eb.AvgDelayMin)</td>
+                                }
+                                @if (wb != null)
+                                {
+                                    <td>@hhmmss(wb.AvgDelayMin)</td>
+                                }
+                                <td>hh:mm:ss</td>
+                            </tr>
+                            <tr>
+                                <td>Avg Delay Length</td>
+                                @if (sb != null)
+                                {
+                                    <td>@kmFmt(safeDouble(sb.AvgDelayLength) / 1000.0)</td>
+                                }
+                                @if (nb != null)
+                                {
+                                    <td>@kmFmt(safeDouble(nb.AvgDelayLength) / 1000.0)</td>
+                                }
+                                @if (eb != null)
+                                {
+                                    <td>@kmFmt(safeDouble(eb.AvgDelayLength) / 1000.0)</td>
+                                }
+                                @if (wb != null)
+                                {
+                                    <td>@kmFmt(safeDouble(wb.AvgDelayLength) / 1000.0)</td>
+                                }
+                                <td>km</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                }
+
+                @* Dataset sections *@
+                @for (int idx = 0; idx < (g.Datasets?.Count ?? 0); idx++)
+                {
+                    var ds = g.Datasets[idx];
+                    var globalIndex = $"{pg}-{idx}";
+
+                    var info = ParseTripInfo(ds.Name);
+                    var vehName = info?.vehName ?? "UnknownVehicle";
+                    var vehCode = info?.vehCode ?? "0";
+                    var tripNo = info?.tripNo ?? "0";
+                    var dtToken = info?.dtToken ?? "00000000-000000";
+                    var dateTok = info?.date ?? "00000000";
+                    var periodTok = PeriodFolder(ds.PeakCode ?? ds.PeakLabel);
+                    var dirTok = (ds.Direction ?? "UNK").Trim().ToUpperInvariant();
+
+                    <div class="dataset-section" id="peak-@pg-ds-@idx">
+                        <h3 class="ds-title">📁 @ds.Name</h3>
+                        <div class="muted">Peak: <b>@ds.PeakLabel</b> | Direction: <b>@ds.Direction</b></div>
+
+                        <div class="grid-two">
+                            <div>
+                                <h4>📉 Travel & Running Speeds</h4>
+                                <canvas id="speedChart-@globalIndex"
+                                        class="trip-graph"
+                                        data-date="@dateTok"
+                                        data-period="@periodTok"
+                                        data-trip="@tripNo"
+                                        data-dt="@dtToken"
+                                        data-dir="@dirTok"
+                                        data-veh="@vehName"
+                                        data-graph="Travel & Running Speeds"></canvas>
+                            </div>
+                            <div>
+                                <h4>📊 Delay Cause Pie</h4>
+                                <canvas id="pieChart-@globalIndex"
+                                        class="trip-graph"
+                                        data-date="@dateTok"
+                                        data-period="@periodTok"
+                                        data-trip="@tripNo"
+                                        data-dt="@dtToken"
+                                        data-dir="@dirTok"
+                                        data-veh="@vehName"
+                                        data-graph="Delay Cause Pie"></canvas>
+
+
+                                <h4 style="margin-top:16px">📈 CP-to-CP Delay Bar</h4>
+                                <canvas id="barChart-@globalIndex"
+                                        class="trip-graph"
+                                        data-date="@dateTok"
+                                        data-period="@periodTok"
+                                        data-trip="@tripNo"
+                                        data-dt="@dtToken"
+                                        data-dir="@dirTok"
+                                        data-veh="@vehName"
+                                        data-graph="CP-to-CP Delay Bar"></canvas>
+                            </div>
+                        </div>
+
+                        <h4>🧮 Summary</h4>
+                        <table class="sum-table">
+                            <tbody>
+                                <tr><th>Total Travel Time (min)</th><td>@ds.Summary?.TotalTravelTimeMin</td></tr>
+                                <tr><th>Total Distance (km)</th><td>@ds.Summary?.TotalDistanceKm</td></tr>
+                                <tr><th>Avg Travel Speed</th><td>@ds.Summary?.AvgTravelSpeed</td></tr>
+                                <tr><th>Avg Running Speed</th><td>@ds.Summary?.AvgRunningSpeed</td></tr>
+                                <tr><th>Total Delay (min)</th><td>@ds.Summary?.TotalDelayMin</td></tr>
+                                <tr><th>Total Delay Length (m)</th><td>@ds.Summary?.TotalDelayLength</td></tr>
+                            </tbody>
+                        </table>
+
+                        <h4>📊 Segment Analysis</h4>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Travel Time (sec)</th>
+                                    <th>Distance (m)</th>
+                                    <th>Travel Speed (km/h)</th>
+                                    <th>Running Speed (km/h)</th>
+                                    <th>Delays</th>
+                                    <th>Delay Length (m)</th>
+                                    <th>Delay Causes</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in (ds.Results ?? Enumerable.Empty<TtdsWeb.Models.SegmentResult>()))
+                                {
+                                    <tr>
+                                        <td>@r.From</td>
+                                        <td>@r.To</td>
+                                        <td>@r.StartTime</td>
+                                        <td>@r.EndTime</td>
+                                        <td>@r.TravelTimeSec</td>
+                                        <td>@r.DistanceM</td>
+                                        <td>@r.TravelSpeedKph</td>
+                                        <td>@r.RunningSpeedKph</td>
+                                        <td>@r.Delays</td>
+                                        <td>@r.DelayLengthM</td>
+                                        <td>@r.DelayCauses</td>
+                                        <td>@r.Note</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div style="margin-top:16px; color:#b00;">
+            No PeakGroups were returned. Make sure your controller returns MultiAnalyzeViewModel.PeakGroups.
+        </div>
+    }
+
+    @* =========================
+       ONE-TIME SECTION (OUTSIDE)
+       Separate table per period
+       ========================= *@
+
+    @if (Model.PeakGroups != null && Model.PeakGroups.Any())
+    {
+        var peakDirMap = Model.PeakGroups
+        .Where(x => x.DirectionSummaries != null && x.DirectionSummaries.Any())
+        .ToDictionary(
+        x => (x.PeakCode ?? x.PeakLabel ?? "UNKNOWN").ToUpperInvariant(),
+        x => x.DirectionSummaries
+        .GroupBy(d => (d.Direction ?? "UNKNOWN").ToUpperInvariant())
+        .ToDictionary(k => k.Key, k => k.First())
+        );
+
+        var allDirs = peakDirMap.Values
+        .SelectMany(d => d.Keys)
+        .Distinct()
+        .OrderBy(d => d)
+        .ToList();
+
+        string dirFull(string d) => d switch
+        {
+            "NB" => "Northbound",
+            "SB" => "Southbound",
+            "EB" => "Eastbound",
+            "WB" => "Westbound",
+            _ => d
+        };
+
+        var peakOrder = new[] { "AM", "MID", "PM" };
+        var peaksSorted = peakDirMap.Keys
+        .OrderBy(k => Array.IndexOf(peakOrder, k) == -1 ? 999 : Array.IndexOf(peakOrder, k))
+        .ThenBy(k => k)
+        .ToList();
+
+        <div class="peak-section" id="dir-all-periods">
+            <h2 class="peak-title">📌 Directional Averages (Separate Table per Time Period)</h2>
+            <div class="muted">AM / MID / PM shown separately; directions are columns.</div>
+
+            @if (peakDirMap.Count == 0)
+            {
+                <div class="muted" style="margin-top:10px; color:#b00;">
+                    No DirectionSummaries found. Make sure your controller populates PeakGroups[n].DirectionSummaries.
+                </div>
+            }
+            else
+            {
+                @foreach (var pk in peaksSorted)
+                {
+                    <h3 style="margin-top:16px;">⏱️ @pk</h3>
+
+                    <table class="sum-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                @foreach (var d in allDirs)
+                                {
+                                    <th>@dirFull(d)</th>
+                                }
+                                <th>Units</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><b>Avg Travel Time</b></td>
+                                @foreach (var d in allDirs)
+                                {
+                                    var has = peakDirMap[pk].TryGetValue(d, out var s);
+                                    <td>@(has? hhmmss(s.AvgTravelTimeMin) : "-")</td>
+                                }
+                                <td>hh:mm:ss</td>
+                            </tr>
+
+                            <tr>
+                                <td><b>Avg Distance</b></td>
+                                @foreach (var d in allDirs)
+                                {
+                                    var has = peakDirMap[pk].TryGetValue(d, out var s);
+                                    <td>@(has? kmFmt(s.AvgDistanceKm) : "-")</td>
+                                }
+                                <td>km</td>
+                            </tr>
+
+                            <tr>
+                                <td><b>Avg Travel Speed</b></td>
+                                @foreach (var d in allDirs)
+                                {
+                                    var has = peakDirMap[pk].TryGetValue(d, out var s);
+                                    <td>@(has? kphFmt(s.AvgTravelSpeed) : "-")</td>
+                                }
+                                <td>kph</td>
+                            </tr>
+
+                            <tr>
+                                <td><b>Avg Running Speed</b></td>
+                                @foreach (var d in allDirs)
+                                {
+                                    var has = peakDirMap[pk].TryGetValue(d, out var s);
+                                    <td>@(has? kphFmt(s.AvgRunningSpeed) : "-")</td>
+                                }
+                                <td>kph</td>
+                            </tr>
+
+                            <tr>
+                                <td><b>Avg Delay Time</b></td>
+                                @foreach (var d in allDirs)
+                                {
+                                    var has = peakDirMap[pk].TryGetValue(d, out var s);
+                                    <td>@(has? hhmmss(s.AvgDelayMin) : "-")</td>
+                                }
+                                <td>hh:mm:ss</td>
+                            </tr>
+
+                            <tr>
+                                <td><b>Avg Delay Length</b></td>
+                                @foreach (var d in allDirs)
+                                {
+                                    var has = peakDirMap[pk].TryGetValue(d, out var s);
+                                    <td>@(has? kmFmt(safeDouble(s.AvgDelayLength) / 1000.0) : "-")</td>
+                                }
+                                <td>km</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                }
+            }
+        </div>
+    }
+
+    <br />
+    @* <a href="/">← Back to Upload</a> *@
+
+    @* KEEP ONE export form (ID used by filter selects). *@
+    <form id="exportForm" method="post" action="/export_multi_csv" style="margin-top:10px;">
+        @if (Model.PeakGroups != null)
+        {
+            foreach (var g in Model.PeakGroups)
+            {
+                foreach (var item in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                {
+                    <input type="hidden" name="selected_files" value="@item.Id" />
+                }
+            }
+        }
+        @* <button type="submit" class="km-btn">
+            <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
+            </svg>
+            Download Directional Averages (AM / MID / PM)
+        </button> *@
+
+    </form>
+
+    <script>
+        // ============= Server data =============
+        const cpData = @Html.Raw(JsonSerializer.Serialize(Model.CpData, jsonOpts));
+        const peakGroups = @Html.Raw(JsonSerializer.Serialize(Model.PeakGroups, jsonOpts));
+        const datasets = (peakGroups || []).flatMap(g => g?.datasets || []);
+        // =======================================
+
+        const CAUSE_MAP = {
+            "Loading and Unloading": { color: "blue" },
+            "Intersection": { color: "orange" },
+            "Traffic Light": { color: "red" },
+            "Pedestrian Crossing": { color: "purple" },
+            "Animal Crossing": { color: "brown" },
+            "Vehicle Crossing": { color: "maroon" },
+            "Road Construction": { color: "gray" },
+            "Blocked by Vehicle": { color: "black" },
+            "Others": { color: "pink" }
+        };
+
+        // ---------- Map ----------
+        const map = L.map('map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+        const bounds = L.latLngBounds();
+
+        // CP labels
+        const cpMarkers = {};
+        (cpData || []).forEach(cp => {
+            if (cp?.lat == null || cp?.lon == null) return;
+            const m = L.circleMarker([cp.lat, cp.lon], { radius: 1, fillColor: 'gray', fillOpacity: 1 }).addTo(map);
+            m.bindTooltip(`CP: ${cp.cp_id}`, { permanent: true, direction: 'right', offset: [8, 0], className: 'cp-label' });
+            cpMarkers[cp.cp_id] = m;
+            bounds.extend([cp.lat, cp.lon]);
+        });
+
+        // Dataset layer groups & toggles
+        const DS_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
+        const dsLayers = {};
+        const dsListDiv = document.getElementById('ds-list');
+
+        (datasets || []).forEach((ds, i) => {
+            const id = ds?.id || `ds-${i}`;
+
+            // Checkbox UI
+            const wrap = document.createElement('div'); wrap.className = 'ds-row';
+            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.id = 'ds-toggle-' + i; cb.dataset.id = id;
+
+            const peakLbl = ds?.peakLabel || '';
+            const nm = ds?.name || ('Dataset ' + (i + 1));
+            const lbl = document.createElement('label'); lbl.htmlFor = cb.id;
+            lbl.textContent = ` ${nm} (${peakLbl || 'Off-Peak'})`;
+
+            wrap.appendChild(cb); wrap.appendChild(lbl);
+            dsListDiv.appendChild(wrap);
+
+            // Layer group
+            const g = L.layerGroup().addTo(map);
+            dsLayers[id] = g;
+
+            // Draw segments
+            (ds?.segments || []).forEach(seg => {
+                if (!seg?.path || seg.path.length < 2) return;
+
+                const color = seg.color || DS_COLORS[i % DS_COLORS.length];
+                const latlngs = seg.path.map(p => [p[0], p[1]]);
+                latlngs.forEach(ll => bounds.extend(ll));
+
+                L.polyline(latlngs, { color: color, weight: 5, opacity: 0.9 })
+                    .bindPopup(
+                        `<b>${seg.fromCp ?? ''} → ${seg.toCp ?? ''}</b><br>
+                         Direction: ${seg.direction ?? 'N/A'}<br>
+                         Speed: ${seg.speed ?? 'N/A'} km/h<br>
+                         Cause: ${seg.cause ?? 'None'}<br>
+                         Status: ${seg.status ?? 'Unknown'}`
+                    )
+                    .addTo(g);
+            });
+
+            cb.addEventListener('change', (ev) => {
+                const layer = dsLayers[ev.target.dataset.id];
+                if (!layer) return;
+                if (ev.target.checked) layer.addTo(map);
+                else map.removeLayer(layer);
+            });
+        });
+
+        if (bounds.isValid()) map.fitBounds(bounds.pad(0.10));
+        else map.setView([14.6, 121.0], 12);
+
+        // ---------- Charts ----------
+        function safeNum(v) {
+            if (v === null || v === undefined) return 0;
+            if (typeof v !== 'number') v = Number(v);
+            return (isFinite(v) ? v : 0);
+        }
+
+        function buildStepSeries(rows, speedKey) {
+            const pts = [];
+            let km = 0, prevY = null;
+            rows.forEach(r => {
+                const d_m = safeNum(r["Distance (m)"]);
+                const y = safeNum(r[speedKey]);
+                if (!isFinite(d_m) || d_m <= 0) return;
+
+                const nextKm = km + d_m / 1000;
+
+                if (isFinite(y)) {
+                    if (prevY == null) {
+                        pts.push({ x: km, y });
+                    } else if (y !== prevY) {
+                        pts.push({ x: km, y: prevY });
+                        pts.push({ x: km, y });
+                    }
+                    pts.push({ x: nextKm, y });
+                    prevY = y;
+                }
+
+                km = nextKm;
+            });
+            return pts;
+        }
+
+        (peakGroups || []).forEach((pg, pgIndex) => {
+            const gds = pg?.datasets || [];
+            gds.forEach((ds, dsIndex) => {
+                const key = `${pgIndex}-${dsIndex}`;
+
+                const pieCtx = document.getElementById('pieChart-' + key)?.getContext('2d');
+                const barCtx = document.getElementById('barChart-' + key)?.getContext('2d');
+                const spdCtx = document.getElementById('speedChart-' + key)?.getContext('2d');
+                if (!pieCtx || !barCtx || !spdCtx) return;
+
+                const results = ds?.results || [];
+
+                const resLite = results.map(r => {
+                    const DistanceM = r.distanceM ?? 0;
+                    const TravelSpeedKph = r.travelSpeedKph ?? 0;
+                    const RunningSpeedKph = r.runningSpeedKph ?? 0;
+                    const DelayLengthM = r.delayLengthM ?? 0;
+                    const Delays = r.delays ?? 0;
+                    const From = r.from ?? '';
+                    const To = r.to ?? '';
+                    const DelayCauses = r.delayCauses ?? '';
+
+                    return {
+                        "From": From,
+                        "To": To,
+                        "Distance (m)": safeNum(DistanceM),
+                        "Travel Speed (km/h)": safeNum(TravelSpeedKph),
+                        "Running Speed (km/h)": safeNum(RunningSpeedKph),
+                        "Delays": safeNum(Delays),
+                        "Delay Length (m)": safeNum(DelayLengthM),
+                        "Delay Causes": DelayCauses
+                    };
+                });
+
+                const delayCauseCounts = {};
+                const delayCPCounts = {};
+
+                resLite.forEach(row => {
+                    const from = row['From'];
+                    const to = row['To'];
+                    const cpPair = `${from} - ${to}`;
+
+                    const causes = (row['Delay Causes'] || '')
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(Boolean);
+
+                    if (!causes.length) return;
+
+                    causes.forEach(cause => {
+                        delayCauseCounts[cause] = (delayCauseCounts[cause] || 0) + 1;
+                    });
+
+                    if (!delayCPCounts[cpPair]) delayCPCounts[cpPair] = {};
+                    causes.forEach(cause => {
+                        delayCPCounts[cpPair][cause] = (delayCPCounts[cpPair][cause] || 0) + 1;
+                    });
+                });
+
+                // PIE
+                const pieLabels = Object.keys(delayCauseCounts);
+                const pieData = pieLabels.map(lbl => delayCauseCounts[lbl]);
+                const pieColors = pieLabels.map(lbl => (CAUSE_MAP[lbl]?.color || 'gray'));
+
+                new Chart(pieCtx, {
+                    type: 'pie',
+                    data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors }] },
+                    options: {
+                        plugins: {
+                            title: { display: true, text: 'Delay Causes' },
+                            datalabels: {
+                                formatter: (value, ctx) => {
+                                    const total = ctx.chart.data.datasets[0].data.reduce((s, v) => s + v, 0);
+                                    const pct = total ? ((value / total) * 100).toFixed(1) : 0;
+                                    const label = ctx.chart.data.labels[ctx.dataIndex];
+                                    return `${label}\n${pct}%`;
+                                },
+                                color: '#fff',
+                                font: { weight: 'bold', size: 10 },
+                                align: 'center'
+                            }
+                        }
+                    },
+                    plugins: [ChartDataLabels]
+                });
+
+                // STACKED BAR
+                let stackedLabels = Object.keys(delayCPCounts);
+                const pieOrder = Object.entries(delayCauseCounts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+                const detectedCauses = pieOrder.filter(c => delayCauseCounts[c] > 0);
+
+                const stackedSets = detectedCauses.map(cause => ({
+                    label: cause,
+                    backgroundColor: (CAUSE_MAP[cause]?.color || 'gray'),
+                    data: stackedLabels.map(lbl => (delayCPCounts[lbl]?.[cause] || 0)),
+                    stack: 'causes'
+                }));
+
+                const totalsPerPair = Object.fromEntries(
+                    stackedLabels.map(lbl => [
+                        lbl, Object.values(delayCPCounts[lbl] || {}).reduce((s, v) => s + v, 0)
+                    ])
+                );
+
+                stackedLabels.sort((a, b) => (totalsPerPair[b] || 0) - (totalsPerPair[a] || 0));
+                stackedSets.forEach(ds2 => {
+                    ds2.data = stackedLabels.map(lbl => (delayCPCounts[lbl]?.[ds2.label] || 0));
+                });
+
+                new Chart(barCtx, {
+                    type: 'bar',
+                    data: { labels: stackedLabels, datasets: stackedSets },
+                    options: {
+                        plugins: {
+                            title: { display: true, text: 'Delays per CP Segment (Stacked by Cause)' },
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 14,
+                                    font: { size: 11 },
+                                    filter: (legendItem, chartData) => {
+                                        const ds3 = chartData.datasets[legendItem.datasetIndex];
+                                        return Array.isArray(ds3.data) && ds3.data.some(v => v > 0);
+                                    }
+                                }
+                            }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 30 } },
+                            y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 } } }
+                        },
+                        layout: { padding: { bottom: 12 } }
+                    }
+                });
+
+                // SPEED LINE
+                const travelStep = buildStepSeries(resLite, "Travel Speed (km/h)");
+                const runningStep = buildStepSeries(resLite, "Running Speed (km/h)");
+                const totalMeters = resLite.reduce((s, r) => s + safeNum(r["Distance (m)"]), 0);
+                const maxKm = Math.ceil(totalMeters / 1000);
+
+                new Chart(spdCtx, {
+                    type: 'line',
+                    data: {
+                        datasets: [
+                            { label: "Travel Speed (KPH)", data: travelStep, parsing: false, fill: false, borderWidth: 2, pointRadius: 3, tension: 0 },
+                            { label: "Running Speed (KPH)", data: runningStep, parsing: false, fill: false, borderWidth: 2, pointRadius: 3, tension: 0 }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: { display: true, text: "Travel Speed and Running Speed Comparison" },
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: { display: true, text: "Distance (km)" },
+                                ticks: { stepSize: 1, callback: v => Math.round(v) },
+                                min: 0,
+                                max: maxKm || 1
+                            },
+                            y: { title: { display: true, text: "Speed (km/h)" }, beginAtZero: true }
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+
+
+    <br />
+    <a href="/">← Back to Upload</a>
+
+    <div class="export-actions">
+
+        <form id="dirZipForm" method="post" action="/export_dir_tables_zip">
+            <input type="hidden" name="region" id="dirZipRegion" value="" />
+            <input type="hidden" name="roadNameOrSections" id="dirZipRoad" value="" />
+
+            @if (Model.PeakGroups != null)
+            {
+                foreach (var g in Model.PeakGroups)
+                {
+                    foreach (var item in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                    {
+                        <input type="hidden" name="selected_files" value="@item.Id" />
+                    }
+                }
+            }
+
+            <button type="submit" class="km-btn">
+                <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
+                </svg>
+                Download Directional Averages (AM / MID / PM)
+            </button>
+        </form>
+
+        <form id="segZipForm" method="post" action="/export_segment_analysis_zip">
+            <input type="hidden" name="region" id="segZipRegion" value="" />
+            <input type="hidden" name="roadNameOrSections" id="segZipRoad" value="" />
+
+            @if (Model.PeakGroups != null)
+            {
+                foreach (var g in Model.PeakGroups)
+                {
+                    foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                    {
+                        <input type="hidden" name="selected_files" value="@ds.Id" />
+                    }
+                }
+            }
+
+            <button type="submit" class="km-btn">
+                <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
+                </svg>
+                Download Segment Analysis ZIP (Per Trip)
+            </button>
+        </form>
+
+        <form id="shapesZipForm" method="post" action="/export_shapes_zip">
+            <input type="hidden" name="region" id="shapesZipRegion" value="" />
+            <input type="hidden" name="roadNameOrSections" id="shapesZipRoad" value="" />
+
+            @if (Model.PeakGroups != null)
+            {
+                foreach (var g in Model.PeakGroups)
+                {
+                    foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                    {
+                        <input type="hidden" name="selected_files" value="@ds.Id" />
+                    }
+                }
+            }
+
+            <button type="submit" class="km-btn">
+                <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
+                </svg>
+                Download Shapes
+            </button>
+        </form>
+
+        <button type="button" id="btnDownloadGraphs" class="km-btn">
+            <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
+            </svg>
+            Download Graphs
+        </button>
+
+    </div>
+
+    <form id="allZipForm" method="post" action="/export_all_zip" class="download-form">
+    <input type="hidden" name="region" id="allZipRegion" />
+    <input type="hidden" name="roadNameOrSections" id="allZipRoad" />
+
+    @if (Model.PeakGroups != null)
+    {
+        foreach (var g in Model.PeakGroups)
+        {
+            foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+            {
+                <input type="hidden" name="selected_files" value="@ds.Id" />
+            }
+        }
+    }
+
+        <button type="button" id="btnDownloadAllWithGraphs" class="km-btn km-btn-primary">
+            ⬇ Download ALL (Tables + Shapes + Graphs)
+        </button>
+</form>
+    <script>
+        function safePart(s) {
+          return (s || '')
+            .toString()
+            .trim()
+            .replace(/[\\/:*?"<>|]/g, '-')   // windows-invalid chars
+            .replace(/\s+/g, '_');
+        }
+
+        function canvasToJpegDataUrl(canvas) {
+          // JPEG keeps size smaller; plugin already paints white bg
+          return canvas.toDataURL("image/jpeg", 0.92);
+        }
+
+                function collectGraphs(region, road) {
+          const nodes = Array.from(document.querySelectorAll('canvas.trip-graph'));
+          const items = [];
+
+          for (const c of nodes) {
+            const date = safePart(c.dataset.date || '00000000');
+            const period = safePart(c.dataset.period || 'OFF');
+            const trip = safePart(c.dataset.trip || '0');
+            const dt = safePart(c.dataset.dt || '00000000-000000');
+            const dir = safePart(c.dataset.dir || 'UNK');
+            const veh = safePart(c.dataset.veh || 'UnknownVehicle');
+
+            const graphName = safePart(c.dataset.graph || c.id || 'Graph');
+
+            // ✅ FIXED (no double Graphs)
+            const folder = `${safePart(region)}/${safePart(road)}/${date}/${veh}/Graphs/${period}`;
+
+            const fileName = `Trip-${trip}_${dt}_${dir}_${graphName}.jpg`;
+
+            items.push({ folder, fileName, dataUrl: canvasToJpegDataUrl(c) });
+          }
+
+          return items;
+        }
+
+    </script>
+    <script>
+                document.getElementById("btnDownloadGraphs")?.addEventListener("click", async () => {
+          const { reg, road } = getFilters();
+          const items = collectGraphs(reg, road);
+
+          const res = await fetch("/export_graphs_zip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              region: reg,
+              roadNameOrSections: road,
+              items // ✅ MUST be 'items'
+            })
+          });
+
+          if (!res.ok) { alert("Graphs download failed: " + await res.text()); return; }
+
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `GRAPHS_${safePart(reg)}_${safePart(road)}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+    </script>
+
+    <script>
+                document.getElementById("btnDownloadAllWithGraphs")?.addEventListener("click", async () => {
+          const { reg, road } = getFilters();
+
+          const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]'))
+            .map(x => x.value);
+
+          const graphs = collectGraphs(reg, road);
+
+          const payload = {
+            region: reg,
+            roadNameOrSections: road,
+            selectedIds,
+            graphs
+          };
+
+          const res = await fetch("/export_all_with_graphs_zip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) { alert("ALL download failed: " + await res.text()); return; }
+
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${safePart(reg)}_${safePart(road)}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+
+    </script>
+
+</body>
+</html>
