@@ -23,12 +23,12 @@ namespace Report_Generator.Services
             string formatSpeed(double? speed) => speed.HasValue ? speed.Value.ToString("0.00") : "";
 
             csv.AppendLine("Metric,NB/EB,SB/WB,Units");
-            csv.AppendLine($"Avg Travel Time,{formatTime(nb.AvgTravelTimeSec)},{formatTime(sb.AvgTravelTimeSec)},hh:mm:ss");
-            csv.AppendLine($"Avg Distance,{formatDistance(nb.AvgDistanceM)},{formatDistance(sb.AvgDistanceM)},km");
-            csv.AppendLine($"Avg Travel Speed,{formatSpeed(nb.AvgTravelSpeedKph)},{formatSpeed(sb.AvgTravelSpeedKph)},kph");
-            csv.AppendLine($"Avg Running Speed,{formatSpeed(nb.AvgRunningSpeedKph)},{formatSpeed(sb.AvgRunningSpeedKph)},kph");
-            csv.AppendLine($"Avg Delay Time,{formatTime(nb.AvgDelayTimeSec)},{formatTime(sb.AvgDelayTimeSec)},hh:mm:ss");
-            csv.AppendLine($"Avg Delay Length,{formatDistance(nb.AvgDelayLengthM)},{formatDistance(sb.AvgDelayLengthM)},km");
+            csv.AppendLine($"Avg Travel Time,{formatTime(nb?.AvgTravelTimeSec)},{formatTime(sb?.AvgTravelTimeSec)},hh:mm:ss");
+            csv.AppendLine($"Avg Distance,{formatDistance(nb?.AvgDistanceM)},{formatDistance(sb?.AvgDistanceM)},km");
+            csv.AppendLine($"Avg Travel Speed,{formatSpeed(nb?.AvgTravelSpeedKph)},{formatSpeed(sb?.AvgTravelSpeedKph)},kph");
+            csv.AppendLine($"Avg Running Speed,{formatSpeed(nb?.AvgRunningSpeedKph)},{formatSpeed(sb?.AvgRunningSpeedKph)},kph");
+            csv.AppendLine($"Avg Delay Time,{formatTime(nb?.AvgDelayTimeSec)},{formatTime(sb?.AvgDelayTimeSec)},hh:mm:ss");
+            csv.AppendLine($"Avg Delay Length,{formatDistance(nb?.AvgDelayLengthM)},{formatDistance(sb?.AvgDelayLengthM)},km");
 
             return csv.ToString();
         }

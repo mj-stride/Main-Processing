@@ -57,7 +57,7 @@ namespace Report_Generator.Controllers
                     {
                         // Filter .csv files with pattern: {TripNo}_{Anything}-NB/SB.csv
                         string csvFileName = System.IO.Path.GetFileNameWithoutExtension(file.FileName);
-                        string pattern = @"^(\d+)_.*-(NB|SB)$";
+                        string pattern = @"^(\d+)_.*-(NB|SB|EB|WB)$";
                         Match match = Regex.Match(csvFileName, pattern, RegexOptions.IgnoreCase);
 
                         if (match.Success)
@@ -69,6 +69,9 @@ namespace Report_Generator.Controllers
                                 // Get TripNo and Direction from filename
                                 int tripNo = int.Parse(match.Groups[1].Value);
                                 string direction = match.Groups[2].Value.ToUpper();
+
+                                if (direction == "EB") direction = "NB";
+                                if (direction == "WB") direction = "SB";
 
                                 // Get Period from parent directory
                                 string? dirPath = Path.GetDirectoryName(file.FileName);
@@ -91,12 +94,21 @@ namespace Report_Generator.Controllers
                 {
                     // Directional Averages Test
                     var directionalAverages = dataProcessor.CalculateDirectionalAverages(surveyTripData);
-                    string DirAvgAm = _csvExport.GenerateDirectionalAveragesCsv(directionalAverages, "AM");
-                    // tmp test
                     string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                    string csvSavePath = Path.Combine(desktopPath, $"AM_DirectionalAverages_{survey.VehicleType}.csv");
-                    System.IO.File.WriteAllText(csvSavePath, DirAvgAm);
-                    Console.WriteLine($"CSV SAVED on: {csvSavePath}");
+                    string csvSavePath = Path.Combine(desktopPath, survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, "DirectionalAverages");
+                    if (!Directory.Exists(csvSavePath))
+                    {
+                        Directory.CreateDirectory(csvSavePath);
+                    }
+                    string[] periods = { "AM", "MID", "PM" };
+
+                    foreach (var period in periods)
+                    {
+                        string DirAvg = _csvExport.GenerateDirectionalAveragesCsv(directionalAverages, period);
+                        string csvDirAvgFile = Path.Combine(csvSavePath, $"{period}_DirectionalAverages.csv");
+                        System.IO.File.WriteAllText(csvDirAvgFile, DirAvg);
+                        Console.WriteLine($"CSV SAVED on: {csvDirAvgFile}");
+                    }
 
                     // Segment Averages Test
                     var segmentAverages = dataProcessor.CalculateSegmentAverages(surveyTripData);
