@@ -17,11 +17,11 @@ namespace Report_Generator.Controllers
         private readonly CsvParserService _csvParser;
         private readonly CsvExportService _csvExport;
 
-        public ReportController()
+        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport)
         {
-            _folderScanner = new FolderScannerService();
-            _csvParser = new CsvParserService();
-            _csvExport = new CsvExportService();
+            _folderScanner = folderScanner;
+            _csvParser = csvParser;
+            _csvExport = csvExport;
         }
 
         [HttpPost("generate")]

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
-using HarfBuzzSharp;
 using Report_Generator.Models;
 
 namespace Report_Generator.Services
