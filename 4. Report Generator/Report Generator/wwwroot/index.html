@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Folder Upload Tester</title>
+    <style>
+        body {
+            background: #f4f6f8;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-weight: 600;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 15px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        .file-input-wrapper {
+            background: #f8f9fa;
+            border: 2px dashed #cbd5e1;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s ease;
+        }
+
+            .file-input-wrapper:hover {
+                border-color: #2e7d32;
+            }
+
+        input[type="file"] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+            input[type="file"]::file-selector-button {
+                background: #e2e8f0;
+                color: #334155;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: 600;
+                margin-right: 15px;
+                transition: background 0.2s ease;
+            }
+
+                input[type="file"]::file-selector-button:hover {
+                    background: #cbd5e1;
+                }
+
+        button {
+            background: #2e7d32;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            width: 100%;
+            transition: background 0.3s ease, transform 0.1s ease;
+        }
+
+            button:hover {
+                background: #1b5e20;
+            }
+
+            button:active {
+                transform: scale(0.98);
+            }
+
+        #status {
+            font-weight: 600;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            display: inline-block;
+            width: calc(100% - 20px);
+        }
+
+        h4 {
+            margin: 25px 0 10px 0;
+            text-align: left;
+            color: #475569;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            text-align: left;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            margin: 0;
+            border: 1px solid #0f172a;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>Report Generator API Tester</h2>
+
+        <label>Select Region Folder to Upload</label>
+
+        <div class="file-input-wrapper">
+            <input type="file" id="folderInput" webkitdirectory multiple />
+        </div>
+
+        <button onclick="uploadFolder()">Upload</button>
+
+        <div id="status">Status: Waiting for file...</div>
+
+        <h4>Server Response</h4>
+        <pre id="output">No response yet.</pre>
+    </div>
+
+    <script>
+        async function uploadFolder() {
+            const fileInput = document.getElementById('folderInput');
+            const statusText = document.getElementById('status');
+            const outputBox = document.getElementById('output');
+
+            const formData = new FormData();
+            for (let i = 0; i < fileInput.files.length; i++) {
+                let file = fileInput.files[i];
+                formData.append("files", file, file.webkitRelativePath);
+            }
+
+            statusText.innerText = "Status: Sending " + fileInput.files.length + " files...";
+            statusText.style.color = "#1d4ed8";
+            statusText.style.background = "#dbeafe";
+            outputBox.innerText = "Processing...";
+
+            try {
+                const response = await fetch('https://localhost:7105/api/Report/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const resultText = await response.text();
+
+                if (response.ok) {
+                    statusText.innerText = "Status: Success (200 OK)";
+                    statusText.style.color = "#15803d";
+                    statusText.style.background = "#dcfce7";
+                } else {
+                    statusText.innerText = "Status: Server Error (" + response.status + ")";
+                    statusText.style.color = "#b91c1c";
+                    statusText.style.background = "#fee2e2";
+                }
+
+                outputBox.innerText = resultText;
+
+            } catch (error) {
+                statusText.innerText = "Status: Network Error";
+                statusText.style.color = "#b91c1c";
+                statusText.style.background = "#fee2e2";
+                outputBox.innerText = "Failed to connect to the API. Is Visual Studio running?\n\nDetails: " + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
