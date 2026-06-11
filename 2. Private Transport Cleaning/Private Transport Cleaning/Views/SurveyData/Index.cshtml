@@ -1,0 +1,92 @@
+﻿@{
+    ViewData["Title"] = "Survey Data Process and Clean";
+}
+
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f6f9;
+        color: #333;
+        margin: 0;
+        padding: 40px;
+    }
+
+    .container {
+        max-width: 600px;
+        margin: auto;
+        background-color: white;
+        padding: 30px 40px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 10px;
+    }
+
+    h1 {
+        text-align: center;
+        color: #0066cc;
+    }
+
+    label {
+        display: block;
+        margin-top: 20px;
+        font-weight: 600;
+    }
+
+    input[type="file"] {
+        display: block;
+        margin-top: 10px;
+        width: 100%;
+    }
+
+    button {
+        margin-top: 30px;
+        padding: 12px 20px;
+        font-size: 16px;
+        background-color: #007bff;
+        border: none;
+        border-radius: 5px;
+        color: white;
+        width: 100%;
+        cursor: pointer;
+    }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+    .note {
+        margin-top: 15px;
+        font-size: 13px;
+        color: #777;
+        text-align: center;
+    }
+</style>
+
+<div class="container">
+    <h1>Clean & Snap Survey Data</h1>
+
+    <form asp-controller="SurveyData"
+          asp-action="Index"
+          method="post"
+          enctype="multipart/form-data">
+
+        <label>Upload Geotab CSV File:</label>
+        <input type="file"
+               name="csvFile"
+               accept=".csv"
+               required />
+
+        <label>Upload ZIP Files:</label>
+        <input type="file"
+               name="zipFiles"
+               accept=".zip"
+               multiple
+               required />
+
+        <button type="submit">Process Files</button>
+
+    </form>
+
+    <div class="note">
+        Output will generate a separate CSV for each ZIP file.
+    </div>
+</div>

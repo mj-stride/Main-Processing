@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Private_Transport_Cleaning</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+  </ItemGroup>
+
+  <!-- IMPORTANT: DO NOT TRACK RUNTIME FOLDERS -->
+  <ItemGroup>
+    <None Remove="Extracted\**" />
+    <None Remove="Uploads\**" />
+    <None Remove="Output\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Jobs\{JobId}\Input\" />
+    <Folder Include="Jobs\{JobId}\Extracted\" />
+    <Folder Include="Jobs\{JobId}\Output\" />
+  </ItemGroup>
+
+</Project>
