@@ -1,0 +1,78 @@
+﻿@model List<string>
+
+@{
+    ViewData["Title"] = "Snapped CSVs Ready";
+}
+
+<style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f6f9;
+        padding: 40px;
+    }
+
+    .container {
+        max-width: 600px;
+        margin: auto;
+        background-color: white;
+        padding: 30px 40px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 10px;
+    }
+
+    h1 {
+        text-align: center;
+        color: #28a745;
+    }
+
+    ul {
+        list-style: none;
+        padding-left: 0;
+    }
+
+    li {
+        margin: 10px 0;
+    }
+
+    a {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+    .back {
+        display: block;
+        text-align: center;
+        margin-top: 30px;
+        font-size: 14px;
+        color: #666;
+    }
+</style>
+
+<div class="container">
+    <h1>Snapped CSVs Ready</h1>
+
+    <ul>
+        @if (Model != null && Model.Count > 0)
+        {
+            foreach (var file in Model)
+            {
+                <li>
+                    <a href="/SurveyData/Download?file=@file">@file</a>
+                </li>
+            }
+        }
+        else
+        {
+            <li>No files generated.</li>
+        }
+    </ul>
+
+    <a class="back" href="/SurveyData">
+        ← Back to upload
+    </a>
+</div>

@@ -1,0 +1,112 @@
+﻿@{
+    ViewData["Title"] = "Map Preview";
+    var filename = ViewBag.Filename as string;
+
+    var originalJson = ViewBag.OriginalPointsJson ?? "[]";
+    var snappedJson = ViewBag.SnappedPointsJson ?? "[]";
+}
+
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI';
+            background: #0b0f19;
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 12px 20px;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .back-btn {
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div>Map Preview: @filename</div>
+        <a class="back-btn" href="@Url.Action("Trips", "SurveyData")">← Back</a>
+    </header>
+
+    <div id="map"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            const originalPoints = @Html.Raw(originalJson);
+            const snappedPoints = @Html.Raw(snappedJson);
+
+            // FIX: safety check (prevents crash)
+            if (!snappedPoints || snappedPoints.length === 0) {
+                alert("No map data found for this file.");
+                return;
+            }
+
+            let sumLat = 0, sumLon = 0;
+
+            snappedPoints.forEach(p => {
+                sumLat += p[0];
+                sumLon += p[1];
+            });
+
+            const center = [sumLat / snappedPoints.length, sumLon / snappedPoints.length];
+
+            const map = L.map('map').setView(center, 14);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 20
+            }).addTo(map);
+
+            // Original (red dashed)
+            if (originalPoints && originalPoints.length > 0) {
+                L.polyline(originalPoints, {
+                    color: 'red',
+                    weight: 3,
+                    dashArray: '6,6'
+                }).addTo(map);
+            }
+
+            // Snapped (blue)
+            const line = L.polyline(snappedPoints, {
+                color: '#3b82f6',
+                weight: 4
+            }).addTo(map);
+
+            // markers
+            L.circleMarker(snappedPoints[0], {
+                radius: 6,
+                color: 'white',
+                fillColor: 'green',
+                fillOpacity: 1
+            }).addTo(map);
+
+            L.circleMarker(snappedPoints[snappedPoints.length - 1], {
+                radius: 6,
+                color: 'white',
+                fillColor: 'red',
+                fillOpacity: 1
+            }).addTo(map);
+
+            map.fitBounds(line.getBounds(), { padding: [40, 40] });
+        });
+    </script>
+
+</body>
