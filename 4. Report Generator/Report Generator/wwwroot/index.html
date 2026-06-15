@@ -167,19 +167,38 @@
                     body: formData
                 });
 
-                const resultText = await response.text();
-
                 if (response.ok) {
-                    statusText.innerText = "Status: Success (200 OK)";
+                    // 1. Read the response as a binary Blob instead of text
+                    const blob = await response.blob();
+
+                    // 2. Create a temporary URL for the Blob
+                    const url = window.URL.createObjectURL(blob);
+
+                    // 3. Create an invisible anchor element to trigger the download
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = "DPWH_Survey_Reports.zip"; // Default filename
+
+                    // 4. Append, click, and clean up
+                    document.body.appendChild(a);
+                    a.click();
+
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+
+                    // 5. Update UI to show success
+                    statusText.innerText = "Status: Success (ZIP Downloaded)";
                     statusText.style.color = "#15803d";
                     statusText.style.background = "#dcfce7";
+                    outputBox.innerText = "✅ Reports generated and downloaded successfully!";
                 } else {
+                    const resultText = await response.text();
                     statusText.innerText = "Status: Server Error (" + response.status + ")";
                     statusText.style.color = "#b91c1c";
                     statusText.style.background = "#fee2e2";
+                    outputBox.innerText = resultText;
                 }
-
-                outputBox.innerText = resultText;
 
             } catch (error) {
                 statusText.innerText = "Status: Network Error";
