@@ -3,118 +3,419 @@
 
 @{
     ViewData["Title"] = "Cleaned Trips Only";
+    ViewData["Section"] = "Clean and Snap (PUV)";
+    var tripCount = Model.Trips?.Count ?? 0;
 }
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<div class="container py-4">
-    <div class="d-flex align-items-center justify-content-between mb-2">
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+    }
+
+    .preview-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 48px);
+        padding: 1rem;
+        gap: 1rem;
+        box-sizing: border-box;
+    }
+
+    .preview-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+    }
+
+        .preview-heading h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .preview-heading .meta {
+            font-size: 0.82rem;
+            color: #666;
+            margin-top: 2px;
+        }
+
+    .preview-body {
+        display: flex;
+        gap: 1rem;
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* LEFT PANEL */
+    .panel-left {
+        width: 320px;
+        flex-shrink: 0;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-left-header {
+        padding: 1rem 1rem 0.5rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #1d4470;
+        flex-shrink: 0;
+        border-bottom: 1px solid #e0e6ee;
+    }
+
+    /* Selection toggle buttons */
+    .selection-controls {
+        display: flex;
+        gap: 6px;
+        padding: 0.6rem 1rem;
+        flex-shrink: 0;
+        border-bottom: 1px solid #e0e6ee;
+        flex-wrap: wrap;
+    }
+
+    .btn-sel {
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 4px 12px;
+        border: 1.5px solid #1d4470;
+        background: transparent;
+        color: #1d4470;
+        cursor: pointer;
+        transition: background 0.12s;
+    }
+
+        .btn-sel:hover {
+            background: #e8eef5;
+        }
+
+        .btn-sel.warning {
+            border-color: #b57a00;
+            color: #b57a00;
+        }
+
+            .btn-sel.warning:hover {
+                background: #fdf3dc;
+            }
+
+    /* Trip list */
+    .trip-list-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .trip-list-scroll::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .trip-list-scroll::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 999px;
+        }
+
+        .trip-list-scroll::-webkit-scrollbar-thumb {
+            background: #aab4c4;
+            border-radius: 999px;
+        }
+
+    .trip-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        background: #f0f4f8;
+        border: 1px solid #d0d8e4;
+        border-radius: 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+        transition: background 0.12s;
+    }
+
+        .trip-row:hover {
+            background: #e2eaf3;
+        }
+
+        .trip-row input[type="checkbox"] {
+            accent-color: #1d4470;
+            flex-shrink: 0;
+            width: 15px;
+            height: 15px;
+            margin-top: 3px;
+            cursor: pointer;
+        }
+
+    .trip-row-body {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .trip-row-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #1d4470;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .trip-row-meta {
+        font-size: 0.72rem;
+        color: #666;
+        margin-top: 1px;
+    }
+
+    .trip-row-zip {
+        font-size: 0.7rem;
+        color: #999;
+        margin-top: 1px;
+        word-break: break-all;
+    }
+
+    /* Action buttons */
+    .panel-left-actions {
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border-top: 1px solid #e0e6ee;
+        flex-shrink: 0;
+    }
+
+    .btn-ttds {
+        background: #1d4470;
+        color: #eeeeee;
+        border: none;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 9px 16px;
+        width: 100%;
+        text-align: center;
+        transition: background 0.18s, transform 0.1s;
+        cursor: pointer;
+        text-decoration: none;
+        display: block;
+    }
+
+        .btn-ttds:hover {
+            background: #245490;
+            color: #eeeeee;
+            transform: translateY(-1px);
+        }
+
+        .btn-ttds:active {
+            transform: translateY(0);
+        }
+
+        .btn-ttds.success {
+            background: #1a6640;
+        }
+
+            .btn-ttds.success:hover {
+                background: #1f7a4c;
+            }
+
+        .btn-ttds.outline {
+            background: transparent;
+            color: #1d4470;
+            border: 1.5px solid #1d4470;
+        }
+
+            .btn-ttds.outline:hover {
+                background: #e8eef5;
+            }
+
+        .btn-ttds.secondary {
+            background: transparent;
+            color: #555;
+            border: 1.5px solid #bbb;
+        }
+
+            .btn-ttds.secondary:hover {
+                background: #f0f0f0;
+            }
+
+    /* RIGHT PANEL */
+    .panel-right {
+        flex: 1;
+        min-width: 0;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #map {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+    }
+
+    .map-footer {
+        padding: 0.5rem 1rem;
+        font-size: 0.78rem;
+        color: #888;
+        border-top: 1px solid #e0e6ee;
+        flex-shrink: 0;
+    }
+
+    /* Divider between action groups */
+    .action-divider {
+        border: none;
+        border-top: 1px dashed #d0d8e4;
+        margin: 2px 0;
+    }
+
+    @@media (max-width: 767px) {
+        .preview-body {
+            flex-direction: column;
+        }
+
+        .panel-left {
+            width: 100%;
+            max-height: 45vh;
+        }
+
+        .panel-right {
+            min-height: 50vh;
+        }
+    }
+</style>
+
+<div class="preview-wrapper">
+
+    <!-- Heading -->
+    <div class="preview-heading">
         <div>
-            <h3 class="mb-0">Cleaned Trips Only</h3>
-            <div class="text-muted">Batch: @Model.BatchId | Trips: @(Model.Trips?.Count ?? 0)</div>
+            <h1><i class="bi bi-check2-circle me-2" style="color: #da471f;"></i>Cleaned Trips Only</h1>
+            <div class="meta">
+                <i class="bi bi-collection me-1"></i>Batch: @Model.BatchId
+                &nbsp;·&nbsp;
+                <i class="bi bi-signpost-split me-1"></i>@tripCount trip@(tripCount != 1 ? "s" : "")
+            </div>
         </div>
-
-        <div class="d-flex gap-2">
-            <a href="/gpx/preview-map/@Model.BatchId" class="btn btn-outline-secondary">
-                Back to Map Preview
-            </a>
-        </div>
+        <a href="/gpx/preview-map/@Model.BatchId" class="btn-ttds secondary" style="width: auto; padding: 8px 20px;">
+            <i class="bi bi-arrow-left me-1"></i> Back to Map Preview
+        </a>
     </div>
 
-    <div class="row g-4">
-        <!-- LEFT: Trip selection + actions -->
-        <div class="col-md-3">
-            <div class="card h-100">
-                <div class="card-body">
+    <!-- Body -->
+    <div class="preview-body">
 
-                    <h5 class="card-title mb-2">Trips (Cleaned)</h5>
+        <!-- LEFT -->
+        <div class="panel-left">
+            <div class="panel-left-header">
+                <i class="bi bi-signpost-split me-1"></i> Trips (Cleaned)
+            </div>
 
-                    <!-- Selection buttons -->
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        <button type="button" class="btn btn-sm btn-primary" id="selectAllBtn">Select All</button>
-                        <button type="button" class="btn btn-sm btn-secondary" id="deselectAllBtn">Deselect All</button>
-                        <button type="button" class="btn btn-sm btn-warning" id="toggleBtn">Switch Selection</button>
-                    </div>
+            <!-- Selection controls -->
+            <div class="selection-controls">
+                <button type="button" class="btn-sel" id="selectAllBtn">
+                    <i class="bi bi-check-all me-1"></i>All
+                </button>
+                <button type="button" class="btn-sel" id="deselectAllBtn">
+                    <i class="bi bi-x-lg me-1"></i>None
+                </button>
+                <button type="button" class="btn-sel warning" id="toggleBtn">
+                    <i class="bi bi-arrow-left-right me-1"></i>Toggle
+                </button>
+            </div>
 
-                    <form id="cleanedActionForm" method="post" class="d-flex flex-column gap-2">
-                        @Html.AntiForgeryToken()
+            <form id="cleanedActionForm" method="post" style="display:contents;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="batchId" value="@Model.BatchId" />
+                <div id="selectedFilesContainer"></div>
 
-                        <input type="hidden" name="batchId" value="@Model.BatchId" />
-                        <div id="selectedFilesContainer"></div>
-
-                        <div class="border rounded p-2" style="max-height: 60vh; overflow:auto;">
-                            @for (int i = 0; i < (Model.Trips?.Count ?? 0); i++)
-                            {
-                                var t = Model.Trips[i];
-                                var id = "trip_" + i;
-
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input trip-checkbox"
-                                           type="checkbox"
-                                           id="@id"
-                                           data-files='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.SourceZipFiles))'
-                                           checked />
-                                    <label class="form-check-label text-break" for="@id">
-                                        <div class="fw-semibold">
-                                            @t.VehicleCode @t.TripId (@t.Direction-@t.PartIndex)
-                                        </div>
-
-                                        <div class="small text-muted">
-                                            @(t.DetectedRegionId ?? "UNK") | @(t.DetectedRoadName ?? "UNK")
-                                            • @(t.Points?.Count ?? 0) pts
-                                        </div>
-
-                                        <div class="small text-muted">
-                                            ZIP: @t.SourceZipFileName
-                                        </div>
-                                    </label>
+                <div class="trip-list-scroll">
+                    @for (int i = 0; i < tripCount; i++)
+                    {
+                        var t = Model.Trips[i];
+                        var id = "trip_" + i;
+                        <label class="trip-row" for="@id">
+                            <input class="trip-checkbox"
+                                   type="checkbox"
+                                   id="@id"
+                                   data-files='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.SourceZipFiles))'
+                                   checked />
+                            <div class="trip-row-body">
+                                <div class="trip-row-title">
+                                    @t.VehicleCode @t.TripId
+                                    <span style="font-weight:400; color:#555;">(@t.Direction-@t.PartIndex)</span>
                                 </div>
-                            }
-                        </div>
-
-                        <button type="submit"
-                                formaction="/gpx/process-selected"
-                                class="btn btn-success">
-                            Download CSV ZIP (Selected)
-                        </button>
-                    </form>
+                                <div class="trip-row-meta">
+                                    <i class="bi bi-geo me-1"></i>@(t.DetectedRegionId ?? "UNK")
+                                    &nbsp;·&nbsp;
+                                    <i class="bi bi-road me-1"></i>@(t.DetectedRoadName ?? "UNK")
+                                    &nbsp;·&nbsp;@(t.Points?.Count ?? 0) pts
+                                </div>
+                                <div class="trip-row-zip">
+                                    <i class="bi bi-file-zip me-1"></i>@t.SourceZipFileName
+                                </div>
+                            </div>
+                        </label>
+                    }
                 </div>
+
+            </form>
+
+            <div class="panel-left-actions">
+                <button type="submit" form="cleanedActionForm" formaction="/gpx/process-selected" class="btn-ttds next">
+                    <i class="bi bi-download me-1"></i> Download CSV ZIP
+                </button>
             </div>
         </div>
 
         <!-- RIGHT: Map -->
-        <div class="col-md-9">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div id="map" style="height: 70vh; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-                </div>
+        <div class="panel-right">
+            <div id="map"></div>
+            <div class="map-footer" style="display:flex; align-items:center; justify-content:space-between;">
+                <span>
+                    <i class="bi bi-info-circle me-1"></i>
+                    Click a line on the map to toggle its selection. Green = start, red = end.
+                </span>
+                <a href="https://localhost:7046/" class="btn-ttds next" style="width:auto; padding:8px 20px; white-space:nowrap; text-decoration:none;">
+                    <i class="bi bi-arrow-right-circle me-1"></i> Next: Processing
+                </a>
             </div>
-        </div>
+
     </div>
 </div>
 
 @section Scripts {
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         const vm = @Html.Raw(JsonSerializer.Serialize(Model));
         const trips = vm.trips || vm.Trips || [];
 
         const map = L.map('map').setView([12.8797, 121.7740], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 20
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
 
         let layers = [];
 
         function clearLayers() {
-            layers.forEach(layer => map.removeLayer(layer));
+            layers.forEach(l => map.removeLayer(l));
             layers = [];
         }
 
         function updateMap() {
             clearLayers();
-
             const boundsList = [];
 
             trips.forEach((t, i) => {
@@ -125,75 +426,36 @@
                 if (!pts || pts.length < 2) return;
 
                 const latlngs = pts.map(p => {
-                    const lat =
-                        p.snappedLat ?? p.SnappedLat ??
-                        p.lat ?? p.Lat ??
-                        p.latitude ?? p.Latitude ??
-                        p.item1 ?? p.Item1;
-
-                    const lon =
-                        p.snappedLon ?? p.SnappedLon ??
-                        p.lon ?? p.Lon ??
-                        p.longitude ?? p.Longitude ??
-                        p.item2 ?? p.Item2;
-
+                    const lat = p.snappedLat ?? p.SnappedLat ?? p.lat ?? p.Lat ?? p.latitude ?? p.Latitude ?? p.item1 ?? p.Item1;
+                    const lon = p.snappedLon ?? p.SnappedLon ?? p.lon ?? p.Lon ?? p.longitude ?? p.Longitude ?? p.item2 ?? p.Item2;
                     return (lat != null && lon != null) ? [lat, lon] : null;
                 }).filter(Boolean);
 
                 if (latlngs.length < 2) return;
 
-                const line = L.polyline(latlngs, {
-                    weight: 4,
-                    color: "#0d6efd",
-                    opacity: 0.9
-                }).addTo(map);
-
+                const line = L.polyline(latlngs, { weight: 4, color: '#1d4470', opacity: 0.9 }).addTo(map);
                 line.bindPopup(`
-                    <div>
-                        <strong>${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}</strong><br/>
-                        ${(t.direction || t.Direction || "")}-${(t.partIndex || t.PartIndex || "")}<br/>
-                        ${(t.detectedRegionId || t.DetectedRegionId || "UNK")} | ${(t.detectedRoadName || t.DetectedRoadName || "UNK")}
-                    </div>
+                    <strong>${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}</strong><br/>
+                    ${(t.direction || t.Direction || "")}-${(t.partIndex || t.PartIndex || "")}<br/>
+                    ${(t.detectedRegionId || t.DetectedRegionId || "UNK")} | ${(t.detectedRoadName || t.DetectedRoadName || "UNK")}
                 `);
-
-                // Click line to toggle checkbox selection
-                line.on("click", () => {
-                    cb.checked = !cb.checked;
-                    updateMap();
-                });
-
+                line.on("click", () => { cb.checked = !cb.checked; updateMap(); });
                 layers.push(line);
                 boundsList.push(line.getBounds());
 
                 const s = t.start || t.Start;
                 const e = t.end || t.End;
 
-                if ((s?.lat ?? s?.Lat) != null && (s?.lon ?? s?.Lon) != null) {
-                    const sm = L.circleMarker(
-                        [s.lat ?? s.Lat, s.lon ?? s.Lon],
-                        {
-                            radius: 6,
-                            color: "green",
-                            fillColor: "green",
-                            fillOpacity: 1
-                        }
-                    ).addTo(map);
-
+                if ((s?.lat ?? s?.Lat) != null) {
+                    const sm = L.circleMarker([s.lat ?? s.Lat, s.lon ?? s.Lon],
+                        { radius: 6, color: 'green', fillColor: 'green', fillOpacity: 1 }).addTo(map);
                     sm.bindPopup(`Start: ${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
                     layers.push(sm);
                 }
 
-                if ((e?.lat ?? e?.Lat) != null && (e?.lon ?? e?.Lon) != null) {
-                    const em = L.circleMarker(
-                        [e.lat ?? e.Lat, e.lon ?? e.Lon],
-                        {
-                            radius: 6,
-                            color: "red",
-                            fillColor: "red",
-                            fillOpacity: 1
-                        }
-                    ).addTo(map);
-
+                if ((e?.lat ?? e?.Lat) != null) {
+                    const em = L.circleMarker([e.lat ?? e.Lat, e.lon ?? e.Lon],
+                        { radius: 6, color: 'red', fillColor: 'red', fillOpacity: 1 }).addTo(map);
                     em.bindPopup(`End: ${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
                     layers.push(em);
                 }
@@ -201,64 +463,39 @@
 
             if (boundsList.length) {
                 let b = boundsList[0];
-                for (let i = 1; i < boundsList.length; i++) {
-                    b = b.extend(boundsList[i]);
-                }
+                for (let i = 1; i < boundsList.length; i++) b = b.extend(boundsList[i]);
                 map.fitBounds(b.pad(0.15));
             } else {
                 map.setView([12.8797, 121.7740], 6);
             }
         }
 
-        // checkbox change -> redraw map
-        document.querySelectorAll(".trip-checkbox").forEach(cb => {
-            cb.addEventListener("change", updateMap);
-        });
-
-        // Select All
+        document.querySelectorAll(".trip-checkbox").forEach(cb => cb.addEventListener("change", updateMap));
         document.getElementById("selectAllBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => {
-                cb.checked = true;
-            });
+            document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = true);
             updateMap();
         });
-
-        // Deselect All
         document.getElementById("deselectAllBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => {
-                cb.checked = false;
-            });
+            document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = false);
             updateMap();
         });
-
-        // Switch Selection
         document.getElementById("toggleBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => {
-                cb.checked = !cb.checked;
-            });
+            document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = !cb.checked);
             updateMap();
         });
 
         updateMap();
 
-        // Submit selected ZIP files to controller
         const form = document.getElementById("cleanedActionForm");
         const container = document.getElementById("selectedFilesContainer");
-
         form.addEventListener("submit", function () {
             container.innerHTML = "";
-
             const all = new Set();
-
             document.querySelectorAll(".trip-checkbox:checked").forEach(cb => {
                 try {
-                    const arr = JSON.parse(cb.getAttribute("data-files") || "[]");
-                    arr.forEach(z => all.add(z));
-                } catch (e) {
-                    console.error("Invalid data-files JSON:", e);
-                }
+                    JSON.parse(cb.getAttribute("data-files") || "[]").forEach(z => all.add(z));
+                } catch (e) {}
             });
-
             all.forEach(z => {
                 const inp = document.createElement("input");
                 inp.type = "hidden";

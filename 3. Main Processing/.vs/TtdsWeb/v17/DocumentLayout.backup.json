@@ -5,6 +5,22 @@
     {
       "AbsoluteMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\3. main processing\\ttdsweb\\ttdsweb.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
       "RelativeMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|solutionrelative:ttdsweb\\ttdsweb.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\3. main processing\\ttdsweb\\views\\home\\result.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|solutionrelative:ttdsweb\\views\\home\\result.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\3. main processing\\ttdsweb\\views\\home\\map.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|solutionrelative:ttdsweb\\views\\home\\map.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\3. main processing\\ttdsweb\\views\\home\\index.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|solutionrelative:ttdsweb\\views\\home\\index.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\3. main processing\\ttdsweb\\services\\appstate.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{6E682E03-16C5-4B0D-BE1B-4B97B350DF9F}|TtdsWeb\\TtdsWeb.csproj|solutionrelative:ttdsweb\\services\\appstate.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,7 +30,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 5,
           "Children": [
             {
               "$type": "Bookmark",
@@ -22,13 +38,61 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Result.cshtml",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Views\\Home\\Result.cshtml",
+              "RelativeDocumentMoniker": "TtdsWeb\\Views\\Home\\Result.cshtml",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Views\\Home\\Result.cshtml",
+              "RelativeToolTip": "TtdsWeb\\Views\\Home\\Result.cshtml",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-06-11T01:50:33.485Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "Map.cshtml",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Views\\Home\\Map.cshtml",
+              "RelativeDocumentMoniker": "TtdsWeb\\Views\\Home\\Map.cshtml",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Views\\Home\\Map.cshtml",
+              "RelativeToolTip": "TtdsWeb\\Views\\Home\\Map.cshtml",
+              "ViewState": "AgIAAEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-06-11T01:47:16.122Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Index.cshtml",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Views\\Home\\Index.cshtml",
+              "RelativeDocumentMoniker": "TtdsWeb\\Views\\Home\\Index.cshtml",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Views\\Home\\Index.cshtml",
+              "RelativeToolTip": "TtdsWeb\\Views\\Home\\Index.cshtml",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-06-11T01:47:05.161Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "AppState.cs",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Services\\AppState.cs",
+              "RelativeDocumentMoniker": "TtdsWeb\\Services\\AppState.cs",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\Services\\AppState.cs",
+              "RelativeToolTip": "TtdsWeb\\Services\\AppState.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-11T01:46:52.138Z"
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "TtdsWeb",
+              "Title": "TtdsWeb.csproj",
               "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\TtdsWeb.csproj",
               "RelativeDocumentMoniker": "TtdsWeb\\TtdsWeb.csproj",
               "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\3. Main Processing\\TtdsWeb\\TtdsWeb.csproj",
               "RelativeToolTip": "TtdsWeb\\TtdsWeb.csproj",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAA4AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
               "WhenOpened": "2026-06-10T06:51:29.405Z",
               "EditorCaption": ""

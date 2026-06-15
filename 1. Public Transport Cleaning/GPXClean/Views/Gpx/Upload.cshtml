@@ -224,7 +224,6 @@
                id="zipFiles"
                multiple
                accept=".zip"
-               required
                onchange="updateFileLabel(this)" />
 
         <!-- Dashed drop zone -->
@@ -235,9 +234,12 @@
 
         <!-- File list -->
         <div id="fileLabel"></div>
+        <p id="uploadError" style="display:none; font-size:0.82rem; color:#c0392b; text-align:center; margin-top:0.5rem;">
+            <i class="bi bi-exclamation-circle me-1"></i>Please select at least one .zip file before continuing.
+        </p>
 
         <div class="d-flex justify-content-center mt-4">
-            <button id="btnPreview" type="submit" class="btn btn-ttds">
+            <button id="btnPreview" type="submit" class="btn-ttds">
                 Preview on Map
             </button>
         </div>
@@ -253,8 +255,9 @@
         if (!label) return;
 
         if (input.files && input.files.length > 0) {
+            const err = document.getElementById('uploadError');
+            if (err) err.style.display = 'none';
             const files = Array.from(input.files);
-
             const items = files.map(f => {
                 const kb = (f.size / 1024).toFixed(1);
                 return `
@@ -295,11 +298,20 @@
         }, 350);
     }
 
-    function startUpload() {
+        function startUpload() {
         const overlay   = document.getElementById("loadingOverlay");
         const fileInput = document.getElementById("zipFiles");
         const btn       = document.getElementById("btnPreview");
-        if (!fileInput || !fileInput.files || fileInput.files.length === 0) return true;
+        const err       = document.getElementById("uploadError");
+
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            if (err) {
+                err.style.display = 'block';
+            }
+            return false;
+        }
+
+        if (err) err.style.display = 'none';
         overlay.style.display = "flex";
         if (btn) btn.disabled = true;
         overlay.getBoundingClientRect();

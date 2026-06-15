@@ -219,9 +219,9 @@
         function handleStep(action) {
           const routes = {
             puv:     'http://localhost:5050/gpx/upload',
-            private: '/private',
-            process: '/process',
-            report:  '/report'
+            private: 'https://localhost:7089/',
+            process: 'https://localhost:7046/',
+            report:  'https://localhost:7105/'
           };
           window.location.href = routes[action];
         }

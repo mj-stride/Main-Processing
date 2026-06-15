@@ -23,25 +23,56 @@
             font-weight: 600;
             padding: 14px 32px;
             letter-spacing: 0.01em;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
+
+        .btn-topbar {
+            background: #da471f;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 6px 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+            .btn-topbar:hover {
+                background: #c23d19 !important;
+                color: #ffffff;
+                text-decoration: none;
+            }
 
         .page-content {
             flex: 1;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            padding: 2.5rem 1.25rem;
+            padding: 1rem 2rem;
         }
 
         .page-inner {
             width: 100%;
-            max-width: 860px;
         }
     </style>
 </head>
 <body>
 
-    <div class="topbar">@(ViewData["Section"] ?? "Clean and Snap")</div>
+    <div class="topbar">
+        <span>@(ViewData["Section"] ?? "Clean and Snap")</span>
+
+        <a href="https://localhost:7171/" class="btn-topbar">
+            <i class="bi bi-grid-1x2"></i> Dashboard
+        </a>
+    </div>
 
     <div class="page-content">
         <div class="page-inner">
