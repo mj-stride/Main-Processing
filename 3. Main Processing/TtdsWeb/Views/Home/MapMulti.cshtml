@@ -32,12 +32,14 @@
 
     <style>
         :root {
-            --ttds-primary: #1D4470;
-            --ttds-accent: #2D6AA6;
+            --ttds-primary: #1d4470;
+            --ttds-accent: #2f6db5;
         }
 
         body {
-            background: #f6f8fb;
+            background: #eeeeee;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
         }
 
         .navbar-ttds {
@@ -54,7 +56,7 @@
         }
 
             .card-ttds .card-header {
-                background: linear-gradient(90deg, var(--ttds-primary), var(--ttds-accent));
+                background: #1d4470;
                 color: #fff;
             }
 
@@ -135,17 +137,10 @@
 </head>
 
 <body>
-    <!-- Top Nav -->
-    <nav class="navbar navbar-expand-lg navbar-ttds mb-3">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-semibold" href="/">
-                <i class="bi bi-geo-alt-fill me-2"></i> TTDS – Datasets Preview
-            </a>
-            <span class="navbar-text">
-                Analyze trips, filter KM/CP anchors, and export results
-            </span>
-        </div>
-    </nav>
+    <!-- Topbar -->
+    <div style="background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em;">
+        TTDS – Datasets Preview
+    </div>
 
     <div class="container-fluid">
         <div class="row g-3">
@@ -182,10 +177,10 @@
 
                         <form id="analyzeForm" method="post" action="/analyze_multi">
                             <div class="d-flex mb-2">
-                                <button type="button" id="btnSelectAll" class="btn btn-sm btn-outline-primary me-2">
+                                <button type="button" id="btnSelectAll" class="btn btn-sm me-2" style="border-radius:999px; border:1.5px solid #1d4470; color:#1d4470; background:transparent;">
                                     <i class="bi bi-check2-all"></i> Select All
                                 </button>
-                                <button type="button" id="btnClearAll" class="btn btn-sm btn-outline-secondary me-auto">
+                                <button type="button" id="btnClearAll" class="btn btn-sm me-auto" style="border-radius:999px; border:1.5px solid #bbb; color:#555; background:transparent;">
                                     <i class="bi bi-x-circle"></i> Clear
                                 </button>
                                 <span class="small text-muted">Only checked datasets will be analyzed.</span>
@@ -198,7 +193,7 @@
                                     <i class="bi bi-info-circle me-1"></i>
                                     Choose datasets and click Analyze.
                                 </div>
-                                <button type="submit" class="btn btn-success">
+                                <button type="submit" style="background:#1d4470; color:#eeeeee; border:none; border-radius:999px; font-size:0.88rem; font-weight:600; padding:9px 24px; cursor:pointer;">
                                     <i class="bi bi-lightning-charge-fill me-1"></i> Analyze Selected
                                 </button>
                             </div>
@@ -672,5 +667,8 @@
             await refreshCpList();
         });
     </script>
+    <footer style="text-align:center; font-size:0.78rem; color:#888; padding:1rem;">
+        &copy; 2025 Travel Time and Delay Survey
+    </footer>
 </body>
 </html>

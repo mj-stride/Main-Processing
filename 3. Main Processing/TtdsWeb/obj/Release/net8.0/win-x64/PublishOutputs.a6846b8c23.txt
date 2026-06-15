@@ -1,4 +1,0 @@
-D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\publish-exe\appsettings.Development.json
-D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\publish-exe\appsettings.json
-D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\publish-exe\TtdsWeb.pdb
-D:\6. Github\TtdsWeb - 01-03-2026\TTDS_Processing\publish-exe\TtdsWeb.exe
