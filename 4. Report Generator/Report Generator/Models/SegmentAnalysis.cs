@@ -12,6 +12,6 @@
         public double RunningSpeedKph { get; set; }
         public double DelayTimeSec { get; set; }
         public double DelayLengthM { get; set; }
-        public string DelayCausesSummary { get; set; }
+        public string? DelayCausesSummary { get; set; }
     }
 }
