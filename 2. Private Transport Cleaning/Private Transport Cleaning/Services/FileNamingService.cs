@@ -29,7 +29,7 @@ namespace PrivateTransportCleaning.Services
             var baseName = Path.GetFileNameWithoutExtension(originalZipName);
             baseName = Clean(baseName);
 
-            return $"{baseName}_{region}_{road}_SNAPPED_{date}.csv";
+            return $"{baseName}_{region}_{road}_snapped.csv";
         }
 
         private string Clean(string input)
@@ -38,7 +38,7 @@ namespace PrivateTransportCleaning.Services
                 return "UNKNOWN";
 
             var cleaned = input.ToUpper();
-            cleaned = Regex.Replace(cleaned, @"[^A-Z0-9]+", "_");
+            cleaned = Regex.Replace(cleaned, @"[^a-zA-Z0-9]+", "_");
             cleaned = Regex.Replace(cleaned, "_+", "_");
 
             return cleaned.Trim('_');

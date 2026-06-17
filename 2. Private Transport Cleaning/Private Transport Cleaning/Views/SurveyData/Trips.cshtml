@@ -156,7 +156,7 @@
                                 </div>
 
                                 <div class="file-meta">
-                                    Size: @file.FileSize<br />
+                                    Size: @(Math.Round(file.FileSize / 1024.0, 2)) KB<br />
                                     CSV: @file.FileName
                                 </div>
 
