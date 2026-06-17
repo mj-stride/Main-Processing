@@ -12,11 +12,11 @@ namespace Report_Generator.Services
             if (segments == null || !segments.Any()) return null;
 
             int count = segments.Count;
-            double[] x_km = new double[count];
-            double[] travelSpeeds = new double[count];
-            double[] runningSpeeds = new double[count];
+            double?[] x_km = new double?[count];
+            double?[] travelSpeeds = new double?[count];
+            double?[] runningSpeeds = new double?[count];
 
-            double cummulativeDistance = 0;
+            double? cummulativeDistance = 0;
             for (int i = 0; i < count; i++)
             {
                 cummulativeDistance += (segments[i].DistanceM)/1000.0;
