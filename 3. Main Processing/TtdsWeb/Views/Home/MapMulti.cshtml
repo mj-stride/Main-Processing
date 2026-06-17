@@ -144,8 +144,13 @@
 
 <body>
     <!-- Topbar -->
-    <div style="background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em;">
-        TTDS – Datasets Preview
+    <div style="background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em; display:flex; justify-content:space-between; align-items:center;">
+        <span>TTDS – Datasets Preview</span>
+        <a href="/dashboard" style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:none; border-radius:8px; background:#da471f; color:#eeeeee; font-size:0.85rem; font-weight:600; text-decoration:none; transition:background 0.18s;"
+           onmouseover="this.style.background='#c23d19'"
+           onmouseout="this.style.background='#da471f'">
+            <i class="bi bi-columns-gap"></i> Dashboard
+        </a>
     </div>
 
     <div class="container-fluid px-4 pt-4 pb-3">
@@ -297,10 +302,7 @@
                             </a>
                         </div>
 
-                        <a href="/download_detected_cp?format=geojson" style="background:transparent; color:#1d4470; border:1.5px solid #1d4470; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer; text-decoration:none; text-align:center; display:block;">
-                            <i class="bi bi-download me-1"></i> Download Detected Anchor CP GeoJSON
-                        </a>
-                        <div class="small text-muted">
+                        <div class="small text-muted mt-2">
                             KM mode auto-enables Add-CP. Click on the map to add CP.
                         </div>
                     </div>

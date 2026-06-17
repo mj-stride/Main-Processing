@@ -360,10 +360,6 @@
             font-size: 1rem;
         }
 
-        .dataset-section.collapsed .dataset-section-header::after {
-            content: "\F285"; /* bi-chevron-right */
-        }
-
         .dataset-section.collapsed .dataset-section-body {
             display: none;
         }
@@ -497,7 +493,7 @@
         }
 
         .sum-table {
-            width: auto;
+            width: 100%;
             border-radius: 10px;
             border: 1px solid #d0d8e4;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -516,6 +512,7 @@
                 background-color: #1d4470;
                 color: #ffffff;
                 font-weight: 600;
+                width: 220px;
             }
 
             .sum-table td {
@@ -584,15 +581,27 @@
 
 <body>
 
-    <div style="background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em;">
-        TTDS – Multi Dataset Analysis
+    <div style="position:sticky; top:0; z-index:999; background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em; display:flex; justify-content:space-between; align-items:center;">
+        <span>TTDS – Multi Dataset Analysis</span>
+        <a href="/dashboard" style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:none; border-radius:8px; background:#da471f; color:#eeeeee; font-size:0.85rem; font-weight:600; text-decoration:none; transition:background 0.18s;"
+           onmouseover="this.style.background='#c23d19'"
+           onmouseout="this.style.background='#da471f'">
+            <i class="bi bi-columns-gap"></i> Dashboard
+        </a>
     </div>
 
-    <div style="max-width:1400px; margin:0 auto; padding:1.5rem 1.5rem 3rem;">
+    <div style="max-width:1400px; margin:0 auto; padding:1.5rem 1.5rem 6rem;">
 
-        <h2 style="font-size:1.5rem; font-weight:700; margin:0 0 1rem; color:#1d4470;">
-            <i class="bi bi-map me-2" style="color:#da471f;"></i> Multi Dataset Travel Time & Delay Analysis
-        </h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 1rem;">
+            <h2 style="font-size:1.5rem; font-weight:700; margin:0; color:#1d4470;">
+                <i class="bi bi-map me-2" style="color:#da471f;"></i> Multi Dataset Travel Time & Delay Analysis
+            </h2>
+            <a href="/" style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:2px solid #1d4470; border-radius:999px; color:#1d4470; font-size:0.85rem; font-weight:600; text-decoration:none; background:transparent; transition:background 0.18s, color 0.18s;"
+               onmouseover="this.style.background='#1d4470'; this.style.color='#ffffff'"
+               onmouseout="this.style.background='transparent'; this.style.color='#1d4470'">
+                <i class="bi bi-arrow-left"></i> Back to Upload
+            </a>
+        </div>
 
     @{
         var regions = Model.RegionList ?? new List<string>();
@@ -1482,109 +1491,28 @@
     </script>
 
 
-    <br />
-    <a href="/">← Back to Upload</a>
+        <br />
 
-    <div class="export-actions">
-
-        <form id="dirZipForm" method="post" action="/export_dir_tables_zip">
-            <input type="hidden" name="region" id="dirZipRegion" value="" />
-            <input type="hidden" name="roadNameOrSections" id="dirZipRoad" value="" />
-
-            @if (Model.PeakGroups != null)
-            {
-                foreach (var g in Model.PeakGroups)
-                {
-                    foreach (var item in (g.Datasets ?? Enumerable.Empty<dynamic>()))
-                    {
-                        <input type="hidden" name="selected_files" value="@item.Id" />
-                    }
-                }
-            }
-
-            <button type="submit" class="km-btn">
-                <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
-                </svg>
-                Download Directional Averages (AM / MID / PM)
-            </button>
-        </form>
-
-        <form id="segZipForm" method="post" action="/export_segment_analysis_zip">
-            <input type="hidden" name="region" id="segZipRegion" value="" />
-            <input type="hidden" name="roadNameOrSections" id="segZipRoad" value="" />
-
-            @if (Model.PeakGroups != null)
-            {
-                foreach (var g in Model.PeakGroups)
-                {
-                    foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
-                    {
-                        <input type="hidden" name="selected_files" value="@ds.Id" />
-                    }
-                }
-            }
-
-            <button type="submit" class="km-btn">
-                <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
-                </svg>
-                Download Segment Analysis ZIP (Per Trip)
-            </button>
-        </form>
-
-        <form id="shapesZipForm" method="post" action="/export_shapes_zip">
-            <input type="hidden" name="region" id="shapesZipRegion" value="" />
-            <input type="hidden" name="roadNameOrSections" id="shapesZipRoad" value="" />
-
-            @if (Model.PeakGroups != null)
-            {
-                foreach (var g in Model.PeakGroups)
-                {
-                    foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
-                    {
-                        <input type="hidden" name="selected_files" value="@ds.Id" />
-                    }
-                }
-            }
-
-            <button type="submit" class="km-btn">
-                <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
-                </svg>
-                Download Shapes
-            </button>
-        </form>
-
-        <button type="button" id="btnDownloadGraphs" class="km-btn">
-            <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
-            </svg>
-            Download Graphs
-        </button>
-
-    </div>
-
-    <form id="allZipForm" method="post" action="/export_all_zip" class="download-form">
-    <input type="hidden" name="region" id="allZipRegion" />
-    <input type="hidden" name="roadNameOrSections" id="allZipRoad" />
-
-    @if (Model.PeakGroups != null)
-    {
-        foreach (var g in Model.PeakGroups)
+    @* Hidden form data still needed for wireForm() *@
+    <form id="allZipForm" method="post" action="/export_all_zip" style="display:none;">
+        <input type="hidden" name="region" id="allZipRegion" />
+        <input type="hidden" name="roadNameOrSections" id="allZipRoad" />
+        @if (Model.PeakGroups != null)
         {
-            foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+            foreach (var g in Model.PeakGroups)
             {
-                <input type="hidden" name="selected_files" value="@ds.Id" />
+                foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                {
+                    <input type="hidden" name="selected_files" value="@ds.Id" />
+                }
             }
         }
-    }
+    </form>
 
-            <button type="button" id="btnDownloadAllWithGraphs" class="km-btn km-btn-primary">
-                <i class="bi bi-download me-2"></i>
-                Download ALL (Tables + Shapes + Graphs)
-            </button>
-</form>
+    @* Kept for wireForm compatibility *@
+    <form id="dirZipForm" style="display:none;"><input type="hidden" name="region" id="dirZipRegion" /><input type="hidden" name="roadNameOrSections" id="dirZipRoad" /></form>
+    <form id="segZipForm" style="display:none;"><input type="hidden" name="region" id="segZipRegion" /><input type="hidden" name="roadNameOrSections" id="segZipRoad" /></form>
+    <form id="shapesZipForm" style="display:none;"><input type="hidden" name="region" id="shapesZipRegion" /><input type="hidden" name="roadNameOrSections" id="shapesZipRoad" /></form>
     <script>
         function safePart(s) {
           return (s || '')
@@ -1693,19 +1621,47 @@
 
     </script>
         <script>
-                        document.querySelectorAll(".dataset-section").forEach(section => {
+            document.querySelectorAll(".dataset-section").forEach(section => {
+                        section.classList.add("collapsed");
 
-                section.classList.add("collapsed");
+                        // inject chevron icon into header
+                        const header = section.querySelector(".dataset-section-header");
+                        const chevron = document.createElement("i");
+                        chevron.className = "bi bi-chevron-down";
+                        chevron.style.cssText = "position:absolute; right:20px; top:50%; transform:translateY(-50%); color:#da471f; font-size:1rem; transition:transform 0.2s;";
+                        header.appendChild(chevron);
 
-                const header = section.querySelector(".dataset-section-header");
+                        header.addEventListener("click", () => {
+                            section.classList.toggle("collapsed");
+                            const isCollapsed = section.classList.contains("collapsed");
+                            chevron.style.transform = isCollapsed
+                                ? "translateY(-50%) rotate(0deg)"
+                                : "translateY(-50%) rotate(180deg)";
+                        });
 
-                header.addEventListener("click", () => {
-                    section.classList.toggle("collapsed");
-                });
-
-            });
+                        // set initial state
+                        chevron.style.transform = "translateY(-50%) rotate(0deg)";
+                    });
         </script>
     </div><!-- end content wrapper -->
+    @* ===== FIXED BOTTOM ACTION BAR ===== *@
+    <div style="position:fixed; bottom:0; left:0; right:0; background:#ffffff; border-top:2px solid #d0d8e4; padding:14px 32px; display:flex; justify-content:space-between; align-items:center; z-index:1000; box-shadow:0 -2px 12px rgba(0,0,0,0.08);">
+        <button type="button" id="btnDownloadAllWithGraphs"
+                style="display:inline-flex; align-items:center; gap:10px; padding:10px 28px; border:none; border-radius:999px; background:#1d4470; color:#eeeeee; font-weight:600; font-size:0.88rem; cursor:pointer; transition:background 0.18s;"
+                onmouseover="this.style.background='#245490'"
+                onmouseout="this.style.background='#1d4470'">
+            <i class="bi bi-download"></i>
+            Download ALL (Tables + Shapes + Graphs)
+        </button>
+
+        <a href="/report"
+           style="display:inline-flex; align-items:center; gap:10px; padding:10px 28px; border:none; border-radius:999px; background:#da471f; color:#eeeeee; font-weight:600; font-size:0.88rem; cursor:pointer; transition:background 0.18s; text-decoration:none;"
+           onmouseover="this.style.background='#c23d19'"
+           onmouseout="this.style.background='#da471f'">
+            Next: Generate Report
+            <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
 
     <footer style="text-align:center; font-size:0.78rem; color:#888; padding:1rem; background:#eeeeee;">
         &copy; 2025 Travel Time and Delay Survey
