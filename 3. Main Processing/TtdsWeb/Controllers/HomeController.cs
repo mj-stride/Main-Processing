@@ -1245,6 +1245,17 @@ namespace TtdsWeb.Controllers
                 .Cast<object>()
                 .ToList();
 
+            // 5) Populate region/road dropdowns from current state
+            var dbPath = ResolveKmDbPath();
+            if (System.IO.File.Exists(dbPath))
+            {
+                vm.RegionList = GetAllRegions(dbPath);
+                vm.RoadsByRegion = GetAllRoadsByRegion(dbPath, vm.RegionList);
+            }
+
+            vm.SelectedRegion = _state.KmRegion ?? vm.RegionList.FirstOrDefault() ?? "";
+            vm.SelectedRoad = (_state.KmRoads?.FirstOrDefault()) ?? _state.KmRoad ?? "";
+
             return View("ResultMulti", vm);
         }
 
@@ -2889,7 +2900,51 @@ namespace TtdsWeb.Controllers
             public string FileName { get; set; } = "";
             public string DataUrl { get; set; } = "";
         }
+        private List<string> GetAllRegions(string dbPath)
+        {
+            var list = new List<string>();
+            try
+            {
+                using var con = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly;");
+                con.Open();
+                using var cmd = con.CreateCommand();
+                cmd.CommandText = "SELECT DISTINCT regionId FROM tblKilometerPost ORDER BY regionId;";
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                    if (!string.IsNullOrWhiteSpace(rdr["regionId"]?.ToString()))
+                        list.Add(rdr["regionId"]!.ToString()!);
+            }
+            catch { }
+            return list;
+        }
 
+        private Dictionary<string, List<string>> GetAllRoadsByRegion(string dbPath, List<string> regions)
+        {
+            var dict = new Dictionary<string, List<string>>();
+            try
+            {
+                using var con = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly;");
+                con.Open();
+                foreach (var region in regions)
+                {
+                    using var cmd = con.CreateCommand();
+                    cmd.CommandText = @"
+                SELECT DISTINCT roadName
+                FROM tblKilometerPost
+                WHERE regionId = @region
+                ORDER BY roadName;";
+                    cmd.Parameters.AddWithValue("@region", region);
+                    var roads = new List<string>();
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
+                        if (!string.IsNullOrWhiteSpace(rdr["roadName"]?.ToString()))
+                            roads.Add(rdr["roadName"]!.ToString()!);
+                    dict[region] = roads;
+                }
+            }
+            catch { }
+            return dict;
+        }
         public class ExportAllWithGraphsRequest
         {
             public string? Region { get; set; }

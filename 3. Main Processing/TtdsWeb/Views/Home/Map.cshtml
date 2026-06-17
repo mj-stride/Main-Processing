@@ -1,108 +1,368 @@
 ﻿@model TtdsWeb.Models.AnalyzeViewModel
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Step 2: Select Control Points</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+@using System.Text.Json
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+@{
+    ViewData["Title"] = "Select Control Points";
+    ViewData["Section"] = "Processing";
+    Layout = "_Layout";
+}
 
-    <style>
-        #map {
-            height: 600px;
-            width: 100%;
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+    html, body {
+        height: 100%;
+        margin: 0;
+    }
+
+    .preview-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 48px);
+        padding: 1rem;
+        gap: 1rem;
+        box-sizing: border-box;
+    }
+
+    .preview-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+    }
+
+        .preview-heading h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0;
         }
 
-        body {
-            font-family: sans-serif;
-            padding: 20px;
+    .preview-body {
+        display: flex;
+        gap: 1rem;
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* LEFT PANEL */
+    .panel-left {
+        width: 300px;
+        flex-shrink: 0;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-left-header {
+        padding: 1rem 1rem 0.5rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #1d4470;
+        flex-shrink: 0;
+        border-bottom: 1px solid #e0e6ee;
+    }
+
+    .panel-left-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+        .panel-left-body::-webkit-scrollbar {
+            width: 5px;
         }
 
-        h2, h3 {
-            margin-top: 20px;
-        }
-    </style>
-</head>
-<body>
-    <h2>🗺️ Route Map</h2>
-    <div id="map"></div>
-    <br>
-
-    <h3>📤 Step 2: Upload KM Post/Control Points CSV</h3>
-    <form id="cpUploadForm" enctype="multipart/form-data" method="post">
-        <input type="file" name="cp_file" accept=".csv" required>
-        <button type="submit">Upload Control Points</button>
-    </form>
-    <h3>📊 Step 3: Analyze Trip</h3>
-    <br>
-     <button onclick="location.href='/analyze'">📊 Analyze Travel Time & Delays</button>
-    <button onclick="location.href='/download_cp'">⬇️ Download CPs</button>
-    <button onclick="fetch('/get_cp').then(()=>{ fetch('/update_cp_position',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cp_id:'noop',lat:0,lng:0})}) })" style="display:none">noop</button>
-
-    <script>
-        const coords = @Html.Raw(JsonSerializer.Serialize(Model.Coords));
-        const map = L.map('map').setView(coords[0], 14);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-        const latlngs = coords.map(c => [c[0], c[1]]);
-        L.polyline(latlngs, { color: 'blue' }).addTo(map);
-
-        let cpCount = 0;
-
-        function addCPMarker(cp) {
-            const marker = L.marker([cp.lat, cp.lng], { draggable: true })
-                .addTo(map)
-                .bindPopup(cp.id || `CP${cpCount}`)
-                .on('dragend', function (event) {
-                    const pos = event.target.getLatLng();
-                    updateCPPosition(cp.id, pos.lat, pos.lng);
-                });
+        .panel-left-body::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 999px;
         }
 
-        function updateCPPosition(cpId, lat, lng) {
-            fetch('/update_cp_position', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ cp_id: cpId, lat, lng })
-            });
+        .panel-left-body::-webkit-scrollbar-thumb {
+            background: #aab4c4;
+            border-radius: 999px;
         }
 
-        map.on('click', async function (e) {
-            cpCount++;
-            const cpName = "CP" + cpCount;
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
+    .panel-left-actions {
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border-top: 1px solid #e0e6ee;
+        flex-shrink: 0;
+    }
 
-            addCPMarker({ id: cpName, lat, lng });
+    /* Section label */
+    .section-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #1d4470;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.4rem;
+    }
 
-            await fetch('/add_cp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ latitude: lat, longitude: lng })
-            });
-        });
+    /* File input row */
+    .file-input-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #f0f4f8;
+        border: 1px solid #d0d8e4;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        color: #333;
+    }
 
-        document.getElementById('cpUploadForm').addEventListener('submit', async function (event) {
-            event.preventDefault();
-            const formData = new FormData(this);
-            const response = await fetch('/upload_cp', { method: 'POST', body: formData });
+        .file-input-row input[type="file"] {
+            font-size: 0.78rem;
+            flex: 1;
+            border: none;
+            background: transparent;
+            outline: none;
+        }
 
-            if (response.ok) {
-                const result = await response.json();
-                alert(result.message || "Control Points uploaded!");
+    /* Pill button */
+    .btn-ttds {
+        background: #1d4470;
+        color: #eeeeee;
+        border: none;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        padding: 9px 16px;
+        width: 100%;
+        text-align: center;
+        transition: background 0.18s, transform 0.1s;
+        cursor: pointer;
+        text-decoration: none;
+        display: block;
+    }
 
-                const cpRes = await fetch('/get_cp');
-                const cpList = await cpRes.json();
-                cpCount = cpList.length;
-                cpList.forEach(addCPMarker);
-            } else {
-                const err = await response.text();
-                alert("Error: " + err);
+        .btn-ttds:hover {
+            background: #245490;
+            color: #eeeeee;
+            transform: translateY(-1px);
+        }
+
+        .btn-ttds:active {
+            transform: translateY(0);
+        }
+
+        .btn-ttds.next {
+            background: #da471f;
+        }
+
+            .btn-ttds.next:hover {
+                background: #c23d19;
             }
+
+        .btn-ttds.outline {
+            background: transparent;
+            color: #1d4470;
+            border: 1.5px solid #1d4470;
+        }
+
+            .btn-ttds.outline:hover {
+                background: #e8eef5;
+            }
+
+        .btn-ttds.secondary {
+            background: transparent;
+            color: #555;
+            border: 1.5px solid #bbb;
+        }
+
+            .btn-ttds.secondary:hover {
+                background: #f0f0f0;
+                color: #555;
+            }
+
+    .action-divider {
+        border: none;
+        border-top: 1px dashed #d0d8e4;
+        margin: 2px 0;
+    }
+
+    .hint-text {
+        font-size: 0.75rem;
+        color: #888;
+        margin: 0;
+    }
+
+    /* RIGHT PANEL */
+    .panel-right {
+        flex: 1;
+        min-width: 0;
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #map {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+    }
+
+    .map-footer {
+        padding: 0.5rem 1rem;
+        font-size: 0.78rem;
+        color: #888;
+        border-top: 1px solid #e0e6ee;
+        flex-shrink: 0;
+    }
+
+    @@media (max-width: 767px) {
+        .preview-body {
+            flex-direction: column;
+        }
+
+        .panel-left {
+            width: 100%;
+            max-height: 45vh;
+        }
+
+        .panel-right {
+            min-height: 50vh;
+        }
+    }
+</style>
+
+<div class="preview-wrapper">
+
+    <!-- Heading -->
+    <div class="preview-heading">
+        <div>
+            <h1><i class="bi bi-pin-map me-2" style="color:#da471f;"></i>Route Map</h1>
+        </div>
+    </div>
+
+    <!-- Body -->
+    <div class="preview-body">
+
+        <!-- LEFT -->
+        <div class="panel-left">
+            <div class="panel-left-header">
+                <i class="bi bi-geo-alt me-1"></i> Control Points
+            </div>
+
+            <div class="panel-left-body">
+
+                <!-- Upload CP -->
+                <div>
+                    <p class="section-label"><i class="bi bi-upload me-1"></i> Step 2: Upload CP CSV</p>
+                    <form id="cpUploadForm" enctype="multipart/form-data" method="post">
+                        <div class="file-input-row mb-2">
+                            <i class="bi bi-filetype-csv" style="color:#da471f; font-size:1.1rem; flex-shrink:0;"></i>
+                            <input type="file" name="cp_file" accept=".csv" required />
+                        </div>
+                        <button type="submit" class="btn-ttds">
+                            <i class="bi bi-upload me-1"></i> Upload Control Points
+                        </button>
+                    </form>
+                </div>
+
+                <hr class="action-divider" />
+
+                <!-- Step 3 -->
+                <div>
+                    <p class="section-label"><i class="bi bi-lightning-charge me-1"></i> Step 3: Analyze</p>
+                    <p class="hint-text mb-2">Click the map to place control points manually, or upload a CSV above.</p>
+                </div>
+
+            </div>
+
+            <div class="panel-left-actions">
+                <a href="/analyze" class="btn-ttds next">
+                    <i class="bi bi-bar-chart-line me-1"></i> Analyze Travel Time & Delays
+                </a>
+                <hr class="action-divider" />
+                <a href="/download_cp" class="btn-ttds outline">
+                    <i class="bi bi-download me-1"></i> Download CPs
+                </a>
+            </div>
+        </div>
+
+        <!-- RIGHT: Map -->
+        <div class="panel-right">
+            <div id="map"></div>
+            <div class="map-footer">
+                <i class="bi bi-info-circle me-1"></i>
+                Click on the map to place control points. Drag markers to reposition them.
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const coords = @Html.Raw(JsonSerializer.Serialize(Model.Coords));
+    const map = L.map('map').setView(coords[0], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    const latlngs = coords.map(c => [c[0], c[1]]);
+    L.polyline(latlngs, { color: '#1d4470', weight: 4 }).addTo(map);
+
+    let cpCount = 0;
+
+    function addCPMarker(cp) {
+        L.marker([cp.lat, cp.lng], { draggable: true })
+            .addTo(map)
+            .bindPopup(cp.id || `CP${cpCount}`)
+            .on('dragend', function (event) {
+                const pos = event.target.getLatLng();
+                updateCPPosition(cp.id, pos.lat, pos.lng);
+            });
+    }
+
+    function updateCPPosition(cpId, lat, lng) {
+        fetch('/update_cp_position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cp_id: cpId, lat, lng })
         });
-    </script>
-</body>
-</html>
+    }
+
+    map.on('click', async function (e) {
+        cpCount++;
+        const cpName = "CP" + cpCount;
+        addCPMarker({ id: cpName, lat: e.latlng.lat, lng: e.latlng.lng });
+        await fetch('/add_cp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude: e.latlng.lat, longitude: e.latlng.lng })
+        });
+    });
+
+    document.getElementById('cpUploadForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const formData = new FormData(this);
+        const response = await fetch('/upload_cp', { method: 'POST', body: formData });
+        if (response.ok) {
+            const result = await response.json();
+            alert(result.message || "Control Points uploaded!");
+            const cpRes = await fetch('/get_cp');
+            const cpList = await cpRes.json();
+            cpCount = cpList.length;
+            cpList.forEach(addCPMarker);
+        } else {
+            const err = await response.text();
+            alert("Error: " + err);
+        }
+    });
+</script>

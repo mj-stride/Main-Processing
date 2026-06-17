@@ -92,6 +92,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
 
     <script>
         // Force white background for all Chart.js canvases (screen + export)
@@ -117,13 +118,14 @@
             const rd = document.getElementById('roadSelect');
 
             const reg = r?.value || 'UnknownRegion';
-            const road = rd?.value || 'UnknownRoad';
+            const road = rd?.value || 'UnknownRoad';  
 
             document.getElementById('allZipRegion').value = reg;
             document.getElementById('allZipRoad').value = road;
           });
         })();
     </script>
+
     <script>
         function dataUrlFromCanvas(canvas) {
           try {
@@ -160,8 +162,13 @@
         }
 
         async function exportAllWithGraphs() {
-          const region = (document.querySelector("#Region")?.value || "UnknownRegion").trim();
-          const road = (document.querySelector("#RoadNameOrSections")?.value || "UnknownRoad").trim();
+          // read the same UI controls used on MapMulti
+          const region = (document.querySelector("#regionSel")?.value || "UnknownRegion").trim();
+
+          // for roads use the multi-select so server receives the selected roads (comma-joined)
+          const roadSel = document.querySelector("#roadSel");
+          const roadArr = Array.from((roadSel?.selectedOptions || [])).map(o => o.value).filter(Boolean);
+          const road = (roadArr.length ? roadArr.join(',') : "UnknownRoad").trim();
 
           const payload = {
             region,
@@ -220,7 +227,7 @@
           });
         }
 
-        // wire the existing POST forms
+        // wire the existing POST forms (IDs unchanged)
         wireForm('dirZipForm', 'dirZipRegion', 'dirZipRoad');
         wireForm('segZipForm', 'segZipRegion', 'segZipRoad');
         wireForm('shapesZipForm', 'shapesZipRegion', 'shapesZipRoad');
@@ -251,9 +258,12 @@
         canvas {
             background-color: white;
         }
+
         body {
-            font-family: Arial, Helvetica, sans-serif;
-            padding: 10px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 0;
+            margin: 0;
+            background: #eeeeee;
         }
 
         #top-wrap {
@@ -266,13 +276,33 @@
         #map {
             height: 520px;
             width: 100%;
-            border: 1px solid #bbb;
+            border: 1px solid #ccc;
+            border-radius: 12px;
         }
 
         #ds-toggle {
+            background: #ffffff;
             border: 1px solid #ccc;
-            padding: 8px;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 1rem;
+            max-height: 520px; /* same height as map */
+            display: flex;
+            flex-direction: column;
         }
+
+        #ds-list {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 4px;
+        }
+
+            #ds-toggle h4 {
+                color: #1d4470;
+                font-size: 0.95rem;
+                font-weight: 700;
+                margin: 0 0 0.75rem;
+            }
 
         .ds-row {
             margin-bottom: 4px;
@@ -288,21 +318,87 @@
         }
 
         .peak-section {
-            margin-top: 28px;
-            border-top: 3px solid #333;
-            padding-top: 14px;
+            margin-top: 2rem;
+            border-top: 3px solid #1d4470;
+            padding-top: 1rem;
         }
 
         .peak-title {
-            font-size: 22px;
-            margin: 0 0 12px 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin: 0 0 0.75rem;
+            color: #1d4470;
         }
 
         .dataset-section {
-            margin-top: 20px;
-            border-top: 2px solid #ddd;
-            padding-top: 16px;
+            margin-top: 1.25rem;
+            background: #ffffff;
+            border: 1px solid #d0d8e4;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            overflow: hidden;
         }
+
+        .dataset-section-header {
+            background: #1d4470;
+            color: #eeeeee;
+            padding: 0.85rem 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .dataset-chevron {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #da471f;
+            font-size: 1rem;
+        }
+
+        .dataset-section.collapsed .dataset-section-header::after {
+            content: "\F285"; /* bi-chevron-right */
+        }
+
+        .dataset-section.collapsed .dataset-section-body {
+            display: none;
+        }
+
+            .dataset-section-header .ds-title {
+                font-size: 0.92rem;
+                font-weight: 700;
+                margin: 0;
+                color: #eeeeee;
+                word-break: break-all;
+            }
+
+            .dataset-section-header .ds-meta {
+                font-size: 0.78rem;
+                color: #a8c4e0;
+                margin: 0;
+            }
+
+        .dataset-section-body {
+            padding: 1.25rem;
+        }
+
+            .dataset-section-body h4 {
+                font-size: 0.88rem;
+                font-weight: 700;
+                color: #1d4470;
+                margin: 1.25rem 0 0.5rem;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+                .dataset-section-body h4:first-child {
+                    margin-top: 0;
+                }
 
         .ds-title {
             font-size: 20px;
@@ -311,39 +407,131 @@
 
         .grid-two {
             display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 12px;
+            grid-template-columns: 1fr 420px;
+            gap: 1.5rem;
             align-items: start;
+            margin-top: 1rem;
         }
+
+            .grid-two > div {
+                background: #f8fafc;
+                border: 1px solid #e0e6ee;
+                border-radius: 12px;
+                padding: 1rem;
+            }
+
+            .grid-two h4 {
+                font-size: 0.88rem;
+                font-weight: 700;
+                color: #1d4470;
+                margin: 0 0 0.75rem;
+            }
 
         table {
             border-collapse: collapse;
             width: 100%;
             margin-top: 12px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            font-size: 0.85rem;
         }
 
         th, td {
-            border: 1px solid gray;
-            padding: 6px;
+            border: none;
+            border-bottom: 1px solid #e8eef5;
+            padding: 10px 14px;
             text-align: center;
         }
 
         th {
-            background-color: #eee;
+            background-color: #1d4470;
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 0.82rem;
+            letter-spacing: 0.02em;
+        }
+
+        td {
+            background-color: #ffffff;
+            color: #1a1a2e;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover td {
+            background-color: #f0f5fb;
+            transition: background-color 0.15s;
+        }
+
+        tbody tr:nth-child(even) td {
+            background-color: #f8fafc;
+        }
+
+        tbody tr:nth-child(even):hover td {
+            background-color: #f0f5fb;
         }
 
         canvas {
+            display: block;
             width: 100% !important;
-            height: 360px !important;
         }
 
-        .sum-table td, .sum-table th {
-            text-align: left;
+        .chart-wrap {
+            position: relative;
+            width: 100%;
         }
 
-        .sum-table th {
-            width: 240px;
+        .chart-wrap-tall {
+            height: 380px;
         }
+
+        .chart-wrap-medium {
+            height: 280px;
+        }
+
+        .chart-wrap-small {
+            height: 260px;
+        }
+
+        .sum-table {
+            width: auto;
+            border-radius: 10px;
+            border: 1px solid #d0d8e4;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-top: 10px;
+        }
+
+            .sum-table th, .sum-table td {
+                text-align: left;
+                padding: 10px 16px;
+                font-size: 0.88rem;
+                border: none;
+                border-bottom: 1px solid #e8eef5;
+            }
+
+            .sum-table th {
+                background-color: #1d4470;
+                color: #ffffff;
+                font-weight: 600;
+            }
+
+            .sum-table td {
+                background-color: #ffffff;
+                color: #1a1a2e;
+                font-weight: 500;
+            }
+
+            .sum-table tr:last-child th,
+            .sum-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .sum-table tr:hover td {
+                background-color: #f0f5fb;
+            }
 
         .muted {
             color: #666;
@@ -355,29 +543,26 @@
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            padding: 10px 16px;
-            border: 0;
-            border-radius: 10px;
-            background: #1976d2;
-            color: #fff;
-            font-weight: 700;
-            font-size: 14px;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 999px;
+            background: #1d4470;
+            color: #eeeeee;
+            font-weight: 600;
+            font-size: 0.88rem;
             line-height: 1;
             cursor: pointer;
-            box-shadow: 0 2px 0 rgba(0,0,0,.12);
+            transition: background 0.18s, transform 0.1s;
+            text-decoration: none;
         }
 
             .km-btn:hover {
-                filter: brightness(1.05);
+                background: #245490;
+                transform: translateY(-1px);
             }
 
             .km-btn:active {
-                transform: translateY(1px);
-            }
-
-            .km-btn:focus {
-                outline: 2px solid rgba(25,118,210,.35);
-                outline-offset: 2px;
+                transform: translateY(0);
             }
 
             .km-btn .km-ico {
@@ -386,12 +571,28 @@
                 display: inline-block;
             }
 
+        .km-btn-primary {
+            background: #da471f;
+        }
+
+            .km-btn-primary:hover {
+                background: #c23d19;
+            }
+
     </style>
 </head>
 
 <body>
 
-    <h2>🗺️ Multi Dataset Travel Time & Delay Analysis (Analyze Multi)</h2>
+    <div style="background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em;">
+        TTDS – Multi Dataset Analysis
+    </div>
+
+    <div style="max-width:1400px; margin:0 auto; padding:1.5rem 1.5rem 3rem;">
+
+        <h2 style="font-size:1.5rem; font-weight:700; margin:0 0 1rem; color:#1d4470;">
+            <i class="bi bi-map me-2" style="color:#da471f;"></i> Multi Dataset Travel Time & Delay Analysis
+        </h2>
 
     @{
         var regions = Model.RegionList ?? new List<string>();
@@ -404,37 +605,60 @@
     }
 
     @* FILTERS (used for ZIP folder naming) *@
-    <div class="filter-box" style="border:1px solid #ccc; padding:10px; margin:12px 0;">
-        <h4 style="margin:0 0 10px 0;">Preview Filters</h4>
+        <div class="filter-box" style="background:#ffffff; border:1px solid #ccc; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.08); padding:1.25rem; margin:0 0 1rem;">
+            <h4 style="margin:0 0 10px 0; color:#1d4470; font-size:0.95rem; font-weight:700;">
+                <i class="bi bi-funnel me-1"></i> Preview Filters
+            </h4>
 
-        <label><b>Region:</b></label>
-        <select id="regionSelect" name="region" form="exportForm">
-            @foreach (var r in regions)
-            {
-                <option value="@r" selected="@(r == defaultRegion)">@r</option>
-            }
-        </select>
+            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
 
-        <label><b>Road / Section:</b></label>
-        <select id="roadSelect" name="roadNameOrSections" form="exportForm">
-            @if (!string.IsNullOrWhiteSpace(defaultRegion) && roadsByRegion.ContainsKey(defaultRegion))
-            {
-                foreach (var rd in roadsByRegion[defaultRegion])
+                <label style="font-weight:700; white-space:nowrap;">Region:</label>
+                <select id="regionSelect" name="region" form="exportForm" style="width:160px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:0.88rem;">
+                    @foreach (var r in regions)
+                    {
+                        <option value="@r" selected="@(r == defaultRegion)">@r</option>
+                    }
+                </select>
+
+                <label style="font-weight:700; white-space:nowrap;">Road / Section:</label>
+                <select id="roadSelect" name="roadNameOrSections" form="exportForm" style="width:280px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:0.88rem;">
+                @if (!string.IsNullOrWhiteSpace(defaultRegion) && roadsByRegion.ContainsKey(defaultRegion))
                 {
-                    <option value="@rd" selected="@(rd == defaultRoad)">@rd</option>
+                    foreach (var rd in roadsByRegion[defaultRegion])
+                    {
+                        <option value="@rd" selected="@(rd == defaultRoad)">@rd</option>
+                    }
                 }
-            }
-        </select>
+            </select>
 
-        <label><b>Period:</b></label>
-        <select id="periodSelect" name="period" form="exportForm">
-            <option value="ALL">ALL</option>
-            <option value="AM">AM</option>
-            <option value="MID">MID</option>
-            <option value="PM">PM</option>
-        </select>
+            <script>
+                // Bake the full roads map into JS so region change updates road dropdown instantly
+                const roadsByRegion = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(roadsByRegion));
 
-        <div class="muted">These values will be used for the ZIP folder naming.</div>
+                document.getElementById('regionSelect')?.addEventListener('change', function () {
+                    const region = this.value;
+                    const roads = roadsByRegion[region] || [];
+                    const roadSel = document.getElementById('roadSelect');
+                    roadSel.innerHTML = '';
+                    roads.forEach(rd => {
+                        const opt = document.createElement('option');
+                        opt.value = rd;
+                        opt.textContent = rd;
+                        roadSel.appendChild(opt);
+                    });
+                });
+            </script>
+
+                <label style="font-weight:700; white-space:nowrap;">Period:</label>
+                <select id="periodSelect" name="period" form="exportForm" style="width:100px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:0.88rem;">
+                    <option value="ALL">ALL</option>
+                    <option value="AM">AM</option>
+                    <option value="MID">MID</option>
+                    <option value="PM">PM</option>
+                </select>
+
+            </div>
+            <div class="muted" style="margin-top:8px;">These values will be used for the ZIP folder naming.</div>
     </div>
 
     <div id="top-wrap">
@@ -458,13 +682,22 @@
             var g = Model.PeakGroups[pg];
 
             <div class="peak-section" id="peak-@pg">
-                <h2 class="peak-title">🗺️ Map for @g.PeakLabel</h2>
-                <div class="muted">⏱️ @g.PeakLabel (@g.PeakCode)</div>
+                    <h2 class="peak-title">
+                        <i class="bi bi-map me-2"></i>
+                        Map for @g.PeakLabel
+                    </h2>
+                    <div class="muted">
+                        <i class="bi bi-clock-history me-1"></i>
+                        @g.PeakLabel (@g.PeakCode)
+                    </div>
 
                 @* Overall Summary *@
                 @if (g.OverallSummary != null)
                 {
-                    <h2>📌 Overall Summary (This Peak Period)</h2>
+                        <h2>
+                            <i class="bi bi-pin-angle-fill me-2"></i>
+                            Overall Summary (This Peak Period)
+                        </h2>
                     <table class="sum-table">
                         <tbody>
                             <tr><th>Avg Travel Time (min)</th><td>@g.OverallSummary.TotalTravelTimeMin</td></tr>
@@ -489,7 +722,10 @@
                     var eb = dirDict.ContainsKey("EB") ? dirDict["EB"] : null;
                     var wb = dirDict.ContainsKey("WB") ? dirDict["WB"] : null;
 
-                    <h2>📌 Directional Averages (This Peak Period)</h2>
+                        <h2>
+                            <i class="bi bi-signpost-split-fill me-2"></i>
+                            Directional Averages (This Peak Period)
+                        </h2>
 
                     <table class="sum-table">
                         <thead>
@@ -654,14 +890,25 @@
                     var periodTok = PeriodFolder(ds.PeakCode ?? ds.PeakLabel);
                     var dirTok = (ds.Direction ?? "UNK").Trim().ToUpperInvariant();
 
-                    <div class="dataset-section" id="peak-@pg-ds-@idx">
-                        <h3 class="ds-title">📁 @ds.Name</h3>
-                        <div class="muted">Peak: <b>@ds.PeakLabel</b> | Direction: <b>@ds.Direction</b></div>
+                        <div class="dataset-section" id="peak-@pg-ds-@idx">
+                            <div class="dataset-section-header" style="padding-right: 48px;">
+                                <p class="ds-title"><i class="bi bi-file-earmark-text me-2"></i>@ds.Name</p>
+                                <p class="ds-meta">
+                                    <i class="bi bi-clock me-1"></i> Peak: <b style="color:#eeeeee;">@ds.PeakLabel</b>
+                                    &nbsp;·&nbsp;
+                                    <i class="bi bi-arrow-left-right me-1"></i> Direction: <b style="color:#eeeeee;">@ds.Direction</b>
+                                </p>
+                            </div>
+                            <div class="dataset-section-body">
 
                         <div class="grid-two">
                             <div>
-                                <h4>📉 Travel & Running Speeds</h4>
-                                <canvas id="speedChart-@globalIndex"
+                                        <h4>
+                                            <i class="bi bi-graph-down me-2"></i>
+                                            Travel & Running Speeds
+                                        </h4>
+                                    <div class="chart-wrap chart-wrap-tall">
+                                        <canvas id="speedChart-@globalIndex"
                                         class="trip-graph"
                                         data-date="@dateTok"
                                         data-period="@periodTok"
@@ -670,9 +917,14 @@
                                         data-dir="@dirTok"
                                         data-veh="@vehName"
                                         data-graph="Travel & Running Speeds"></canvas>
+                                        </div>
                             </div>
                             <div>
-                                <h4>📊 Delay Cause Pie</h4>
+                                        <h4>
+                                            <i class="bi bi-pie-chart-fill me-2"></i>
+                                            Delay Cause Pie
+                                        </h4>
+                                <div class="chart-wrap chart-wrap-medium">
                                 <canvas id="pieChart-@globalIndex"
                                         class="trip-graph"
                                         data-date="@dateTok"
@@ -682,10 +934,14 @@
                                         data-dir="@dirTok"
                                         data-veh="@vehName"
                                         data-graph="Delay Cause Pie"></canvas>
+                                        </div>
 
-
-                                <h4 style="margin-top:16px">📈 CP-to-CP Delay Bar</h4>
-                                <canvas id="barChart-@globalIndex"
+                                        <h4 style="margin-top:16px">
+                                            <i class="bi bi-bar-chart-fill me-2"></i>
+                                            CP-to-CP Delay Bar
+                                        </h4>
+                                    <div class="chart-wrap chart-wrap-small">
+                                        <canvas id="barChart-@globalIndex"
                                         class="trip-graph"
                                         data-date="@dateTok"
                                         data-period="@periodTok"
@@ -694,10 +950,14 @@
                                         data-dir="@dirTok"
                                         data-veh="@vehName"
                                         data-graph="CP-to-CP Delay Bar"></canvas>
+                                        </div>
                             </div>
                         </div>
 
-                        <h4>🧮 Summary</h4>
+                                <h4>
+                                    <i class="bi bi-calculator-fill me-2"></i>
+                                    Summary
+                                </h4>
                         <table class="sum-table">
                             <tbody>
                                 <tr><th>Total Travel Time (min)</th><td>@ds.Summary?.TotalTravelTimeMin</td></tr>
@@ -709,7 +969,10 @@
                             </tbody>
                         </table>
 
-                        <h4>📊 Segment Analysis</h4>
+                                <h4>
+                                    <i class="bi bi-table me-2"></i>
+                                    Segment Analysis
+                                </h4>
                         <table>
                             <thead>
                                 <tr>
@@ -747,6 +1010,7 @@
                                 }
                             </tbody>
                         </table>
+                    </div>
                     </div>
 
                 }
@@ -798,7 +1062,10 @@
         .ToList();
 
         <div class="peak-section" id="dir-all-periods">
-            <h2 class="peak-title">📌 Directional Averages (Separate Table per Time Period)</h2>
+                <h2 class="peak-title">
+                    <i class="bi bi-signpost-split-fill me-2"></i>
+                    Directional Averages (Separate Table per Time Period)
+                </h2>
             <div class="muted">AM / MID / PM shown separately; directions are columns.</div>
 
             @if (peakDirMap.Count == 0)
@@ -811,7 +1078,10 @@
             {
                 @foreach (var pk in peaksSorted)
                 {
-                    <h3 style="margin-top:16px;">⏱️ @pk</h3>
+                        <h3 style="margin-top:16px;">
+                            <i class="bi bi-clock-history me-2"></i>
+                            @pk
+                        </h3>
 
                     <table class="sum-table">
                         <thead>
@@ -1104,6 +1374,7 @@
                     type: 'pie',
                     data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors }] },
                     options: {
+                        maintainAspectRatio: false,
                         plugins: {
                             title: { display: true, text: 'Delay Causes' },
                             datalabels: {
@@ -1189,6 +1460,7 @@
                     },
                     options: {
                         responsive: true,
+                            maintainAspectRatio: false,
                         plugins: {
                             title: { display: true, text: "Travel Speed and Running Speed Comparison" },
                             legend: { position: 'top' }
@@ -1308,9 +1580,10 @@
         }
     }
 
-        <button type="button" id="btnDownloadAllWithGraphs" class="km-btn km-btn-primary">
-            ⬇ Download ALL (Tables + Shapes + Graphs)
-        </button>
+            <button type="button" id="btnDownloadAllWithGraphs" class="km-btn km-btn-primary">
+                <i class="bi bi-download me-2"></i>
+                Download ALL (Tables + Shapes + Graphs)
+            </button>
 </form>
     <script>
         function safePart(s) {
@@ -1419,6 +1692,24 @@
         });
 
     </script>
+        <script>
+                        document.querySelectorAll(".dataset-section").forEach(section => {
+
+                section.classList.add("collapsed");
+
+                const header = section.querySelector(".dataset-section-header");
+
+                header.addEventListener("click", () => {
+                    section.classList.toggle("collapsed");
+                });
+
+            });
+        </script>
+    </div><!-- end content wrapper -->
+
+    <footer style="text-align:center; font-size:0.78rem; color:#888; padding:1rem; background:#eeeeee;">
+        &copy; 2025 Travel Time and Delay Survey
+    </footer>
 
 </body>
 </html>

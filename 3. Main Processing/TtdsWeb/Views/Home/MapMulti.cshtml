@@ -52,12 +52,18 @@
 
         .card-ttds {
             border: none;
-            box-shadow: 0 8px 24px rgba(0,0,0,.07);
+            box-shadow: 0 2px 12px rgba(0,0,0,.08);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 1rem;
         }
 
             .card-ttds .card-header {
                 background: #1d4470;
                 color: #fff;
+                padding: 0.75rem 1.25rem;
+                font-size: 0.95rem;
+                font-weight: 600;
             }
 
         #map {
@@ -142,7 +148,7 @@
         TTDS – Datasets Preview
     </div>
 
-    <div class="container-fluid">
+    <div class="container-fluid px-4 pt-4 pb-3">
         <div class="row g-3">
 
             <!-- LEFT -->
@@ -247,10 +253,10 @@
                                 </div>
 
                                 <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-primary">
+                                    <button type="submit" style="background:#1d4470; color:#eeeeee; border:none; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
                                         <i class="bi bi-pin-map-fill me-1"></i> Apply KM Filter
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary" id="btnClearRoads">Clear Roads</button>
+                                    <button type="button" id="btnClearRoads" style="background:transparent; color:#555; border:1.5px solid #bbb; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">Clear Roads</button>
                                 </div>
                             </div>
                         </form>
@@ -267,27 +273,32 @@
                             <form id="cpForm" enctype="multipart/form-data">
                                 <div class="input-group">
                                     <input type="file" name="cp_file" accept=".csv" class="form-control" />
-                                    <button type="button" id="btnUploadCp" class="btn btn-outline-primary">
+                                    <button type="button" id="btnUploadCp" style="background:#1d4470; color:#eeeeee; border:none; border-radius:0 999px 999px 0; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
                                         <i class="bi bi-upload"></i> Upload
                                     </button>
                                 </div>
                             </form>
                         </div>
 
-                        <div class="d-flex gap-2 mb-3">
-                            <button type="button" id="btnDownloadCp" class="btn btn-outline-secondary">
-                                <i class="bi bi-download"></i> Download Current CP
+                        <div class="d-flex gap-2 mb-3 flex-wrap">
+                            <button type="button" id="btnDownloadCp" style="background:transparent; color:#1d4470; border:1.5px solid #1d4470; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
+                                <i class="bi bi-download me-1"></i> Download Current CP
                             </button>
-                            <button type="button" id="btnToggleAddCp" class="btn btn-outline-success">
+                            <button type="button" id="btnToggleAddCp" style="background:transparent; color:#1a6640; border:1.5px solid #1a6640; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
                                 Add-CP Mode: OFF
                             </button>
                         </div>
-                        <a href="/download_detected_cp?format=csv" class="btn btn-success">
-                            Download Detected Anchor CP CSV
-                        </a>
+                        <div class="d-flex flex-column gap-2">
+                            <a href="/download_detected_cp?format=csv" style="background:#1d4470; color:#eeeeee; border:none; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer; text-decoration:none; text-align:center;">
+                                <i class="bi bi-download me-1"></i> Download Detected Anchor CP CSV
+                            </a>
+                            <a href="/download_detected_cp?format=geojson" style="background:transparent; color:#1d4470; border:1.5px solid #1d4470; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer; text-decoration:none; text-align:center;">
+                                <i class="bi bi-download me-1"></i> Download Detected Anchor CP GeoJSON
+                            </a>
+                        </div>
 
-                        <a href="/download_detected_cp?format=geojson" class="btn btn-outline-success">
-                            Download Detected Anchor CP GeoJSON
+                        <a href="/download_detected_cp?format=geojson" style="background:transparent; color:#1d4470; border:1.5px solid #1d4470; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer; text-decoration:none; text-align:center; display:block;">
+                            <i class="bi bi-download me-1"></i> Download Detected Anchor CP GeoJSON
                         </a>
                         <div class="small text-muted">
                             KM mode auto-enables Add-CP. Click on the map to add CP.

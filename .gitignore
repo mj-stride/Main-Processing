@@ -1,3 +1,13 @@
 .vs/
+<<<<<<< Updated upstream
 **/bin/
 **/obj/
+=======
+obj/
+bin/
+*.user
+*.suo
+*.cache
+*.dtbcache*
+*.futdcache*
+>>>>>>> Stashed changes

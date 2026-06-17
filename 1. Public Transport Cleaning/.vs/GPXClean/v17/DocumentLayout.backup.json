@@ -3,6 +3,14 @@
   "WorkspaceRootPath": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{CB50284C-DFB9-46E8-B171-5EA880631FFD}|GPXClean\\GPXClean.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\1. public transport cleaning\\gpxclean\\views\\gpx\\upload.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{CB50284C-DFB9-46E8-B171-5EA880631FFD}|GPXClean\\GPXClean.csproj|solutionrelative:gpxclean\\views\\gpx\\upload.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{CB50284C-DFB9-46E8-B171-5EA880631FFD}|GPXClean\\GPXClean.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\1. public transport cleaning\\gpxclean\\views\\shared\\_layout.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
+      "RelativeMoniker": "D:0:0:{CB50284C-DFB9-46E8-B171-5EA880631FFD}|GPXClean\\GPXClean.csproj|solutionrelative:gpxclean\\views\\shared\\_layout.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{CB50284C-DFB9-46E8-B171-5EA880631FFD}|GPXClean\\GPXClean.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\1. public transport cleaning\\gpxclean\\views\\gpx\\cleanedonly.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}",
       "RelativeMoniker": "D:0:0:{CB50284C-DFB9-46E8-B171-5EA880631FFD}|GPXClean\\GPXClean.csproj|solutionrelative:gpxclean\\views\\gpx\\cleanedonly.cshtml||{40D31677-CBC0-4297-A9EF-89D907823A98}"
     },
@@ -27,6 +35,32 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "Upload.cshtml",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\Views\\Gpx\\Upload.cshtml",
+              "RelativeDocumentMoniker": "GPXClean\\Views\\Gpx\\Upload.cshtml",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\Views\\Gpx\\Upload.cshtml",
+              "RelativeToolTip": "GPXClean\\Views\\Gpx\\Upload.cshtml",
+              "ViewState": "AgIAAMAAAAAAAAAAAAAAAM0AAABDAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-06-15T08:21:00.469Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "_Layout.cshtml",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\Views\\Shared\\_Layout.cshtml",
+              "RelativeDocumentMoniker": "GPXClean\\Views\\Shared\\_Layout.cshtml",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\Views\\Shared\\_Layout.cshtml",
+              "RelativeToolTip": "GPXClean\\Views\\Shared\\_Layout.cshtml",
+              "ViewState": "AgIAAEsAAAAAAAAAAAAAAF4AAAAHAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
+              "WhenOpened": "2026-06-15T08:13:42.251Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
               "Title": "CleanedOnly.cshtml",
               "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\Views\\Gpx\\CleanedOnly.cshtml",
               "RelativeDocumentMoniker": "GPXClean\\Views\\Gpx\\CleanedOnly.cshtml",
@@ -34,12 +68,11 @@
               "RelativeToolTip": "GPXClean\\Views\\Gpx\\CleanedOnly.cshtml",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000759|",
-              "WhenOpened": "2026-06-11T07:13:11.093Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-06-11T07:13:11.093Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 3,
               "Title": "SnappedPreview.cshtml",
               "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\1. Public Transport Cleaning\\GPXClean\\Views\\Gpx\\SnappedPreview.cshtml",
               "RelativeDocumentMoniker": "GPXClean\\Views\\Gpx\\SnappedPreview.cshtml",
