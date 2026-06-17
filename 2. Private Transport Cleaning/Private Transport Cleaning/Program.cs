@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // =========================
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 500_000_000; // 500MB
+    options.Limits.MaxRequestBodySize = null; // NO LIMIT
 });
 
 // =========================
@@ -16,7 +16,7 @@ builder.WebHost.ConfigureKestrel(options =>
 // =========================
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 500_000_000; // 500MB
+    options.MultipartBodyLengthLimit = long.MaxValue;
 });
 
 // =========================

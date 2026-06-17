@@ -67,7 +67,8 @@
     <form asp-controller="SurveyData"
           asp-action="Index"
           method="post"
-          enctype="multipart/form-data">
+          enctype="multipart/form-data"
+          onsubmit="return validateFiles()">
 
         <label>Upload Geotab CSV File:</label>
         <input type="file" name="csvFile" accept=".csv" required />
@@ -82,3 +83,22 @@
         Output will generate a separate CSV for each ZIP file.
     </div>
 </div>
+
+<script>
+    function validateFiles() {
+        const csv = document.querySelector('input[name="csvFile"]').files[0];
+        const zips = document.querySelector('input[name="zipFiles"]').files;
+
+        if (!csv) {
+            alert("CSV file is missing");
+            return false;
+        }
+
+        if (!zips || zips.length === 0) {
+            alert("ZIP files are missing");
+            return false;
+        }
+
+        return true;
+    }
+</script>

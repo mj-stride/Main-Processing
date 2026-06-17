@@ -40,10 +40,16 @@ namespace PrivateTransportCleaning.Controllers
         [HttpPost]
         public IActionResult Index(IFormFile csvFile, List<IFormFile> zipFiles)
         {
-            if (csvFile == null || zipFiles == null || zipFiles.Count == 0)
-                return Content("NO FILES RECEIVED");
-
             Console.WriteLine("🔥 INDEX POST HIT");
+            Console.WriteLine("REQUEST FILE COUNT: " + Request.Form.Files.Count);
+            if (csvFile == null)
+                return Content("CSV IS NULL");
+
+            if (zipFiles == null)
+                return Content("ZIPFILES IS NULL");
+
+            if (zipFiles.Count == 0)
+                return Content("ZIPFILES EMPTY");
 
             Directory.CreateDirectory(OutputPath);
 
