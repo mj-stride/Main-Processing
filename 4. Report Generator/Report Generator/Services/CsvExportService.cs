@@ -14,8 +14,8 @@ namespace Report_Generator.Services
         {
             var periodData = averages.Where(s => s.Period == period).ToList();
 
-            var nb = periodData.FirstOrDefault(d => d.Direction == "NB" || d.Direction == "EB");
-            var sb = periodData.FirstOrDefault(d => d.Direction == "SB" || d.Direction == "WB");
+            var nb = periodData.FirstOrDefault(d => d.Direction == "NB");
+            var sb = periodData.FirstOrDefault(d => d.Direction == "SB");
 
             var csv = new StringBuilder();
             string formatTime(double? seconds) => seconds.HasValue ? TimeSpan.FromSeconds(Math.Round(seconds.Value)).ToString(@"h\:mm\:ss") : "";

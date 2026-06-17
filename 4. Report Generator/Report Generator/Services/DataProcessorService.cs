@@ -8,11 +8,11 @@ namespace Report_Generator.Services
 {
     public class DataProcessorService
     {
-        public List<SegmentAnalysis> CalculateSegmentAverages (List<TripData> AllTrips)
+        public List<SegmentAverages> CalculateSegmentAverages (List<TripData> AllTrips)
         {
-            var segmentGroups = AllTrips
+            var segmentAverages = AllTrips
                 .GroupBy(row => new {row.Period, row.Direction, row.From, row.To})
-                .Select(group => new SegmentAnalysis
+                .Select(group => new SegmentAverages
                 {
                     Period = group.Key.Period,
                     Direction = group.Key.Direction,
@@ -30,7 +30,7 @@ namespace Report_Generator.Services
                 })
                 .ToList();
 
-            return segmentGroups;
+            return segmentAverages;
         }
 
         public List<DirectionalAverages> CalculateDirectionalAverages (List<TripData> AllTrips)
@@ -93,7 +93,7 @@ namespace Report_Generator.Services
                     Percentage = Math.Round((double)group.Count() / totalCauses * 100, 1)
                 })
                 .OrderByDescending(x => x.Count)
-                .Select(x => $"{x.Cause} ({x.Count}, {x.Percentage}%)");
+                .Select(x => $"{x.Cause} ({x.Count}, {x.Percentage:0.0}%)");
 
             return string.Join("; ", summaryParts);
         }

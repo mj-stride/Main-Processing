@@ -55,6 +55,10 @@
               "target": "Package",
               "version": "[33.1.0, )"
             },
+            "DocumentFormat.OpenXml": {
+              "target": "Package",
+              "version": "[3.5.1, )"
+            },
             "NetTopologySuite": {
               "target": "Package",
               "version": "[2.6.0, )"

@@ -143,3 +143,6 @@ E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\
 E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\obj\Debug\net8.0\Report Generator.pdb
 E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\obj\Debug\net8.0\Report Generator.genruntimeconfig.cache
 E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\obj\Debug\net8.0\ref\Report Generator.dll
+E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\bin\Debug\net8.0\DocumentFormat.OpenXml.dll
+E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\bin\Debug\net8.0\DocumentFormat.OpenXml.Framework.dll
+E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\bin\Debug\net8.0\System.IO.Packaging.dll

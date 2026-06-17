@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 using System.IO.Compression;
 using Report_Generator.Models;
 using Report_Generator.Services;
+using DocumentFormat.OpenXml.Bibliography;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Binders;
+using DocumentFormat.OpenXml.ExtendedProperties;
 
 namespace Report_Generator.Controllers
 {
@@ -17,12 +20,16 @@ namespace Report_Generator.Controllers
         private readonly FolderScannerService _folderScanner;
         private readonly CsvParserService _csvParser;
         private readonly CsvExportService _csvExport;
+        private readonly ChartGeneratorService _chartGenerator;
+        private readonly WordExportService _wordExport;
 
-        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport)
+        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport, ChartGeneratorService chartGenerator, WordExportService wordExport)
         {
             _folderScanner = folderScanner;
             _csvParser = csvParser;
             _csvExport = csvExport;
+            _chartGenerator = chartGenerator;
+            _wordExport = wordExport;
         }
 
         [HttpPost("generate")]
@@ -32,6 +39,7 @@ namespace Report_Generator.Controllers
         {
             if (files == null || !files.Any())
             {
+                Console.WriteLine("❌ Error: No files uploaded.");
                 return BadRequest("⚠️ No files uploaded.");
             }
 
@@ -40,7 +48,8 @@ namespace Report_Generator.Controllers
 
             if (!vehicleDirs.Any())
             {
-                return NotFound("⚠️ No VehicleType folders found (no SegmentAnalysis folder detected). Try Uploading the Region Folder");
+                Console.WriteLine("⚠️ No VehicleType folders found. Upload the Region Folder");
+                return NotFound("⚠️ No VehicleType folders found (no SegmentAnalysis folder detected). Upload the Region Folder");
             }
 
             var dataProcessor = new DataProcessorService();
@@ -50,7 +59,8 @@ namespace Report_Generator.Controllers
             {
                 foreach (var survey in vehicleDirs)
                 {
-                    Console.WriteLine($"PROCESSING: {survey.Region} | {survey.RoadName} | {survey.SurveyDate} | {survey.VehicleType}");
+                    Console.WriteLine($"\n▶ Processing: {survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}");
+                    Console.WriteLine(" -> Reading CSV files...");
 
                     var surveyTripData = new List<TripData>();
                     var surveyFiles = files.Where(f => f.FileName.StartsWith(survey.SegmentAnalysisPath)).ToList();
@@ -96,34 +106,95 @@ namespace Report_Generator.Controllers
 
                     if (surveyTripData.Any())
                     {
-                        // Directional Averages
+                        Console.WriteLine(" -> Calculating Directional Averages...");
                         var directionalAverages = dataProcessor.CalculateDirectionalAverages(surveyTripData);
+
+                        Console.WriteLine(" -> Calculating Segment Averages...");
+                        var segmentAverages = dataProcessor.CalculateSegmentAverages(surveyTripData);
+                        
                         string[] periods = { "AM", "MID", "PM" };
+                        string[] directions = { "NB", "SB" };
 
                         foreach (var period in periods)
                         {
                             string DirAvg = _csvExport.GenerateDirectionalAveragesCsv(directionalAverages, period);
-                            string zipEntryName = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{period}_DirectionalAverages.csv";
-                            var zipEntry = zip.CreateEntry(zipEntryName, CompressionLevel.Fastest);
+                            string csvZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/DirectionalAverages/{period}_DirectionalAverages.csv";
+                            var csvEntry = zip.CreateEntry(csvZipEntry, CompressionLevel.Fastest);
 
-                            using (var entryStream = zipEntry.Open())
+                            using (var entryStream = csvEntry.Open())
                             using (var streamWriter = new StreamWriter(entryStream))
                             {
                                 streamWriter.Write(DirAvg);
                             };
+
+                            Console.WriteLine($"  ✅ Saved Directional Averages: {period}_DirectionalAverages.csv");
+
+                            int chartsGenerated = 0;
+                            foreach (var direction in directions)
+                            {
+                                var plotSegments = segmentAverages
+                                    .Where(s => s.Period == period && s.Direction == direction)
+                                    .ToList();
+
+                                string directionFull = "";
+                                if (direction == "NB") directionFull = "Northbound/Eastbound";
+                                if (direction == "SB") directionFull = "Southbound/Westbound";
+
+                                if (plotSegments.Any())
+                                {
+                                    string title = $"{period} - {directionFull} Speed Comparison";
+                                    byte[]? imageBytes = _chartGenerator.GenerateSpeedPairChart(plotSegments, title, direction);
+
+                                    if (imageBytes != null)
+                                    {
+                                        string chartZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/Graphs/{period}_{direction}_SpeedPair.png";
+                                        var chartEntry = zip.CreateEntry(chartZipEntry, CompressionLevel.Fastest);
+
+                                        using (var entryStream = chartEntry.Open())
+                                        {
+                                            entryStream.Write(imageBytes, 0, imageBytes.Length);
+                                        }
+                                        chartsGenerated++;
+                                    }
+                                }
+                            }
+
+                            if (chartsGenerated > 0)
+                            {
+                                Console.WriteLine($"  -> Generated {chartsGenerated} speed charts for {period}.");
+                            }
+
                         }
 
-                        // Segment Averages
-                        var segmentAverages = dataProcessor.CalculateSegmentAverages(surveyTripData);
-                        //Console.WriteLine($"Generated {segmentAverages.Count} Segment Averages.");
+                        Console.WriteLine($"   ✔ Processing completed for {survey.VehicleType}");
+
+                        // WORD DOCUMENT
+                        Console.WriteLine("  -> Generating DOCX Report...");
+
+                        byte[] docxBytes = _wordExport.GenerateReport(survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, directionalAverages, segmentAverages);
+
+                        string docxFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", string.Empty)}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Report.docx";
+                        string docxZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{docxFilename}";
+                        var docEntry = zip.CreateEntry(docxZipEntry, CompressionLevel.Fastest);
+
+                        using (var entryStream = docEntry.Open())
+                        {
+                            entryStream.Write(docxBytes, 0, docxBytes.Length);
+                        }
+
+                        Console.WriteLine($"  ✅ Saved Survey Report: {docxFilename}");
+                    }
+
+                    else
+                    {
+                        Console.WriteLine($"  ⚠️ No valid survey data found for {survey.VehicleType}.");
                     }
                 }
             }
 
             memory.Position = 0;
-            string zipName = $"Report_{DateTime.Now:yyyyMMdd}.zip";
-
-            return File(memory.ToArray(), "application/zip", zipName);
+            Console.WriteLine("\n✅ All reports bundled successfully into ZIP.");
+            return File(memory.ToArray(), "application/zip",$"{vehicleDirs.First().Region}_Reports.zip");
         }
     }
 }
