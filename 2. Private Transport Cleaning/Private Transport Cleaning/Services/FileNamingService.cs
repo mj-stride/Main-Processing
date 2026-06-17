@@ -29,7 +29,7 @@ namespace PrivateTransportCleaning.Services
             var baseName = Path.GetFileNameWithoutExtension(originalZipName);
             baseName = Clean(baseName);
 
-            return $"{baseName}_{region}_{road}_snapped.csv";
+            return $"{baseName}_snapped.csv";
         }
 
         private string Clean(string input)
@@ -38,7 +38,11 @@ namespace PrivateTransportCleaning.Services
                 return "UNKNOWN";
 
             var cleaned = input.ToUpper();
-            cleaned = Regex.Replace(cleaned, @"[^a-zA-Z0-9]+", "_");
+
+            // allow letters, numbers, DASH, and underscore
+            cleaned = Regex.Replace(cleaned, @"[^A-Z0-9\-_]+", "_");
+
+            // optional: prevent multiple underscores only
             cleaned = Regex.Replace(cleaned, "_+", "_");
 
             return cleaned.Trim('_');

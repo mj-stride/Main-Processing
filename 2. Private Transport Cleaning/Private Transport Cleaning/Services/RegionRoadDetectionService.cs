@@ -73,7 +73,7 @@ namespace PrivateTransportCleaning.Services
                 .First()
                 .Key;
 
-            return ($"REGION_{top.region}", top.road);
+            return ($"{top.region}", top.road);
         }
     }
 }

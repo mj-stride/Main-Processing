@@ -57,7 +57,7 @@
 
             const map = L.map("map", {
                 zoomControl: true
-            }).setView([centerLat, centerLon], 15);
+            });
 
             L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 maxZoom: 19,
@@ -97,7 +97,12 @@
             originalPoints.forEach(p => bounds.push(p));
             snappedPoints.forEach(p => bounds.push(p));
 
-            map.fitBounds(bounds);
+            const group = L.latLngBounds(bounds);
+
+            map.fitBounds(group, {
+                padding: [80, 80],
+                maxZoom: 14
+            });
         }
     </script>
 
