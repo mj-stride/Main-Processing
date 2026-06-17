@@ -27,16 +27,19 @@ namespace PrivateTransportCleaning.Services
 
             var ordered = points
                 .OrderBy(p => p.Timestamp)
+                .GroupBy(p => p.Timestamp)
+                .Select(g => g.First())
                 .ToList();
 
             var results = new List<SnappedResult>();
+
+            GpxPoint? lastKept = null;
 
             const double TARGET_SEC = 1.0;
             const double TOL = 0.25;
             const double MAX_GAP = 2.0;
 
             bool started = false;
-            GpxPoint? lastKept = null;
 
             for (int i = 0; i < ordered.Count; i++)
             {
@@ -48,7 +51,7 @@ namespace PrivateTransportCleaning.Services
                 if (prev != null)
                     rawTimeDiff = (row.Timestamp - prev.Timestamp).TotalSeconds;
 
-                // START CONDITION
+                // startup logic (unchanged)
                 if (!started)
                 {
                     if (rawTimeDiff == null)
@@ -65,47 +68,104 @@ namespace PrivateTransportCleaning.Services
                     }
                 }
 
-                // BREAK LOGIC
-                if (rawTimeDiff != null && rawTimeDiff > MAX_GAP)
-                {
-                    var snap = _snapper.SnapToCenterline(row.Latitude, row.Longitude, centerline);
-
-                    results.Add(new SnappedResult
-                    {
-                        SnappedLat = snap.SnappedLat,
-                        SnappedLon = snap.SnappedLon,
-                        DeviationMeters = snap.DeviationMeters
-                    });
-
-                    started = false;
-                    lastKept = null;
-                    continue;
-                }
-
                 double? dist = null;
+                double? timeDiff = rawTimeDiff;
 
                 if (lastKept != null)
                 {
-                    dist = _geo.Haversine(row.Latitude, row.Longitude, lastKept.Latitude, lastKept.Longitude);
+                    dist = _geo.Haversine(
+                        row.Latitude, row.Longitude,
+                        lastKept.Latitude, lastKept.Longitude
+                    );
+
+                    timeDiff = (row.Timestamp - lastKept.Timestamp).TotalSeconds;
                 }
                 else if (prev != null)
                 {
-                    dist = _geo.Haversine(row.Latitude, row.Longitude, prev.Latitude, prev.Longitude);
+                    dist = _geo.Haversine(
+                        row.Latitude, row.Longitude,
+                        prev.Latitude, prev.Longitude
+                    );
                 }
 
+                // filters (unchanged)
                 if (dist != null && dist > 200)
                     continue;
 
                 if (row.Speed > 120)
                     continue;
 
-                var snapped = _snapper.SnapToCenterline(row.Latitude, row.Longitude, centerline);
+                // GAP HANDLING (unchanged logic, but FIXED missing fields)
+                if (rawTimeDiff != null && rawTimeDiff > MAX_GAP)
+                {
+                    var snappedGap = _snapper.SnapToCenterline(
+                        row.Latitude,
+                        row.Longitude,
+                        centerline
+                    );
+
+                    results.Add(new SnappedResult
+                    {
+                        OriginalLat = row.Latitude,
+                        OriginalLon = row.Longitude,
+
+                        SnappedLat = snappedGap.SnappedLat,
+                        SnappedLon = snappedGap.SnappedLon,
+                        DeviationMeters = snappedGap.DeviationMeters,
+
+                        Timestamp = row.Timestamp,
+                        Speed = row.Speed,
+
+                        DeviceID = row.DeviceID,
+                        TrackingID = row.TrackingID,
+                        UserID = row.UserID,
+                        ModeID = row.ModeID,
+                        CauseID = row.CauseID,
+                        KilometerPostID = row.KilometerPostID,
+                        FilePath = row.FilePath,
+                        DistrictID = row.DistrictID,
+
+                        SecDiff = rawTimeDiff,
+                        DistanceDiff = dist,
+                        IsBreak = true
+                    });
+
+                    started = false;
+                    lastKept = null;
+
+                    continue;
+                }
+
+                var snapped = _snapper.SnapToCenterline(
+                    row.Latitude,
+                    row.Longitude,
+                    centerline
+                );
 
                 results.Add(new SnappedResult
                 {
+                    OriginalLat = row.Latitude,
+                    OriginalLon = row.Longitude,
+
                     SnappedLat = snapped.SnappedLat,
                     SnappedLon = snapped.SnappedLon,
-                    DeviationMeters = snapped.DeviationMeters
+                    DeviationMeters = snapped.DeviationMeters,
+
+                    Timestamp = row.Timestamp,
+                    Speed = row.Speed,
+
+                    DeviceID = row.DeviceID,
+                    TrackingID = row.TrackingID,
+                    UserID = row.UserID,
+                    ModeID = row.ModeID,
+                    CauseID = row.CauseID,
+                    KilometerPostID = row.KilometerPostID,
+                    FilePath = row.FilePath,
+                    DistrictID = row.DistrictID,
+
+                    SecDiff = timeDiff,
+                    DistanceDiff = dist,
+                    IsBreak = false
                 });
 
                 lastKept = row;

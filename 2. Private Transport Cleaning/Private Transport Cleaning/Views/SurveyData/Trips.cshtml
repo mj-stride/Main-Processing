@@ -1,226 +1,229 @@
 @model List<PrivateTransportCleaning.Models.TripFile>
 
 @{
-    ViewData["Title"] = "Select Snapped Files";
+    Layout = null;
+    ViewData["Title"] = "Trips (Cleaned)";
 }
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Trips (Cleaned)</title>
 
-<style>
-    body {
-        background: #f8f9fa;
-        padding: 20px;
-    }
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 
-    .main-layout {
-        display: grid;
-        grid-template-columns: 300px 1fr;
-        gap: 20px;
-        height: calc(100vh - 40px);
-    }
+    <style>
 
-    .side-panel {
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 15px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-        .side-panel h5 {
-            font-weight: 700;
-            margin-bottom: 10px;
+        body {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
         }
 
-    .button-row {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        margin-bottom: 12px;
-    }
+        .main-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
 
-    .file-list {
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        padding: 8px;
-        overflow-y: auto;
-        flex: 1;
-        background: #fff;
-    }
+        .side-panel {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-    .file-item {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 12px;
-        font-size: 13px;
-    }
+            .side-panel h5 {
+                font-weight: 700;
+                margin-bottom: 10px;
+            }
 
-    .file-title {
-        font-weight: 700;
-        color: #000;
-        word-break: break-word;
-    }
+        .button-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
 
-    .file-meta {
-        color: #555;
-        line-height: 1.45;
-        margin-top: 4px;
-        word-break: break-word;
-    }
+        .file-list {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 8px;
+            overflow-y: auto;
+            flex: 1;
+            background: white;
+        }
 
-    .map-panel {
-        background: white;
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 15px;
-        overflow: hidden;
-    }
+        .file-item {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
 
-    iframe {
-        width: 100%;
-        height: 100%;
-        min-height: 650px;
-        border: 0;
-        border-radius: 5px;
-    }
+        .file-title {
+            font-weight: 700;
+            color: black;
+            word-break: break-word;
+        }
 
-    .download-btn {
-        margin-top: 10px;
-        width: 100%;
-        font-weight: 600;
-    }
+        .file-meta {
+            color: #555;
+            line-height: 1.45;
+            margin-top: 4px;
+            word-break: break-word;
+        }
 
-    #map {
-        width: 100%;
-        height: 100%;
-        min-height: 650px;
-    }
-</style>
+        .download-btn {
+            margin-top: 8px;
+            width: 100%;
+            font-weight: 600;
+        }
 
-<form method="post" action="/SurveyData/DownloadSelected">
+        .map-panel {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            overflow: hidden;
+        }
 
-    <div class="main-layout">
+        iframe {
+            width: 100%;
+            height: 100%;
+            min-height: 650px;
+            border: 0;
+            border-radius: 5px;
+        }
 
-        <!-- LEFT PANEL -->
-        <div class="side-panel">
+    </style>
+</head>
+<body>
 
-            <h5>Trips (Cleaned)</h5>
+    <form asp-action="DownloadSelected" asp-controller="SurveyData" method="post">
 
-            <div class="button-row">
-                <button type="button" class="btn btn-primary btn-sm" onclick="selectAll()">Select All</button>
-                <button type="button" class="btn btn-secondary btn-sm" onclick="deselectAll()">Deselect All</button>
-                <button type="button" class="btn btn-warning btn-sm" onclick="toggleSelection()">Switch Selection</button>
-            </div>
+        <div class="main-layout">
 
-            <div class="file-list">
+            <div class="side-panel">
 
-                @foreach (var item in Model)
-                {
-                    <div class="file-item">
+                <h5>Trips (Cleaned)</h5>
 
-                        <input type="checkbox" name="files" value="@item.FileName" class="file-checkbox" />
+                <div class="button-row">
 
-                        <div style="flex:1;">
+                    <button type="button"
+                            class="btn btn-primary btn-sm"
+                            onclick="selectAll()">
+                        Select All
+                    </button>
 
-                            <div class="file-title">
-                                @item.FileName
+                    <button type="button"
+                            class="btn btn-secondary btn-sm"
+                            onclick="deselectAll()">
+                        Deselect All
+                    </button>
+
+                    <button type="button"
+                            class="btn btn-warning btn-sm"
+                            onclick="toggleSelection()">
+                        Switch Selection
+                    </button>
+
+                </div>
+
+                <div class="file-list">
+
+                    @foreach (var file in Model)
+                    {
+                        <div class="file-item">
+
+                            <input type="checkbox"
+                                   class="file-checkbox"
+                                   name="files"
+                                   value="@file.FileName"
+                                   checked />
+
+                            <div>
+
+                                <div class="file-title">
+                                    @(file.FileName.Replace("_snapped.csv", ""))
+                                </div>
+
+                                <div class="file-meta">
+                                    Size: @file.FileSize<br />
+                                    CSV: @file.FileName
+                                </div>
+
+                                <a class="btn btn-outline-secondary btn-sm mt-1"
+                                   target="mapFrame"
+                                   href="@Url.Action("Preview", "SurveyData", new { file = file.FileName })">
+                                    View Map
+                                </a>
+
+                                <a class="btn btn-outline-primary btn-sm mt-1"
+                                   href="@Url.Action("Download", "SurveyData", new { file = file.FileName })">
+                                    Download
+                                </a>
+
                             </div>
-
-                            <div class="file-meta">
-                                Size: N/A<br />
-                                CSV: @item.FileName
-                            </div>
-
-                            <button type="button"
-                                    class="btn btn-outline-secondary btn-sm mt-1"
-                                    onclick="loadTrip('@item.FileName')">
-                                View Map
-                            </button>
-
-                            <a href="@item.DownloadUrl"
-                               class="btn btn-outline-primary btn-sm mt-1">
-                                Download
-                            </a>
 
                         </div>
+                    }
 
+                </div>
+
+                <button type="submit"
+                        class="btn btn-success download-btn">
+                    Download CSV ZIP (Selected)
+                </button>
+
+            </div>
+
+            <div class="map-panel">
+
+                @if (Model.Any())
+                {
+                    <iframe name="mapFrame"
+                            src="@Url.Action("Preview", "SurveyData", new { file = Model.First().FileName })">
+                    </iframe>
+                }
+                else
+                {
+                    <div class="alert alert-warning">
+                        No snapped files available.
                     </div>
                 }
 
             </div>
 
-            <button type="submit" class="btn btn-success download-btn">
-                Download CSV ZIP (Selected)
-            </button>
-
         </div>
 
-        <!-- RIGHT MAP PANEL -->
-        <div class="map-panel">
+    </form>
 
-            <div id="map"></div>
+    <script>
 
-        </div>
-
-    </div>
-
-</form>
-
-<script>
-    function selectAll() {
-        document.querySelectorAll('.file-checkbox')
-            .forEach(cb => cb.checked = true);
-    }
-
-    function deselectAll() {
-        document.querySelectorAll('.file-checkbox')
-            .forEach(cb => cb.checked = false);
-    }
-
-    function toggleSelection() {
-        document.querySelectorAll('.file-checkbox')
-            .forEach(cb => cb.checked = !cb.checked);
-    }
-</script>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-    const map = L.map('map').setView([14.6, 121.0], 12);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    let currentLine = null;
-
-    async function loadTrip(fileName) {
-
-        const res = await fetch(`/SurveyData/GetTripData?file=${fileName}`);
-        const data = await res.json();
-
-        if (!data || data.length === 0) return;
-
-        // remove old line
-        if (currentLine) {
-            map.removeLayer(currentLine);
+        function selectAll() {
+            document.querySelectorAll('.file-checkbox')
+                .forEach(cb => cb.checked = true);
         }
 
-        currentLine = L.polyline(data, {
-            color: '#3b82f6',
-            weight: 4
-        }).addTo(map);
+        function deselectAll() {
+            document.querySelectorAll('.file-checkbox')
+                .forEach(cb => cb.checked = false);
+        }
 
-        map.fitBounds(currentLine.getBounds());
-    }
+        function toggleSelection() {
+            document.querySelectorAll('.file-checkbox')
+                .forEach(cb => cb.checked = !cb.checked);
+        }
 
-    // auto-load first file on page load
-    document.addEventListener("DOMContentLoaded", () => {
-        const firstBtn = document.querySelector("button[onclick^='loadTrip']");
-        if (firstBtn) firstBtn.click();
-    });
-</script>
+    </script>
+
+</body>
+</html>

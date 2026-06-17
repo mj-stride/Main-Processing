@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Xml.Linq;
 using PrivateTransportCleaning.Models;
 
@@ -18,20 +17,35 @@ namespace PrivateTransportCleaning.Services
 
             foreach (var trkpt in doc.Descendants(ns + "trkpt"))
             {
-                double lat = double.Parse(trkpt.Attribute("lat")?.Value ?? "0", CultureInfo.InvariantCulture);
-                double lon = double.Parse(trkpt.Attribute("lon")?.Value ?? "0", CultureInfo.InvariantCulture);
+                double lat = double.Parse(
+                    trkpt.Attribute("lat")?.Value ?? "0",
+                    CultureInfo.InvariantCulture);
+
+                double lon = double.Parse(
+                    trkpt.Attribute("lon")?.Value ?? "0",
+                    CultureInfo.InvariantCulture);
 
                 var timeEl = trkpt.Element(ns + "time");
                 if (timeEl == null || string.IsNullOrWhiteSpace(timeEl.Value))
                     continue;
 
-                DateTime timestamp = DateTime.Parse(timeEl.Value.Replace("Z", ""));
+                DateTime timestamp = DateTime.Parse(
+                    timeEl.Value.Replace("Z", ""),
+                    CultureInfo.InvariantCulture
+                );
 
+                // SAFE SPEED HANDLING (DO NOT FILTER OUT ZERO)
                 var speedEl = trkpt.Element(ns + "speed");
                 double speed = 0;
-                if (speedEl != null && double.TryParse(speedEl.Value, out var s))
-                    speed = s;
 
+                if (speedEl != null)
+                    double.TryParse(
+                        speedEl.Value,
+                        NumberStyles.Any,
+                        CultureInfo.InvariantCulture,
+                        out speed);
+
+                // MATCH PYTHON
                 if (speed == 0)
                     continue;
 
