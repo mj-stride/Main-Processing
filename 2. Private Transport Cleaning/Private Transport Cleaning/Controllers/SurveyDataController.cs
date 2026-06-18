@@ -7,6 +7,7 @@ using System.Xml.Linq;
 using System.IO.Compression;
 using PrivateTransportCleaning.Models;
 using PrivateTransportCleaning.Services;
+using System.Text.RegularExpressions;
 
 namespace PrivateTransportCleaning.Controllers
 {
@@ -31,6 +32,21 @@ namespace PrivateTransportCleaning.Controllers
             _fileNamingService = fileNamingService;
         }
 
+        private string? ExtractDate(string fileName)
+        {
+            var csvMatch = Regex.Match(fileName, @"(\d{4}-\d{2}-\d{2})");
+
+            if (csvMatch.Success)
+                return csvMatch.Groups[1].Value.Replace("-", "");
+
+            var zipMatch = Regex.Match(fileName, @"_(\d{8})-\d{6}");
+
+            if (zipMatch.Success)
+                return zipMatch.Groups[1].Value;
+
+            return null;
+        }
+
         [HttpGet]
         public IActionResult Index()
         {
@@ -50,6 +66,29 @@ namespace PrivateTransportCleaning.Controllers
 
             if (zipFiles.Count == 0)
                 return Content("ZIPFILES EMPTY");
+
+            var csvDate = ExtractDate(csvFile.FileName);
+
+            if (csvDate == null)
+                return Content("Could not determine CSV date.");
+
+            foreach (var zip in zipFiles)
+            {
+                var zipDate = ExtractDate(zip.FileName);
+
+                if (zipDate == null)
+                    return Content($"Could not determine ZIP date: {zip.FileName}");
+
+                if (zipDate != csvDate)
+                {
+                    return Json(new
+                    {
+                        success = false,
+                        code = "DATE_MISMATCH",
+                        message = "THE DATES ON THE GEOTAB CSV AND ZIP FILES DOES NOT MATCH"
+                    });
+                }
+            }
 
             Directory.CreateDirectory(OutputPath);
 
@@ -152,7 +191,11 @@ namespace PrivateTransportCleaning.Controllers
                 Console.WriteLine("OUTPUT FILE CREATED: " + outputFile);
             }
 
-            return RedirectToAction("Trips");
+            return Json(new
+            {
+                success = true,
+                redirect = "/SurveyData/Trips"
+            });
         }
 
         [HttpGet]
