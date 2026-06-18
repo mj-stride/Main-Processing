@@ -1,112 +1,110 @@
 ﻿@{
-    ViewData["Title"] = "Map Preview";
-    var filename = ViewBag.Filename as string;
+    Layout = null;
 
+    var filename = ViewBag.Filename as string;
     var originalJson = ViewBag.OriginalPointsJson ?? "[]";
     var snappedJson = ViewBag.SnappedPointsJson ?? "[]";
 }
 
+<!DOCTYPE html>
+<html>
 <head>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <meta charset="utf-8" />
+    <title>@filename</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body {
+        html, body {
+            width: 100%;
+            height: 100%;
             margin: 0;
-            font-family: 'Segoe UI';
-            background: #0b0f19;
-            color: white;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        header {
-            padding: 12px 20px;
-            background: rgba(0,0,0,0.6);
-            display: flex;
-            justify-content: space-between;
+            padding: 0;
         }
 
         #map {
-            flex: 1;
-        }
-
-        .back-btn {
-            color: white;
-            text-decoration: none;
+            width: 100%;
+            height: 100%;
         }
     </style>
 </head>
 
 <body>
-
-    <header>
-        <div>Map Preview: @filename</div>
-        <a class="back-btn" href="@Url.Action("Trips", "SurveyData")">← Back</a>
-    </header>
-
     <div id="map"></div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
+        const originalPoints = @Html.Raw(originalJson);
+        const snappedPoints = @Html.Raw(snappedJson);
 
-            const originalPoints = @Html.Raw(originalJson);
-            const snappedPoints = @Html.Raw(snappedJson);
+        if (!snappedPoints || snappedPoints.length === 0) {
+            document.body.innerHTML =
+                "<div style='padding:20px'>No map data found.</div>";
+        } else {
 
-            // FIX: safety check (prevents crash)
-            if (!snappedPoints || snappedPoints.length === 0) {
-                alert("No map data found for this file.");
-                return;
-            }
-
-            let sumLat = 0, sumLon = 0;
+            let sumLat = 0;
+            let sumLon = 0;
 
             snappedPoints.forEach(p => {
                 sumLat += p[0];
                 sumLon += p[1];
             });
 
-            const center = [sumLat / snappedPoints.length, sumLon / snappedPoints.length];
+            const centerLat = sumLat / snappedPoints.length;
+            const centerLon = sumLon / snappedPoints.length;
 
-            const map = L.map('map').setView(center, 14);
+            const map = L.map("map", {
+                zoomControl: true
+            });
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                maxZoom: 20
+            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                maxZoom: 19,
+                attribution: "&copy; OpenStreetMap contributors"
             }).addTo(map);
 
-            // Original (red dashed)
-            if (originalPoints && originalPoints.length > 0) {
+            if (originalPoints.length > 0) {
                 L.polyline(originalPoints, {
-                    color: 'red',
-                    weight: 3,
-                    dashArray: '6,6'
+                    color: "red",
+                    weight: 4,
+                    opacity: 0.8
                 }).addTo(map);
             }
 
-            // Snapped (blue)
-            const line = L.polyline(snappedPoints, {
-                color: '#3b82f6',
-                weight: 4
+            L.polyline(snappedPoints, {
+                color: "blue",
+                weight: 4,
+                opacity: 0.9
             }).addTo(map);
 
-            // markers
             L.circleMarker(snappedPoints[0], {
-                radius: 6,
-                color: 'white',
-                fillColor: 'green',
+                radius: 7,
+                color: "green",
+                fillColor: "green",
                 fillOpacity: 1
             }).addTo(map);
 
             L.circleMarker(snappedPoints[snappedPoints.length - 1], {
-                radius: 6,
-                color: 'white',
-                fillColor: 'red',
+                radius: 7,
+                color: "red",
+                fillColor: "red",
                 fillOpacity: 1
             }).addTo(map);
 
-            map.fitBounds(line.getBounds(), { padding: [40, 40] });
-        });
+            const bounds = [];
+
+            originalPoints.forEach(p => bounds.push(p));
+            snappedPoints.forEach(p => bounds.push(p));
+
+            const group = L.latLngBounds(bounds);
+
+            map.fitBounds(group, {
+                padding: [80, 80],
+                maxZoom: 14
+            });
+        }
     </script>
 
 </body>
+</html>

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace PrivateTransportCleaning.Services
 {
@@ -13,16 +14,22 @@ namespace PrivateTransportCleaning.Services
             _rrService = rrService;
         }
 
-        public string BuildName(string dbPath, List<string> csvFiles)
+        public string BuildName(
+            string dbPath,
+            List<(double lat, double lon)> sampledPoints,
+            string originalZipName)
         {
-            var (region, road) = _rrService.Detect(dbPath, csvFiles);
+            var (region, road) = _rrService.Detect(dbPath, sampledPoints);
 
             region = Clean(region);
             road = Clean(road);
 
             var date = DateTime.Now.ToString("yyyyMMdd");
 
-            return $"{region}_{road}_SNAPPED_{date}.zip";
+            var baseName = Path.GetFileNameWithoutExtension(originalZipName);
+            baseName = Clean(baseName);
+
+            return $"{baseName}_snapped.csv";
         }
 
         private string Clean(string input)
@@ -31,10 +38,28 @@ namespace PrivateTransportCleaning.Services
                 return "UNKNOWN";
 
             var cleaned = input.ToUpper();
-            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, @"[^A-Z0-9]+", "_");
-            cleaned = System.Text.RegularExpressions.Regex.Replace(cleaned, "_+", "_");
+
+            // allow letters, numbers, DASH, and underscore
+            cleaned = Regex.Replace(cleaned, @"[^A-Z0-9\-_]+", "_");
+
+            // optional: prevent multiple underscores only
+            cleaned = Regex.Replace(cleaned, "_+", "_");
 
             return cleaned.Trim('_');
+        }
+
+        public string BuildZipName(
+            string dbPath,
+            List<(double lat, double lon)> sampledPoints)
+        {
+            var (region, road) = _rrService.Detect(dbPath, sampledPoints);
+
+            region = Clean(region);
+            road = Clean(road);
+
+            var date = DateTime.Now.ToString("yyyyMMdd");
+
+            return $"{region}_{road}_SNAPPED_{date}.zip";
         }
     }
 }

@@ -8,13 +8,6 @@ namespace PrivateTransportCleaning.Services
 {
     public class KilometerPostService
     {
-        private readonly GeoUtilityService _geo;
-
-        public KilometerPostService(GeoUtilityService geo)
-        {
-            _geo = geo;
-        }
-
         public List<KilometerPost> Load(string dbPath)
         {
             var list = new List<KilometerPost>();
@@ -25,7 +18,7 @@ namespace PrivateTransportCleaning.Services
             using var conn = new SqliteConnection($"Data Source={dbPath}");
             conn.Open();
 
-            var cmd = conn.CreateCommand();
+            using var cmd = conn.CreateCommand();
             cmd.CommandText =
                 @"SELECT kilometerPost, regionId, roadName, latitude, longitude
                   FROM tblKilometerPost

@@ -12,7 +12,7 @@
     }
 
     .container {
-        max-width: 600px;
+        max-width: 800px;
         margin: auto;
         background-color: white;
         padding: 30px 40px;
@@ -67,26 +67,38 @@
     <form asp-controller="SurveyData"
           asp-action="Index"
           method="post"
-          enctype="multipart/form-data">
+          enctype="multipart/form-data"
+          onsubmit="return validateFiles()">
 
         <label>Upload Geotab CSV File:</label>
-        <input type="file"
-               name="csvFile"
-               accept=".csv"
-               required />
+        <input type="file" name="csvFile" accept=".csv" required />
 
         <label>Upload ZIP Files:</label>
-        <input type="file"
-               name="zipFiles"
-               accept=".zip"
-               multiple
-               required />
+        <input type="file" name="zipFiles" accept=".zip" multiple required />
 
         <button type="submit">Process Files</button>
-
     </form>
 
     <div class="note">
         Output will generate a separate CSV for each ZIP file.
     </div>
 </div>
+
+<script>
+    function validateFiles() {
+        const csv = document.querySelector('input[name="csvFile"]').files[0];
+        const zips = document.querySelector('input[name="zipFiles"]').files;
+
+        if (!csv) {
+            alert("CSV file is missing");
+            return false;
+        }
+
+        if (!zips || zips.length === 0) {
+            alert("ZIP files are missing");
+            return false;
+        }
+
+        return true;
+    }
+</script>

@@ -17,10 +17,5 @@
     <None Remove="Uploads\**" />
     <None Remove="Output\**" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Jobs\{JobId}\Input\" />
-    <Folder Include="Jobs\{JobId}\Extracted\" />
-    <Folder Include="Jobs\{JobId}\Output\" />
-  </ItemGroup>
 
 </Project>
