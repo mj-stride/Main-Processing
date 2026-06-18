@@ -1,104 +1,543 @@
 ﻿@{
     ViewData["Title"] = "Survey Data Process and Clean";
+    ViewData["Section"] = "Clean and Snap (Private Transport)";
 }
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 
 <style>
     body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f4f6f9;
-        color: #333;
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background: #eeeeee;
         margin: 0;
-        padding: 40px;
+        padding: 0;
     }
 
-    .container {
-        max-width: 800px;
-        margin: auto;
-        background-color: white;
-        padding: 30px 40px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border-radius: 10px;
+    #loadingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
     }
 
-    h1 {
-        text-align: center;
-        color: #0066cc;
+    #loadingCard {
+        width: min(520px, 92vw);
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px 18px 14px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        border: 1px solid #e5e5e5;
     }
 
-    label {
-        display: block;
-        margin-top: 20px;
+    #loadingTitle {
         font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 1.05rem;
     }
 
-    input[type="file"] {
-        display: block;
-        margin-top: 10px;
-        width: 100%;
+    #loadingMsg {
+        font-size: 0.92rem;
+        color: #555;
+        margin-bottom: 12px;
     }
 
-    button {
-        margin-top: 30px;
-        padding: 12px 20px;
-        font-size: 16px;
-        background-color: #007bff;
-        border: none;
-        border-radius: 5px;
-        color: white;
-        width: 100%;
-        cursor: pointer;
+    .progress {
+        height: 12px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: #e9ecef;
     }
 
-        button:hover {
-            background-color: #0056b3;
+    .progress-bar {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #1d4470, #2f6db5);
+        transition: width 0.35s ease;
+    }
+
+    .upload-card {
+        background: #ffffff;
+        border-radius: 16px;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        padding: 1.5rem;
+        max-width: 95vw;
+        margin: 0 auto;
+    }
+        .upload-card h5 {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #1d4470;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-    .note {
-        margin-top: 15px;
-        font-size: 13px;
-        color: #777;
+    .drop-zone {
+        border: 2px dashed #aab4c4;
+        border-radius: 12px;
+        background: #e8ecf0;
+        padding: 2.5rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+    }
+
+        .drop-zone:hover {
+            background: #dde3ea;
+            border-color: #1d4470;
+        }
+
+        .drop-zone.drag-over {
+            background: #d0d8e2;
+            border-color: #1d4470;
+        }
+
+        .drop-zone i {
+            font-size: 3rem;
+            color: #da471f;
+        }
+
+        .drop-zone p {
+            font-size: 0.88rem;
+            color: #555;
+            margin: 0;
+            text-align: center;
+        }
+
+        .drop-zone .drop-label {
+            font-size: 0.78rem;
+            color: #888;
+            margin: 0;
+        }
+
+    .file-list-header {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #1d4470;
+        margin-bottom: 0.5rem;
+    }
+
+    .file-list-scroll {
+        max-height: 160px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .file-list-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .file-list-scroll::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 999px;
+        }
+
+        .file-list-scroll::-webkit-scrollbar-thumb {
+            background: #aab4c4;
+            border-radius: 999px;
+        }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #f0f4f8;
+        border: 1px solid #d0d8e4;
+        border-radius: 8px;
+        padding: 8px 12px;
+    }
+
+        .file-item i {
+            color: #da471f;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+    .file-item-name {
+        font-size: 0.82rem;
+        color: #333;
+        word-break: break-all;
+        flex: 1;
+    }
+
+    .file-item-size {
+        font-size: 0.75rem;
+        color: #888;
+        flex-shrink: 0;
+    }
+
+    .divider {
+        border: none;
+        border-top: 1px solid #e8eef5;
+        margin: 1.5rem 0;
+    }
+
+    .btn-ttds {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: #1d4470;
+        color: #eeeeee;
+        border: none;
+        border-radius: 999px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 12px 40px;
+        cursor: pointer;
+        transition: background 0.18s, transform 0.1s;
+        width: 100%;
+        justify-content: center;
+    }
+
+        .btn-ttds:hover {
+            background: #245490;
+            transform: translateY(-1px);
+        }
+
+        .btn-ttds:active {
+            transform: translateY(0);
+        }
+
+        .btn-ttds:disabled {
+            background: #5a7fa8;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+    .upload-error {
+        display: none;
+        font-size: 0.82rem;
+        color: #c0392b;
         text-align: center;
+        margin-top: 0.5rem;
+    }
+
+    .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.25rem;
+    }
+
+    @@media (max-width: 640px) {
+        .two-col
+
+    {
+        grid-template-columns: 1fr;
+    }
+
+    }
+
+    .section-label {
+        font-size: 1.2rem;
+        font-weight: 750;
+        color: black;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 </style>
 
-<div class="container">
-    <h1>Clean & Snap Survey Data</h1>
-
-    <form asp-controller="SurveyData"
-          asp-action="Index"
-          method="post"
-          enctype="multipart/form-data"
-          onsubmit="return validateFiles()">
-
-        <label>Upload Geotab CSV File:</label>
-        <input type="file" name="csvFile" accept=".csv" required />
-
-        <label>Upload ZIP Files:</label>
-        <input type="file" name="zipFiles" accept=".zip" multiple required />
-
-        <button type="submit">Process Files</button>
-    </form>
-
-    <div class="note">
-        Output will generate a separate CSV for each ZIP file.
+<!-- LOADING OVERLAY -->
+<div id="loadingOverlay">
+    <div id="loadingCard">
+        <div id="loadingTitle">Processing files…</div>
+        <div id="loadingMsg">Uploading and cleaning survey data. Please wait.</div>
+        <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div style="font-size:0.78rem; color:#888; margin-top:8px;">Don't refresh or go back while processing.</div>
     </div>
 </div>
 
+<!-- ERROR TOAST -->
+<div id="errorToast" style="
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #dc3545;
+    color: white;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    display: none;
+    z-index: 10000;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    min-width: 280px;
+">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span id="errorToastMsg"></span>
+</div>
+
+<!-- STICKY TOPBAR -->
+<div style="position:sticky; top:0; z-index:999; background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em; display:flex; justify-content:space-between; align-items:center;">
+    <span>TTDS – Clean &amp; Snap (Private Transport)</span>
+    <a href="/dashboard"
+       style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:none; border-radius:8px; background:#da471f; color:#eeeeee; font-size:0.85rem; font-weight:600; text-decoration:none; transition:background 0.18s;"
+       onmouseover="this.style.background='#c23d19'"
+       onmouseout="this.style.background='#da471f'">
+        <i class="bi bi-columns-gap"></i> Dashboard
+    </a>
+</div>
+
+<!-- PAGE CONTENT -->
+<div style="max-width:98vw; margin:0 auto; padding:1.5rem 2vw 4rem;">
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 1.5rem;">
+        <h2 style="font-size:1.9rem; font-weight:800; margin:0; color:#000;">
+            <i class="bi bi-car-front-fill" style="color:#000; font-size:2.4rem;"></i>
+            Survey Data Process and Clean
+        </h2>
+    </div>
+
+    <div class="upload-card">
+
+        <form id="uploadForm"
+              asp-controller="SurveyData"
+              asp-action="Index"
+              method="post"
+              enctype="multipart/form-data"
+              onsubmit="return handleSubmit(event);">
+
+            @Html.AntiForgeryToken()
+
+            <!-- Hidden real inputs -->
+            <input type="file" id="csvFile" name="csvFile" accept=".csv" style="display:none;" onchange="updateFileLabel(this, 'csvLabel', 'csv')" />
+            <input type="file" id="zipFiles" name="zipFiles" accept=".zip" multiple style="display:none;" onchange="updateFileLabel(this, 'zipLabel', 'zip')" />
+
+            <div class="two-col">
+
+                <!-- CSV DROP ZONE -->
+                <div>
+                    <div class="section-label">
+                       1. Upload Geotab CSV File
+                    </div>
+                    <div class="drop-zone" id="csvZone" onclick="document.getElementById('csvFile').click()">
+                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                        <p>Drag and drop or browse for a <b>.csv</b> file.</p>
+                        <p class="drop-label">Exported Geotab CSV containing trip records.</p>
+                    </div>
+                    <div id="csvLabel"></div>
+                    <p id="csvError" class="upload-error">
+                        <i class="bi bi-exclamation-circle me-1"></i> Please select a CSV file.
+                    </p>
+                </div>
+
+                <!-- ZIP DROP ZONE -->
+                <div>
+                    <div class="section-label">
+                        2. Upload ZIP Files
+                    </div>
+                    <div class="drop-zone" id="zipZone" onclick="document.getElementById('zipFiles').click()">
+                        <i class="bi bi-file-zip"></i>
+                        <p>Drag and drop or browse for <b>.zip</b> files.</p>
+                        <p class="drop-label">A separate CSV will be generated for each ZIP.</p>
+                    </div>
+                    <div id="zipLabel"></div>
+                    <p id="zipError" class="upload-error">
+                        <i class="bi bi-exclamation-circle me-1"></i> Please select at least one ZIP file.
+                    </p>
+                </div>
+
+            </div>
+
+            <hr class="divider" />
+
+            <button id="btnProcess" type="submit" class="btn-ttds">
+                Process Files
+            </button>
+
+        </form>
+
+        <p style="text-align:center; font-size:0.78rem; color:#999; margin-top:1rem;">
+            Output will generate a separate CSV for each ZIP file.
+        </p>
+    </div>
+
+</div>
+
 <script>
-    function validateFiles() {
-        const csv = document.querySelector('input[name="csvFile"]').files[0];
-        const zips = document.querySelector('input[name="zipFiles"]').files;
+    let fakeProgressTimer = null;
 
-        if (!csv) {
-            alert("CSV file is missing");
-            return false;
+        async function handleSubmit(e) {
+        e.preventDefault();
+
+        const form = document.getElementById("uploadForm");
+        const formData = new FormData(form);
+
+        const overlay = document.getElementById("loadingOverlay");
+        const btn = document.getElementById("btnProcess");
+
+        overlay.style.display = "flex";
+        btn.disabled = true;
+
+        startFakeProgress();
+
+        const res = await fetch(form.action, {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await res.json();
+
+        overlay.style.display = "none";
+        btn.disabled = false;
+
+        // ❌ ERROR
+        if (!result.success) {
+            showError(result.message);
+            return;
         }
 
-        if (!zips || zips.length === 0) {
-            alert("ZIP files are missing");
-            return false;
+        // ✅ SUCCESS
+        window.location.href = result.redirect;
+    }
+
+    function showError(message) {
+        const toast = document.getElementById("errorToast");
+        const msg = document.getElementById("errorToastMsg");
+
+        msg.textContent = message;
+        toast.style.display = "block";
+
+        setTimeout(() => {
+            toast.style.display = "none";
+        }, 4000);
+    }
+
+    function updateFileLabel(input, labelId, type) {
+        const label = document.getElementById(labelId);
+        if (!label) return;
+
+        if (input.files && input.files.length > 0) {
+            const files = Array.from(input.files);
+            const icon = type === 'csv' ? 'bi-filetype-csv' : 'bi-file-zip';
+            const items = files.map(f => {
+                const kb = (f.size / 1024).toFixed(1);
+                return `
+                    <div class="file-item">
+                        <i class="bi ${icon}"></i>
+                        <span class="file-item-name">${f.name}</span>
+                        <span class="file-item-size">${kb} KB</span>
+                    </div>`;
+            }).join('');
+
+            label.innerHTML = `
+                <div style="margin-top:0.75rem;">
+                    <p class="file-list-header">
+                        <i class="bi bi-folder2-open me-1"></i>
+                        ${files.length} file${files.length > 1 ? 's' : ''} selected
+                    </p>
+                    <div class="file-list-scroll">${items}</div>
+                </div>`;
+
+            // hide error if showing
+            const errId = type === 'csv' ? 'csvError' : 'zipError';
+            const err = document.getElementById(errId);
+            if (err) err.style.display = 'none';
+        } else {
+            label.innerHTML = '';
         }
+    }
+
+    function startFakeProgress() {
+        const bar = document.getElementById("progressBar");
+        if (!bar) return;
+        bar.style.width = "0%";
+        let progress = 0;
+        if (fakeProgressTimer) clearInterval(fakeProgressTimer);
+        fakeProgressTimer = setInterval(() => {
+            if (progress < 60)      progress += (Math.random() * 10) + 6;
+            else if (progress < 85) progress += (Math.random() * 6) + 2;
+            else if (progress < 95) progress += (Math.random() * 2) + 0.5;
+            else                    progress = 10;
+            bar.style.width = Math.min(progress, 95).toFixed(0) + "%";
+        }, 350);
+    }
+
+    function startUpload() {
+        const csvInput = document.getElementById("csvFile");
+        const zipInput = document.getElementById("zipFiles");
+        const csvErr   = document.getElementById("csvError");
+        const zipErr   = document.getElementById("zipError");
+        const btn      = document.getElementById("btnProcess");
+
+        let valid = true;
+
+        if (!csvInput || !csvInput.files.length) {
+            csvErr.style.display = 'block';
+            valid = false;
+        }
+
+        if (!zipInput || !zipInput.files.length) {
+            zipErr.style.display = 'block';
+            valid = false;
+        }
+
+        if (!valid) return false;
 
         return true;
     }
+
+    // Drag and drop support for both zones
+    function setupDropZone(zoneId, inputId, labelId, type) {
+        const zone  = document.getElementById(zoneId);
+        const input = document.getElementById(inputId);
+        if (!zone || !input) return;
+
+        zone.addEventListener('dragover', e => {
+            e.preventDefault();
+            zone.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', () => {
+            zone.classList.remove('drag-over');
+        });
+
+        zone.addEventListener('drop', e => {
+            e.preventDefault();
+            zone.classList.remove('drag-over');
+            // filter files by type
+            const dt    = e.dataTransfer;
+            const files = Array.from(dt.files).filter(f =>
+                type === 'csv'
+                    ? f.name.toLowerCase().endsWith('.csv')
+                    : f.name.toLowerCase().endsWith('.zip')
+            );
+            if (!files.length) return;
+
+            // assign to input
+            const dataTransfer = new DataTransfer();
+            files.forEach(f => dataTransfer.items.add(f));
+            input.files = dataTransfer.files;
+            updateFileLabel(input, labelId, type);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        setupDropZone('csvZone', 'csvFile', 'csvLabel', 'csv');
+        setupDropZone('zipZone', 'zipFiles', 'zipLabel', 'zip');
+    });
 </script>
+
+<footer style="
+    margin-top: 3rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #666;
+    padding: 1.5rem 0;
+    border-top: 1px solid #ddd;
+">
+    © 2025 Travel Time and Delay Survey
+</footer>
