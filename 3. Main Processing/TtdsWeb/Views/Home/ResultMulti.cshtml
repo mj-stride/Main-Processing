@@ -1584,40 +1584,71 @@
     </script>
 
     <script>
-                document.getElementById("btnDownloadAllWithGraphs")?.addEventListener("click", async () => {
-          const { reg, road } = getFilters();
+                // Wire download buttons after DOM + all scripts are ready
+            window.addEventListener("load", () => {
+              async function doDownloadAll() {
+                const reg = document.getElementById('regionSelect')?.value || 'UnknownRegion';
+                const road = document.getElementById('roadSelect')?.value || 'UnknownRoad';
 
-          const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]'))
-            .map(x => x.value);
+                const safeP = (s) => (s || '').toString().trim()
+                  .replace(/[\\/:*?"<>|]/g, '-')
+                  .replace(/\s+/g, '_');
 
-          const graphs = collectGraphs(reg, road);
+                const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]'))
+                  .map(x => x.value);
 
-          const payload = {
-            region: reg,
-            roadNameOrSections: road,
-            selectedIds,
-            graphs
-          };
+                const nodes = Array.from(document.querySelectorAll('canvas.trip-graph'));
+                const graphs = nodes.map(c => {
+                  const date   = safeP(c.dataset.date   || '00000000');
+                  const period = safeP(c.dataset.period || 'OFF');
+                  const trip   = safeP(c.dataset.trip   || '0');
+                  const dt     = safeP(c.dataset.dt     || '00000000-000000');
+                  const dir    = safeP(c.dataset.dir    || 'UNK');
+                  const veh    = safeP(c.dataset.veh    || 'UnknownVehicle');
+                  const graphName = safeP(c.dataset.graph || c.id || 'Graph');
+                  const folder = `${safeP(reg)}/${safeP(road)}/${date}/${veh}/Graphs/${period}`;
+                  const fileName = `Trip-${trip}_${dt}_${dir}_${graphName}.jpg`;
+                  return { folder, fileName, dataUrl: c.toDataURL("image/jpeg", 0.92) };
+                });
 
-          const res = await fetch("/export_all_with_graphs_zip", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
+                const payload = {
+                  region: reg,
+                  roadNameOrSections: road,
+                  selectedIds,
+                  graphs
+                };
 
-          if (!res.ok) { alert("ALL download failed: " + await res.text()); return; }
+                try {
+                  const res = await fetch("/export_all_with_graphs_zip", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                  });
 
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
+                  if (!res.ok) {
+                    const msg = await res.text();
+                    alert("Download failed: " + msg);
+                    return;
+                  }
 
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${safePart(reg)}_${safePart(road)}.zip`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        });
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `${safeP(reg)}_${safeP(road)}.zip`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+
+                } catch (err) {
+                  alert("Download error: " + err.message);
+                }
+              }
+
+              document.getElementById("btnDownloadAllWithGraphs")?.addEventListener("click", doDownloadAll);
+              document.getElementById("btnDownloadAllWithGraphsBar")?.addEventListener("click", doDownloadAll);
+            });
 
     </script>
         <script>
@@ -1646,7 +1677,7 @@
     </div><!-- end content wrapper -->
     @* ===== FIXED BOTTOM ACTION BAR ===== *@
     <div style="position:fixed; bottom:0; left:0; right:0; background:#ffffff; border-top:2px solid #d0d8e4; padding:14px 32px; display:flex; justify-content:space-between; align-items:center; z-index:1000; box-shadow:0 -2px 12px rgba(0,0,0,0.08);">
-        <button type="button" id="btnDownloadAllWithGraphs"
+        <button type="button" id="btnDownloadAllWithGraphsBar"
                 style="display:inline-flex; align-items:center; gap:10px; padding:10px 28px; border:none; border-radius:999px; background:#1d4470; color:#eeeeee; font-weight:600; font-size:0.88rem; cursor:pointer; transition:background 0.18s;"
                 onmouseover="this.style.background='#245490'"
                 onmouseout="this.style.background='#1d4470'">

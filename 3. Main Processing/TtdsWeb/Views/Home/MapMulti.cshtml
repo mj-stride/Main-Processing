@@ -7,7 +7,8 @@
     var jsonOpts = new JsonSerializerOptions
     {
         PropertyNamingPolicy = null,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals
     };
 
     var anchorSource = (string)(ViewBag.AnchorSource ?? "cp"); // "cp" or "km"
