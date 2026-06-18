@@ -37,10 +37,10 @@ namespace PrivateTransportCleaning.Services
             if (string.IsNullOrWhiteSpace(input))
                 return "UNKNOWN";
 
-            var cleaned = input.ToUpper();
+            var cleaned = input;
 
             // allow letters, numbers, DASH, and underscore
-            cleaned = Regex.Replace(cleaned, @"[^A-Z0-9\-_]+", "_");
+            cleaned = Regex.Replace(cleaned, @"[^a-zA-Z0-9\-_]+", "_");
 
             // optional: prevent multiple underscores only
             cleaned = Regex.Replace(cleaned, "_+", "_");
@@ -59,7 +59,7 @@ namespace PrivateTransportCleaning.Services
 
             var date = DateTime.Now.ToString("yyyyMMdd");
 
-            return $"{region}_{road}_SNAPPED_{date}.zip";
+            return $"{region}_{road}_SNAPPED_{date}.zip".ToUpper();
         }
     }
 }
