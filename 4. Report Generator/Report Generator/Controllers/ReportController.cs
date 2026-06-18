@@ -62,8 +62,9 @@ namespace Report_Generator.Controllers
                     Console.WriteLine($"\n▶ Processing: {survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}");
                     Console.WriteLine(" -> Reading CSV files...");
 
-                    var surveyTripData = new List<TripData>();
                     var surveyFiles = files.Where(f => f.FileName.StartsWith(survey.SegmentAnalysisPath)).ToList();
+                    var surveyTripData = new List<TripData>();
+                    var surveyTripTotals = new List<TripTotalData>();
 
                     foreach (var file in surveyFiles)
                     {
@@ -78,7 +79,12 @@ namespace Report_Generator.Controllers
                             {
                                 using (var stream = file.OpenReadStream())
                                 {
-                                    var data = _csvParser.ReadTripCsv(stream);
+                                    var (data, missing) = _csvParser.ReadTripCsv(stream);
+                                    if (missing.Any())
+                                    {
+                                        Console.WriteLine($"⚠️ SKIPPED {file.FileName} — missing columns: {string.Join(", ", missing)}");
+                                        continue;
+                                    }
 
                                     // Get TripNo and Direction from filename
                                     int tripNo = int.Parse(match.Groups[1].Value);
@@ -98,6 +104,21 @@ namespace Report_Generator.Controllers
                                         row.Period = period;
                                     }
 
+                                    if (data.Any())
+                                    {
+                                        surveyTripTotals.Add(new TripTotalData
+                                        {
+                                            Period = period,
+                                            Direction = direction,
+                                            TotalTravelTimeSec = data.Sum(r => r.TravelTimeSec),
+                                            TotalDistanceM = data.Sum(r => r.DistanceM),
+                                            AvgTravelSpeedKph = data.Average(r => r.TravelSpeedKph),
+                                            AvgRunningSpeedKph = data.Average(r => r.RunningSpeedKph),
+                                            TotalDelayTimeSec = data.Sum(r => r.Delays),
+                                            TotalDelayLengthM = data.Sum(r => r.DelayLengthM),
+                                        });
+                                    }
+
                                     surveyTripData.AddRange(data);
                                 }
                             }
@@ -107,7 +128,7 @@ namespace Report_Generator.Controllers
                     if (surveyTripData.Any())
                     {
                         Console.WriteLine(" -> Calculating Directional Averages...");
-                        var directionalAverages = dataProcessor.CalculateDirectionalAverages(surveyTripData);
+                        var directionalAverages = dataProcessor.CalculateDirectionalAverages(surveyTripTotals);
 
                         Console.WriteLine(" -> Calculating Segment Averages...");
                         var segmentAverages = dataProcessor.CalculateSegmentAverages(surveyTripData);

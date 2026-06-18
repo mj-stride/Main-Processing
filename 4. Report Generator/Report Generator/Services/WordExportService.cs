@@ -73,7 +73,7 @@ namespace Report_Generator.Services
                         string dirText = direction == "NB" ? "NB/EB" : "SB/WB";
                         AddHeading2(body, $"{dirText} Segment-by-segment travel time, speed, and delay analysis", true, true);
                         var segments = segAverages.Where(s => s.Period == period && s.Direction == direction).ToList();
-                        AddSegmentTable(body, segments);
+                        AddSegmentTable(body, segments, direction);
                         AddParagraph(body, "");
                     }
 
@@ -199,9 +199,9 @@ namespace Report_Generator.Services
             var nb = periodData.FirstOrDefault(d => d.Direction == "NB");
             var sb = periodData.FirstOrDefault(d => d.Direction == "SB");
 
-            string formatTime(double? seconds) => seconds.HasValue ? TimeSpan.FromSeconds(Math.Round(seconds.Value)).ToString(@"h\:mm\:ss") : "";
-            string formatDistance(double? distance) => distance.HasValue ? (distance.Value / 1000.0).ToString("0.00") : "";
-            string formatSpeed(double? speed) => speed.HasValue ? speed.Value.ToString("0.00") : "";
+            string formatTime(double? seconds) => seconds.HasValue ? TimeSpan.FromSeconds(Math.Round(seconds.Value)).ToString(@"h\:mm\:ss") : "-";
+            string formatDistance(double? distance) => distance.HasValue ? (distance.Value / 1000.0).ToString("0.00") : "-";
+            string formatSpeed(double? speed) => speed.HasValue ? speed.Value.ToString("0.00") : "-";
 
             Table table = new Table();
 
@@ -273,7 +273,7 @@ namespace Report_Generator.Services
             return row;
         }
 
-        private void AddPeriodSummaryParagraph (Body body, List<SegmentAverages> segAverages,string period)
+        private void AddPeriodSummaryParagraph (Body body, List<SegmentAverages> segAverages, string period)
         {
             var periodSegments = segAverages
                 .Where(s => s.Period == period)
@@ -317,11 +317,11 @@ namespace Report_Generator.Services
                                $"indicating relatively uninterrupted traffic flow.", true);
         }
 
-        private void AddSegmentTable (Body body, List<SegmentAverages> segAverages)
+        private void AddSegmentTable (Body body, List<SegmentAverages> segAverages, string direction)
         {
             if (!segAverages.Any())
             {
-                AddParagraph(body, "No Data Found");
+                AddParagraph(body, $"No {direction} Data");
                 return;
             }
 
