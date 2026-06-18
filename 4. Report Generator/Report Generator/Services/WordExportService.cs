@@ -9,12 +9,16 @@ using Report_Generator.Models;
 using NetTopologySuite.Noding;
 using System.Globalization;
 using System.ComponentModel;
+using DocumentFormat.OpenXml.Office2013.Drawing.Chart;
 
 namespace Report_Generator.Services
 {
     public class WordExportService
     {
-        public byte[] GenerateReport (string region, string roadName, string surveyDate, string vehicleType, List<DirectionalAverages> dirAverages, List<SegmentAverages> segAverages)
+        // ============================
+        // FILE 1: MAIN REPORT (NO ANNEX)
+        // ============================
+        public byte[] GenerateSurveyReport (string region, string roadName, string surveyDate, string vehicleType, List<DirectionalAverages> dirAverages, List<SegmentAverages> segAverages)
         {
             using var memoryStream = new MemoryStream();
 
@@ -89,6 +93,65 @@ namespace Report_Generator.Services
             return memoryStream.ToArray();
         }
 
+        // ============================
+        // FILE 2: ANNEX ONLY
+        // ============================
+        public byte[] GenerateSurveyAnnex (string region, string roadName, string surveyDate, string vehicleType, List<TripData> allTrips)
+        {
+            using var memoryStream = new MemoryStream ();
+
+            using (var wordDocument = WordprocessingDocument.Create(memoryStream, WordprocessingDocumentType.Document, true))
+            {
+                MainDocumentPart mainPart = wordDocument.AddMainDocumentPart();
+                mainPart.Document = new Document();
+                Body body = mainPart.Document.AppendChild(new Body());
+
+                SetDefaultFont(mainPart, "Tahoma");
+
+                AddTitle(body, $"{region} - {roadName} ({vehicleType})");
+                AddParagraph(body, $"Survey Date: {surveyDate}");
+                AddHeading1(body, "ANNEX A - Segment Analysis Source Tables (Per Trip)", true);
+
+                AddSectionBreakPortrait(body);
+
+                string[] periods = { "AM", "MID", "PM" };
+
+                foreach (var period in periods)
+                {
+                    AddHeading1(body, $"{period} - Per Trip Source Tables", true);
+                    AddParagraph(body, "");
+
+                    var periodTrips = allTrips
+                        .Where(t => t.Period == period)
+                        .GroupBy(t => t.SourceFile)
+                        .OrderBy(t => t.First().TripNo)
+                        .ToList();
+
+                    if (!periodTrips.Any())
+                    {
+                        AddParagraph(body, "No Data Found.");
+                        AddPageBreak(body);
+                        continue;
+                    }
+
+                    foreach (var tripGroup in periodTrips)
+                    {
+                        var firstRow = tripGroup.First();
+
+                        AddHeading2(body, $"Trip {firstRow.TripNo} ({firstRow.Direction})", true);
+                        AddTripTable(body, tripGroup.ToList());
+                        AddParagraph(body, "");
+                    }
+
+                    if (period != "PM") AddPageBreak(body);
+                }
+
+                SetLandscapePageLayout(body);
+            }
+
+            return memoryStream.ToArray();
+        }
+
         // --- OPENXML METHODS ---
 
         private void SetA4PageLayout (Body body)
@@ -134,6 +197,30 @@ namespace Report_Generator.Services
             Paragraph para = body.AppendChild(new Paragraph());
             Run run = para.AppendChild(new Run());
             run.AppendChild(new Break() { Type = BreakValues.Page });
+        }
+
+        private void AddSectionBreakPortrait(Body body)
+        {
+            Paragraph para = body.AppendChild(new Paragraph());
+            ParagraphProperties paraProps = para.AppendChild(new ParagraphProperties());
+
+            SectionProperties secProps = new SectionProperties(
+                new SectionType() { Val = SectionMarkValues.NextPage },
+                new PageSize() { Width = 11906U, Height = 16838U, Orient = PageOrientationValues.Portrait }, // A4 Portrait
+                new PageMargin() { Top = 1134, Right = 1134, Bottom = 1134, Left = 1440 }
+            );
+
+            paraProps.Append(secProps);
+        }
+
+        private void SetLandscapePageLayout(Body body)
+        {
+            SectionProperties secProps = new SectionProperties(
+                new PageSize() { Width = 16838U, Height = 11906U, Orient = PageOrientationValues.Landscape }, // A4 Landscape
+                new PageMargin() { Top = 720, Right = 720, Bottom = 720, Left = 720 } // 0.5 inch margins
+            );
+
+            body.AppendChild(secProps);
         }
 
         private void AddTitle (Body body, string text)
@@ -379,6 +466,67 @@ namespace Report_Generator.Services
                     formatVal(seg.DelayLengthM),
                     string.IsNullOrWhiteSpace(seg.DelayCausesSummary) ? "" : seg.DelayCausesSummary,
                     formatVal(seg.DistanceM)
+                }, "18", true));
+            }
+
+            body.AppendChild(table);
+        }
+
+        private void AddTripTable(Body body, List<TripData> tripData)
+        {
+            string formatVal(double? val) => val.HasValue ? val.Value.ToString("0.00") : "";
+
+            Table table = new Table();
+
+            TableProperties tblProp = new TableProperties(
+                new TableBorders(
+                    new TopBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new BottomBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new LeftBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new RightBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new InsideHorizontalBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new InsideVerticalBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" }
+                ),
+                new TableLayout() { Type = TableLayoutValues.Fixed },
+                new TableWidth() { Width = "5000", Type = TableWidthUnitValues.Pct }
+            );
+            table.AppendChild(tblProp);
+
+            TableGrid tableGrid = new TableGrid(
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1600" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1800" }, 
+                new GridColumn() { Width = "1800" }, 
+                new GridColumn() { Width = "1000" }, 
+                new GridColumn() { Width = "1500" }, 
+                new GridColumn() { Width = "1600" }
+            );
+            table.AppendChild(tableGrid);
+
+            table.AppendChild(CreateRow(new[] { "From", "To",
+                "StartTime", "EndTime", "TravelTimeSec", "DistanceM",
+                "TravelSpeedKph", "RunningSpeedKph", "Delays", "DelayLengthM",
+                "DelayCauses" }, "20", true));
+
+            foreach (var row in tripData)
+            {
+                table.AppendChild(CreateRow(new[]
+                {
+                    row.From ?? "",
+                    row.To ?? "",
+                    row.StartTime.ToString("yyyyy-MM-dd HH:mm:ss"),
+                    row.EndTime.ToString("yyyyy-MM-dd HH:mm:ss"),
+                    row.TravelTimeSec.ToString(),
+                    formatVal(row.DistanceM),
+                    formatVal(row.TravelSpeedKph),
+                    formatVal(row.RunningSpeedKph),
+                    row.Delays.ToString(),
+                    formatVal(row.DelayLengthM),
+                    string.IsNullOrWhiteSpace(row.DelayCauses) ? "nan" : row.DelayCauses
                 }, "18", true));
             }
 

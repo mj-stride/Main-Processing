@@ -102,6 +102,7 @@ namespace Report_Generator.Controllers
                                         row.TripNo = tripNo;
                                         row.Direction = direction;
                                         row.Period = period;
+                                        row.SourceFile = file.FileName;
                                     }
 
                                     if (data.Any())
@@ -189,21 +190,37 @@ namespace Report_Generator.Controllers
 
                         Console.WriteLine($"   ✔ Processing completed for {survey.VehicleType}");
 
-                        // WORD DOCUMENT
+                        // REPORT DOCUMENT
                         Console.WriteLine("  -> Generating DOCX Report...");
 
-                        byte[] docxBytes = _wordExport.GenerateReport(survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, directionalAverages, segmentAverages);
+                        byte[] reportBytes = _wordExport.GenerateSurveyReport(survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, directionalAverages, segmentAverages);
 
-                        string docxFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", string.Empty)}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Report.docx";
-                        string docxZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{docxFilename}";
-                        var docEntry = zip.CreateEntry(docxZipEntry, CompressionLevel.Fastest);
+                        string reportFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", string.Empty)}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Report.docx";
+                        string reportZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{reportFilename}";
+                        var reportEntry = zip.CreateEntry(reportZipEntry, CompressionLevel.Fastest);
 
-                        using (var entryStream = docEntry.Open())
+                        using (var entryStream = reportEntry.Open())
                         {
-                            entryStream.Write(docxBytes, 0, docxBytes.Length);
+                            entryStream.Write(reportBytes, 0, reportBytes.Length);
                         }
 
-                        Console.WriteLine($"  ✅ Saved Survey Report: {docxFilename}");
+                        Console.WriteLine($"  ✅ Saved Survey Report: {reportFilename}");
+
+                        // ANNEX DOCUMENT
+                        Console.WriteLine("  -> Generating ANNEX File...");
+
+                        byte[] annexBytes = _wordExport.GenerateSurveyAnnex(survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, surveyTripData);
+
+                        string annexFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", string.Empty)}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Annex.docx";
+                        string annexZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{annexFilename}";
+                        var annexEntry = zip.CreateEntry(annexZipEntry, CompressionLevel.Fastest);
+
+                        using (var entryStream = annexEntry.Open())
+                        {
+                            entryStream.Write(annexBytes, 0, annexBytes.Length);
+                        }
+
+                        Console.WriteLine($"  ✅ Saved Survey Annex: {annexFilename}");
                     }
 
                     else
