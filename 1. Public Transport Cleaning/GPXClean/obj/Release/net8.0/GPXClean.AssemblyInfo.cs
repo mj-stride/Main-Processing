@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GPXClean")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7858439516185f4b2e418f589dedc2a2a6dc0a98")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+36b1f84db877590ad83c6e174f17d3d7662009e2")]
 [assembly: System.Reflection.AssemblyProductAttribute("GPXClean")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GPXClean")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

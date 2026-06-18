@@ -2,7 +2,6 @@
 <<<<<<< Updated upstream
 **/bin/
 **/obj/
-=======
 obj/
 bin/
 *.user
@@ -10,4 +9,3 @@ bin/
 *.cache
 *.dtbcache*
 *.futdcache*
->>>>>>> Stashed changes
