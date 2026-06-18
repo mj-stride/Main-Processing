@@ -325,74 +325,76 @@
         <div id="map"></div>
     </div>
 
-    <script>
-        const map = L.map('map').setView([12.8797, 121.7740], 6);
+</div>
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 20
-        }).addTo(map);
+<script>
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
 
-        let currentLayer = null;
-        let markers = [];
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 20
+    }).addTo(map);
 
-        function clearMarkers() {
-            markers.forEach(m => map.removeLayer(m));
-            markers = [];
-        }
+    let currentLayer = null;
+    let markers = [];
 
-        function loadTrip(el) {
-            const file = el.getAttribute("data-file");
+    function clearMarkers() {
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+    }
 
-            fetch('/SurveyData/GetTripData?file=' + encodeURIComponent(file))
-                .then(r => r.json())
-                .then(points => {
+    function loadTrip(el) {
+        const file = el.getAttribute("data-file");
 
-                    if (currentLayer) map.removeLayer(currentLayer);
-                    clearMarkers();
+        fetch('/SurveyData/GetTripData?file=' + encodeURIComponent(file))
+            .then(r => r.json())
+            .then(points => {
 
-                    if (!points || points.length < 2) return;
+                if (currentLayer) map.removeLayer(currentLayer);
+                clearMarkers();
 
-                    const latlngs = points.map(p => [p[0], p[1]]);
+                if (!points || points.length < 2) return;
 
-                    currentLayer = L.polyline(latlngs, {
-                        color: '#1d4470',
-                        weight: 4
-                    }).addTo(map);
+                const latlngs = points.map(p => [p[0], p[1]]);
 
-                    const startMarker = L.circleMarker(latlngs[0], {
-                        radius: 6,
-                        color: "green",
-                        fillColor: "green",
-                        fillOpacity: 1
-                    }).addTo(map);
+                currentLayer = L.polyline(latlngs, {
+                    color: '#1d4470',
+                    weight: 4
+                }).addTo(map);
 
-                    const endMarker = L.circleMarker(latlngs[latlngs.length - 1], {
-                        radius: 6,
-                        color: "red",
-                        fillColor: "red",
-                        fillOpacity: 1
-                    }).addTo(map);
+                const startMarker = L.circleMarker(latlngs[0], {
+                    radius: 6,
+                    color: "green",
+                    fillColor: "green",
+                    fillOpacity: 1
+                }).addTo(map);
 
-                    markers.push(startMarker);
-                    markers.push(endMarker);
+                const endMarker = L.circleMarker(latlngs[latlngs.length - 1], {
+                    radius: 6,
+                    color: "red",
+                    fillColor: "red",
+                    fillOpacity: 1
+                }).addTo(map);
 
-                    map.fitBounds(currentLayer.getBounds());
-                });
-        }
+                markers.push(startMarker);
+                markers.push(endMarker);
 
-        function getBoxes() {
-            return document.querySelectorAll("input[type='checkbox'][name='files']");
-        }
+                map.fitBounds(currentLayer.getBounds());
+            });
+    }
 
-        function selectAll() {
-            getBoxes().forEach(c => c.checked = true);
-        }
+    function getBoxes() {
+        return document.querySelectorAll("input[type='checkbox'][name='files']");
+    }
 
-        function deselectAll() {
-            getBoxes().forEach(c => c.checked = false);
-        }
+    function selectAll() {
+        getBoxes().forEach(c => c.checked = true);
+    }
 
-        function toggleAll() {
-            getBoxes().forEach(c => c.checked = !c.checked);
-        }
-    </script>
+    function deselectAll() {
+        getBoxes().forEach(c => c.checked = false);
+    }
+
+    function toggleAll() {
+        getBoxes().forEach(c => c.checked = !c.checked);
+    }
+</script>
