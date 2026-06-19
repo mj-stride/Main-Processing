@@ -370,8 +370,29 @@
 <script>
     let fakeProgressTimer = null;
 
-        async function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault();
+
+        const csvInput = document.getElementById("csvFile");
+        const zipInput = document.getElementById("zipFiles");
+        const csvErr = document.getElementById("csvError");
+        const zipErr = document.getElementById("zipError");
+
+        let valid = true;
+
+        if (!csvInput || !csvInput.files || csvInput.files.length === 0) {
+            csvErr.style.display = "block";
+            valid = false;
+        }
+
+        if (!zipInput || !zipInput.files || zipInput.files.length === 0) {
+            zipErr.style.display = "block";
+            valid = false;
+        }
+
+        if (!valid) {
+            return false;
+        }
 
         const form = document.getElementById("uploadForm");
         const formData = new FormData(form);

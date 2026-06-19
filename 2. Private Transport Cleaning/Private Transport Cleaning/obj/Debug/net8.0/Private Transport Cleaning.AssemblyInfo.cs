@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Private Transport Cleaning")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bc35ce1f21bc51b328d4cd9dbfecd380fefc8ba3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3b05e2b1dc63e4b4a18d78ca98274a01a69a7214")]
 [assembly: System.Reflection.AssemblyProductAttribute("Private Transport Cleaning")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Private Transport Cleaning")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
