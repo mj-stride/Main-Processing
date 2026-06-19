@@ -31,6 +31,8 @@ namespace Report_Generator.Services
             using var reader = new StreamReader(fileStream);
             using var csv = new CsvReader(reader, _config);
 
+            csv.Context.TypeConverterOptionsCache.GetOptions<double?>().NullValues.AddRange(new[] { string.Empty, "NaN", "null", "N/A" });
+
             csv.Read();
             csv.ReadHeader();
 

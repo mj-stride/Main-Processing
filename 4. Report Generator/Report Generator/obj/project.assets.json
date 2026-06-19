@@ -168,6 +168,15 @@
           "buildMultiTargeting/Microsoft.Extensions.ApiDescription.Server.targets": {}
         }
       },
+      "Microsoft.NETCore.Platforms/2.1.2": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard1.0/_._": {}
+        },
+        "runtime": {
+          "lib/netstandard1.0/_._": {}
+        }
+      },
       "Microsoft.OpenApi/1.6.14": {
         "type": "package",
         "compile": {
@@ -194,6 +203,84 @@
           }
         }
       },
+      "NetTopologySuite.Features/2.0.0": {
+        "type": "package",
+        "dependencies": {
+          "NetTopologySuite": "[2.0.0, 3.0.0-A)"
+        },
+        "compile": {
+          "lib/netstandard2.0/NetTopologySuite.Features.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/NetTopologySuite.Features.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "NetTopologySuite.IO.GeoJSON/4.0.0": {
+        "type": "package",
+        "dependencies": {
+          "NetTopologySuite": "[2.0.0, 3.0.0-A)",
+          "NetTopologySuite.Features": "[2.0.0, 3.0.0-A)",
+          "Newtonsoft.Json": "13.0.1"
+        },
+        "compile": {
+          "lib/netstandard2.0/NetTopologySuite.IO.GeoJSON.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/NetTopologySuite.IO.GeoJSON.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "NetTopologySuite.IO.ShapeFile/2.1.0": {
+        "type": "package",
+        "dependencies": {
+          "NetTopologySuite": "[2.0.0, 3.0.0-A)",
+          "NetTopologySuite.Features": "[2.0.0, 3.0.0-A)",
+          "System.Text.Encoding.CodePages": "4.5.1"
+        },
+        "compile": {
+          "lib/netstandard2.0/NetTopologySuite.IO.ShapeFile.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/NetTopologySuite.IO.ShapeFile.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "Newtonsoft.Json/13.0.1": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.0/Newtonsoft.Json.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "ProjNET/2.1.0": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.1/ProjNET.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netstandard2.1/ProjNET.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "ScottPlot/5.1.58": {
         "type": "package",
         "dependencies": {
@@ -213,17 +300,17 @@
           }
         }
       },
-      "SkiaSharp/3.119.0": {
+      "SkiaSharp/3.119.4": {
         "type": "package",
         "dependencies": {
-          "SkiaSharp.NativeAssets.Win32": "3.119.0",
-          "SkiaSharp.NativeAssets.macOS": "3.119.0"
+          "SkiaSharp.NativeAssets.Win32": "3.119.4",
+          "SkiaSharp.NativeAssets.macOS": "3.119.4"
         },
         "compile": {
-          "ref/net8.0/SkiaSharp.dll": {}
+          "ref/net6.0/SkiaSharp.dll": {}
         },
         "runtime": {
-          "lib/net8.0/SkiaSharp.dll": {
+          "lib/net6.0/SkiaSharp.dll": {
             "related": ".pdb"
           }
         }
@@ -300,13 +387,13 @@
           }
         }
       },
-      "SkiaSharp.NativeAssets.macOS/3.119.0": {
+      "SkiaSharp.NativeAssets.macOS/3.119.4": {
         "type": "package",
         "compile": {
-          "lib/net8.0/_._": {}
+          "lib/net6.0/_._": {}
         },
         "runtime": {
-          "lib/net8.0/_._": {}
+          "lib/net6.0/_._": {}
         },
         "runtimeTargets": {
           "runtimes/osx/native/libSkiaSharp.dylib": {
@@ -315,16 +402,20 @@
           }
         }
       },
-      "SkiaSharp.NativeAssets.Win32/3.119.0": {
+      "SkiaSharp.NativeAssets.Win32/3.119.4": {
         "type": "package",
         "compile": {
-          "lib/net8.0/_._": {}
+          "lib/net6.0/_._": {}
         },
         "runtime": {
-          "lib/net8.0/_._": {}
+          "lib/net6.0/_._": {}
         },
         "runtimeTargets": {
           "runtimes/win-arm64/native/libSkiaSharp.dll": {
+            "assetType": "native",
+            "rid": "win-arm64"
+          },
+          "runtimes/win-arm64/native/libSkiaSharp.pdb": {
             "assetType": "native",
             "rid": "win-arm64"
           },
@@ -332,7 +423,15 @@
             "assetType": "native",
             "rid": "win-x64"
           },
+          "runtimes/win-x64/native/libSkiaSharp.pdb": {
+            "assetType": "native",
+            "rid": "win-x64"
+          },
           "runtimes/win-x86/native/libSkiaSharp.dll": {
+            "assetType": "native",
+            "rid": "win-x86"
+          },
+          "runtimes/win-x86/native/libSkiaSharp.pdb": {
             "assetType": "native",
             "rid": "win-x86"
           }
@@ -415,6 +514,38 @@
         },
         "build": {
           "buildTransitive/net6.0/_._": {}
+        }
+      },
+      "System.Runtime.CompilerServices.Unsafe/4.5.2": {
+        "type": "package",
+        "compile": {
+          "ref/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "System.Text.Encoding.CodePages/4.5.1": {
+        "type": "package",
+        "dependencies": {
+          "Microsoft.NETCore.Platforms": "2.1.2",
+          "System.Runtime.CompilerServices.Unsafe": "4.5.2"
+        },
+        "compile": {
+          "lib/netstandard2.0/System.Text.Encoding.CodePages.dll": {}
+        },
+        "runtime": {
+          "lib/netstandard2.0/System.Text.Encoding.CodePages.dll": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/netcoreapp2.0/System.Text.Encoding.CodePages.dll": {
+            "assetType": "runtime",
+            "rid": "win"
+          }
         }
       }
     }
@@ -850,6 +981,23 @@
         "tools/netcoreapp2.1/System.Diagnostics.DiagnosticSource.dll"
       ]
     },
+    "Microsoft.NETCore.Platforms/2.1.2": {
+      "sha512": "mOJy3M0UN+LUG21dLGMxaWZEP6xYpQEpLuvuEQBaownaX4YuhH6NmNUlN9si+vNkAS6dwJ//N1O4DmLf2CikVg==",
+      "type": "package",
+      "path": "microsoft.netcore.platforms/2.1.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/netstandard1.0/_._",
+        "microsoft.netcore.platforms.2.1.2.nupkg.sha512",
+        "microsoft.netcore.platforms.nuspec",
+        "runtime.json",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
+    },
     "Microsoft.OpenApi/1.6.14": {
       "sha512": "tTaBT8qjk3xINfESyOPE2rIellPvB7qpVqiWiyA/lACVvz+xOGiXhFUfohcx82NLbi5avzLW0lx+s6oAqQijfw==",
       "type": "package",
@@ -881,6 +1029,90 @@
         "nettopologysuite.nuspec"
       ]
     },
+    "NetTopologySuite.Features/2.0.0": {
+      "sha512": "RDbEpujDL0bsAyTMHlbKj36KIPhUrtSGUaO/jUjMnsLcixrJFwoDJ8p717FdgMHpQDrcEJAKF+QsAlYsSULkew==",
+      "type": "package",
+      "path": "nettopologysuite.features/2.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "lib/netstandard2.0/NetTopologySuite.Features.dll",
+        "lib/netstandard2.0/NetTopologySuite.Features.xml",
+        "nettopologysuite.features.2.0.0.nupkg.sha512",
+        "nettopologysuite.features.nuspec"
+      ]
+    },
+    "NetTopologySuite.IO.GeoJSON/4.0.0": {
+      "sha512": "AWpcRwPAIrUZfghQat7bXK9dAckhuAxKF/Yvp+DoctLpct7pilj0Y+VCiof/8NlaclGlrISSfgnu3Tbvq6T2ug==",
+      "type": "package",
+      "path": "nettopologysuite.io.geojson/4.0.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/netstandard2.0/NetTopologySuite.IO.GeoJSON.dll",
+        "lib/netstandard2.0/NetTopologySuite.IO.GeoJSON.xml",
+        "nettopologysuite.io.geojson.4.0.0.nupkg.sha512",
+        "nettopologysuite.io.geojson.nuspec"
+      ]
+    },
+    "NetTopologySuite.IO.ShapeFile/2.1.0": {
+      "sha512": "syaBMB56Rm1hmEK5vTpr5t/UjS2PA5bsVKaeWYY0ib6dlVonCgxfahxrZchnFlwZvuXnNKy/OP15Tr7UD/BM7Q==",
+      "type": "package",
+      "path": "nettopologysuite.io.shapefile/2.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/netstandard2.0/NetTopologySuite.IO.ShapeFile.dll",
+        "lib/netstandard2.0/NetTopologySuite.IO.ShapeFile.xml",
+        "nettopologysuite.io.shapefile.2.1.0.nupkg.sha512",
+        "nettopologysuite.io.shapefile.nuspec"
+      ]
+    },
+    "Newtonsoft.Json/13.0.1": {
+      "sha512": "ppPFpBcvxdsfUonNcvITKqLl3bqxWbDCZIzDWHzjpdAHRFfZe0Dw9HmA0+za13IdyrgJwpkDTDA9fHaxOrt20A==",
+      "type": "package",
+      "path": "newtonsoft.json/13.0.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.md",
+        "lib/net20/Newtonsoft.Json.dll",
+        "lib/net20/Newtonsoft.Json.xml",
+        "lib/net35/Newtonsoft.Json.dll",
+        "lib/net35/Newtonsoft.Json.xml",
+        "lib/net40/Newtonsoft.Json.dll",
+        "lib/net40/Newtonsoft.Json.xml",
+        "lib/net45/Newtonsoft.Json.dll",
+        "lib/net45/Newtonsoft.Json.xml",
+        "lib/netstandard1.0/Newtonsoft.Json.dll",
+        "lib/netstandard1.0/Newtonsoft.Json.xml",
+        "lib/netstandard1.3/Newtonsoft.Json.dll",
+        "lib/netstandard1.3/Newtonsoft.Json.xml",
+        "lib/netstandard2.0/Newtonsoft.Json.dll",
+        "lib/netstandard2.0/Newtonsoft.Json.xml",
+        "newtonsoft.json.13.0.1.nupkg.sha512",
+        "newtonsoft.json.nuspec",
+        "packageIcon.png"
+      ]
+    },
+    "ProjNET/2.1.0": {
+      "sha512": "4F0xEYe+cQCgWgnf1UaDlRPFm9RxTaSFt4C/axNnCgSCNWU1AFDNvTyVdN/RwNmTYoGEWxo4sOYMQrW9kQtwpg==",
+      "type": "package",
+      "path": "projnet/2.1.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "icon.png",
+        "lib/netstandard2.0/ProjNET.dll",
+        "lib/netstandard2.0/ProjNET.xml",
+        "lib/netstandard2.1/ProjNET.dll",
+        "lib/netstandard2.1/ProjNET.xml",
+        "projnet.2.1.0.nupkg.sha512",
+        "projnet.nuspec"
+      ]
+    },
     "ScottPlot/5.1.58": {
       "sha512": "prikNmFbV+z2ruXYmE06yYlnHQfuYzhPrrj30SvcUkRXfdiC07A+2LBSYhuSMaRFCHvgRKo6gXjfwHzhOW8ASg==",
       "type": "package",
@@ -906,10 +1138,10 @@
         "scottplot.nuspec"
       ]
     },
-    "SkiaSharp/3.119.0": {
-      "sha512": "gR9yVoOta2Mc1Rxt15LD65AckfHMfwjIs/3kkD59C9bT2nYYISsE6uz3t4aMPNHA6CgsIL0Ssn+jE5OVilZ1yw==",
+    "SkiaSharp/3.119.4": {
+      "sha512": "53NOSUZ1Us+91Sm0uCkIivh/k7jOowRErZT2sIWwPFN9mLUvdxnE6rS4sWo4255+Rd2MWUSF+j0NMZHD6Cke+Q==",
       "type": "package",
-      "path": "skiasharp/3.119.0",
+      "path": "skiasharp/3.119.4",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -917,44 +1149,75 @@
         "README.md",
         "icon.png",
         "interactive-extensions/dotnet/SkiaSharp.DotNet.Interactive.dll",
+        "lib/net10.0-android36.0/SkiaSharp.dll",
+        "lib/net10.0-android36.0/SkiaSharp.pdb",
+        "lib/net10.0-android36.0/SkiaSharp.xml",
+        "lib/net10.0-ios26.2/SkiaSharp.dll",
+        "lib/net10.0-ios26.2/SkiaSharp.pdb",
+        "lib/net10.0-maccatalyst26.2/SkiaSharp.dll",
+        "lib/net10.0-maccatalyst26.2/SkiaSharp.pdb",
+        "lib/net10.0-macos26.2/SkiaSharp.dll",
+        "lib/net10.0-macos26.2/SkiaSharp.pdb",
+        "lib/net10.0-tizen10.0/SkiaSharp.dll",
+        "lib/net10.0-tizen10.0/SkiaSharp.pdb",
+        "lib/net10.0-tvos26.2/SkiaSharp.dll",
+        "lib/net10.0-tvos26.2/SkiaSharp.pdb",
+        "lib/net10.0-windows10.0.19041/SkiaSharp.dll",
+        "lib/net10.0-windows10.0.19041/SkiaSharp.pdb",
+        "lib/net10.0/SkiaSharp.dll",
+        "lib/net10.0/SkiaSharp.pdb",
         "lib/net462/SkiaSharp.dll",
         "lib/net462/SkiaSharp.pdb",
+        "lib/net48/SkiaSharp.dll",
+        "lib/net48/SkiaSharp.pdb",
+        "lib/net6.0-tizen8.0/SkiaSharp.dll",
+        "lib/net6.0-tizen8.0/SkiaSharp.pdb",
         "lib/net6.0/SkiaSharp.dll",
         "lib/net6.0/SkiaSharp.pdb",
-        "lib/net8.0-android34.0/SkiaSharp.dll",
-        "lib/net8.0-android34.0/SkiaSharp.pdb",
-        "lib/net8.0-android34.0/SkiaSharp.xml",
-        "lib/net8.0-ios17.0/SkiaSharp.dll",
-        "lib/net8.0-ios17.0/SkiaSharp.pdb",
-        "lib/net8.0-maccatalyst17.0/SkiaSharp.dll",
-        "lib/net8.0-maccatalyst17.0/SkiaSharp.pdb",
-        "lib/net8.0-macos14.0/SkiaSharp.dll",
-        "lib/net8.0-macos14.0/SkiaSharp.pdb",
-        "lib/net8.0-tizen7.0/SkiaSharp.dll",
-        "lib/net8.0-tizen7.0/SkiaSharp.pdb",
-        "lib/net8.0-tvos17.0/SkiaSharp.dll",
-        "lib/net8.0-tvos17.0/SkiaSharp.pdb",
-        "lib/net8.0-windows10.0.19041/SkiaSharp.dll",
-        "lib/net8.0-windows10.0.19041/SkiaSharp.pdb",
-        "lib/net8.0/SkiaSharp.dll",
-        "lib/net8.0/SkiaSharp.pdb",
+        "lib/net9.0-android35.0/SkiaSharp.dll",
+        "lib/net9.0-android35.0/SkiaSharp.pdb",
+        "lib/net9.0-android35.0/SkiaSharp.xml",
+        "lib/net9.0-ios18.0/SkiaSharp.dll",
+        "lib/net9.0-ios18.0/SkiaSharp.pdb",
+        "lib/net9.0-maccatalyst18.0/SkiaSharp.dll",
+        "lib/net9.0-maccatalyst18.0/SkiaSharp.pdb",
+        "lib/net9.0-macos15.0/SkiaSharp.dll",
+        "lib/net9.0-macos15.0/SkiaSharp.pdb",
+        "lib/net9.0-tizen8.0/SkiaSharp.dll",
+        "lib/net9.0-tizen8.0/SkiaSharp.pdb",
+        "lib/net9.0-tvos18.0/SkiaSharp.dll",
+        "lib/net9.0-tvos18.0/SkiaSharp.pdb",
+        "lib/net9.0-windows10.0.19041/SkiaSharp.dll",
+        "lib/net9.0-windows10.0.19041/SkiaSharp.pdb",
+        "lib/net9.0/SkiaSharp.dll",
+        "lib/net9.0/SkiaSharp.pdb",
         "lib/netstandard2.0/SkiaSharp.dll",
         "lib/netstandard2.0/SkiaSharp.pdb",
         "lib/netstandard2.1/SkiaSharp.dll",
         "lib/netstandard2.1/SkiaSharp.pdb",
+        "ref/net10.0-android36.0/SkiaSharp.dll",
+        "ref/net10.0-ios26.2/SkiaSharp.dll",
+        "ref/net10.0-maccatalyst26.2/SkiaSharp.dll",
+        "ref/net10.0-macos26.2/SkiaSharp.dll",
+        "ref/net10.0-tizen10.0/SkiaSharp.dll",
+        "ref/net10.0-tvos26.2/SkiaSharp.dll",
+        "ref/net10.0-windows10.0.19041/SkiaSharp.dll",
+        "ref/net10.0/SkiaSharp.dll",
         "ref/net462/SkiaSharp.dll",
+        "ref/net48/SkiaSharp.dll",
+        "ref/net6.0-tizen8.0/SkiaSharp.dll",
         "ref/net6.0/SkiaSharp.dll",
-        "ref/net8.0-android34.0/SkiaSharp.dll",
-        "ref/net8.0-ios17.0/SkiaSharp.dll",
-        "ref/net8.0-maccatalyst17.0/SkiaSharp.dll",
-        "ref/net8.0-macos14.0/SkiaSharp.dll",
-        "ref/net8.0-tizen7.0/SkiaSharp.dll",
-        "ref/net8.0-tvos17.0/SkiaSharp.dll",
-        "ref/net8.0-windows10.0.19041/SkiaSharp.dll",
-        "ref/net8.0/SkiaSharp.dll",
+        "ref/net9.0-android35.0/SkiaSharp.dll",
+        "ref/net9.0-ios18.0/SkiaSharp.dll",
+        "ref/net9.0-maccatalyst18.0/SkiaSharp.dll",
+        "ref/net9.0-macos15.0/SkiaSharp.dll",
+        "ref/net9.0-tizen8.0/SkiaSharp.dll",
+        "ref/net9.0-tvos18.0/SkiaSharp.dll",
+        "ref/net9.0-windows10.0.19041/SkiaSharp.dll",
+        "ref/net9.0/SkiaSharp.dll",
         "ref/netstandard2.0/SkiaSharp.dll",
         "ref/netstandard2.1/SkiaSharp.dll",
-        "skiasharp.3.119.0.nupkg.sha512",
+        "skiasharp.3.119.4.nupkg.sha512",
         "skiasharp.nuspec"
       ]
     },
@@ -1015,10 +1278,10 @@
         "skiasharp.nativeassets.linux.nodependencies.nuspec"
       ]
     },
-    "SkiaSharp.NativeAssets.macOS/3.119.0": {
-      "sha512": "YE1vNn0Nyw2PWtv7hw1PYkKJO0itFiQp9vSqGppZUKzQJqwp28a2jgdCMPfYtOiR8KCnDgZqQoynqJRRaE2ZVg==",
+    "SkiaSharp.NativeAssets.macOS/3.119.4": {
+      "sha512": "fgBOWEqbY012x7gMfJU4ezgz6dfhJb30Z6YdW35h85Zoe39+a8YNbAAwL29ihPfWoppg5AjvyKNzD1oCvlqWwA==",
       "type": "package",
-      "path": "skiasharp.nativeassets.macos/3.119.0",
+      "path": "skiasharp.nativeassets.macos/3.119.4",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -1026,24 +1289,30 @@
         "README.md",
         "THIRD-PARTY-NOTICES.txt",
         "build/net462/SkiaSharp.NativeAssets.macOS.targets",
+        "build/net48/SkiaSharp.NativeAssets.macOS.targets",
+        "buildTransitive/net10.0-macos26.2/SkiaSharp.NativeAssets.macOS.targets",
         "buildTransitive/net462/SkiaSharp.NativeAssets.macOS.targets",
-        "buildTransitive/net8.0-macos14.0/SkiaSharp.NativeAssets.macOS.targets",
+        "buildTransitive/net48/SkiaSharp.NativeAssets.macOS.targets",
+        "buildTransitive/net9.0-macos15.0/SkiaSharp.NativeAssets.macOS.targets",
         "icon.png",
+        "lib/net10.0-macos26.2/_._",
+        "lib/net10.0/_._",
         "lib/net462/_._",
+        "lib/net48/_._",
         "lib/net6.0/_._",
-        "lib/net8.0-macos14.0/_._",
-        "lib/net8.0/_._",
+        "lib/net9.0-macos15.0/_._",
+        "lib/net9.0/_._",
         "lib/netstandard2.0/_._",
         "lib/netstandard2.1/_._",
         "runtimes/osx/native/libSkiaSharp.dylib",
-        "skiasharp.nativeassets.macos.3.119.0.nupkg.sha512",
+        "skiasharp.nativeassets.macos.3.119.4.nupkg.sha512",
         "skiasharp.nativeassets.macos.nuspec"
       ]
     },
-    "SkiaSharp.NativeAssets.Win32/3.119.0": {
-      "sha512": "IwC9yx36lOdXVT2DjgmWHl1qkVspfj8ctd4+li8CNnvqdfaTolXCOh6TLznURcPAvzatx9K/tLOB7zT6T8EA9w==",
+    "SkiaSharp.NativeAssets.Win32/3.119.4": {
+      "sha512": "XOpbx/4CReO2wYsq2s6rbvdauc6dntG4Zv499sHGTJ87bwZaFXszFkwql3+FIZMc8kUPeaj3Mx2ezIJmo8a1Kg==",
       "type": "package",
-      "path": "skiasharp.nativeassets.win32/3.119.0",
+      "path": "skiasharp.nativeassets.win32/3.119.4",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -1051,19 +1320,26 @@
         "README.md",
         "THIRD-PARTY-NOTICES.txt",
         "build/net462/SkiaSharp.NativeAssets.Win32.targets",
+        "build/net48/SkiaSharp.NativeAssets.Win32.targets",
         "buildTransitive/net462/SkiaSharp.NativeAssets.Win32.targets",
+        "buildTransitive/net48/SkiaSharp.NativeAssets.Win32.targets",
         "icon.png",
+        "lib/net10.0-windows10.0.19041/_._",
+        "lib/net10.0/_._",
         "lib/net462/_._",
-        "lib/net6.0-windows10.0.19041/_._",
+        "lib/net48/_._",
         "lib/net6.0/_._",
-        "lib/net8.0-windows10.0.19041/_._",
-        "lib/net8.0/_._",
+        "lib/net9.0-windows10.0.19041/_._",
+        "lib/net9.0/_._",
         "lib/netstandard2.0/_._",
         "lib/netstandard2.1/_._",
         "runtimes/win-arm64/native/libSkiaSharp.dll",
+        "runtimes/win-arm64/native/libSkiaSharp.pdb",
         "runtimes/win-x64/native/libSkiaSharp.dll",
+        "runtimes/win-x64/native/libSkiaSharp.pdb",
         "runtimes/win-x86/native/libSkiaSharp.dll",
-        "skiasharp.nativeassets.win32.3.119.0.nupkg.sha512",
+        "runtimes/win-x86/native/libSkiaSharp.pdb",
+        "skiasharp.nativeassets.win32.3.119.4.nupkg.sha512",
         "skiasharp.nativeassets.win32.nuspec"
       ]
     },
@@ -1197,6 +1473,66 @@
         "system.io.packaging.nuspec",
         "useSharedDesignerContext.txt"
       ]
+    },
+    "System.Runtime.CompilerServices.Unsafe/4.5.2": {
+      "sha512": "wprSFgext8cwqymChhrBLu62LMg/1u92bU+VOwyfBimSPVFXtsNqEWC92Pf9ofzJFlk4IHmJA75EDJn1b2goAQ==",
+      "type": "package",
+      "path": "system.runtime.compilerservices.unsafe/4.5.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "lib/netstandard1.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/netstandard1.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "ref/netstandard1.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "ref/netstandard1.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "ref/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "ref/netstandard2.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "system.runtime.compilerservices.unsafe.4.5.2.nupkg.sha512",
+        "system.runtime.compilerservices.unsafe.nuspec",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
+    },
+    "System.Text.Encoding.CodePages/4.5.1": {
+      "sha512": "4J2JQXbftjPMppIHJ7IC+VXQ9XfEagN92vZZNoG12i+zReYlim5dMoXFC1Zzg7tsnKDM7JPo5bYfFK4Jheq44w==",
+      "type": "package",
+      "path": "system.text.encoding.codepages/4.5.1",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE.TXT",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/MonoAndroid10/_._",
+        "lib/MonoTouch10/_._",
+        "lib/net46/System.Text.Encoding.CodePages.dll",
+        "lib/net461/System.Text.Encoding.CodePages.dll",
+        "lib/netstandard1.3/System.Text.Encoding.CodePages.dll",
+        "lib/netstandard2.0/System.Text.Encoding.CodePages.dll",
+        "lib/xamarinios10/_._",
+        "lib/xamarinmac20/_._",
+        "lib/xamarintvos10/_._",
+        "lib/xamarinwatchos10/_._",
+        "ref/MonoAndroid10/_._",
+        "ref/MonoTouch10/_._",
+        "ref/xamarinios10/_._",
+        "ref/xamarinmac20/_._",
+        "ref/xamarintvos10/_._",
+        "ref/xamarinwatchos10/_._",
+        "runtimes/win/lib/net461/System.Text.Encoding.CodePages.dll",
+        "runtimes/win/lib/netcoreapp2.0/System.Text.Encoding.CodePages.dll",
+        "runtimes/win/lib/netstandard1.3/System.Text.Encoding.CodePages.dll",
+        "runtimes/win/lib/netstandard2.0/System.Text.Encoding.CodePages.dll",
+        "system.text.encoding.codepages.4.5.1.nupkg.sha512",
+        "system.text.encoding.codepages.nuspec",
+        "useSharedDesignerContext.txt",
+        "version.txt"
+      ]
     }
   },
   "projectFileDependencyGroups": {
@@ -1204,7 +1540,12 @@
       "CsvHelper >= 33.1.0",
       "DocumentFormat.OpenXml >= 3.5.1",
       "NetTopologySuite >= 2.6.0",
+      "NetTopologySuite.IO.GeoJSON >= 4.0.0",
+      "NetTopologySuite.IO.ShapeFile >= 2.1.0",
+      "ProjNET >= 2.1.0",
       "ScottPlot >= 5.1.58",
+      "SkiaSharp >= 3.119.4",
+      "SkiaSharp.NativeAssets.Win32 >= 3.119.4",
       "Swashbuckle.AspNetCore >= 6.6.2"
     ]
   },
@@ -1271,9 +1612,29 @@
             "target": "Package",
             "version": "[2.6.0, )"
           },
+          "NetTopologySuite.IO.GeoJSON": {
+            "target": "Package",
+            "version": "[4.0.0, )"
+          },
+          "NetTopologySuite.IO.ShapeFile": {
+            "target": "Package",
+            "version": "[2.1.0, )"
+          },
+          "ProjNET": {
+            "target": "Package",
+            "version": "[2.1.0, )"
+          },
           "ScottPlot": {
             "target": "Package",
             "version": "[5.1.58, )"
+          },
+          "SkiaSharp": {
+            "target": "Package",
+            "version": "[3.119.4, )"
+          },
+          "SkiaSharp.NativeAssets.Win32": {
+            "target": "Package",
+            "version": "[3.119.4, )"
           },
           "Swashbuckle.AspNetCore": {
             "target": "Package",

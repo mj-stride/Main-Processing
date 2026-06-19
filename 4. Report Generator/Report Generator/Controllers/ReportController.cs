@@ -1,4 +1,4 @@
-﻿using CsvHelper;
+using CsvHelper;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -22,20 +22,26 @@ namespace Report_Generator.Controllers
         private readonly CsvExportService _csvExport;
         private readonly ChartGeneratorService _chartGenerator;
         private readonly WordExportService _wordExport;
+        private readonly TripLineLoaderService _tripLineLoader;
+        private readonly SpeedSegmentService _speedSegment;
+        private readonly SpeedMapRenderer _speedMapRenderer;
 
-        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport, ChartGeneratorService chartGenerator, WordExportService wordExport)
+        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport, ChartGeneratorService chartGenerator, WordExportService wordExport, TripLineLoaderService tripLineLoader, SpeedSegmentService speedSegment, SpeedMapRenderer speedMapRenderer)
         {
             _folderScanner = folderScanner;
             _csvParser = csvParser;
             _csvExport = csvExport;
             _chartGenerator = chartGenerator;
             _wordExport = wordExport;
+            _tripLineLoader = tripLineLoader;
+            _speedSegment = speedSegment;
+            _speedMapRenderer = speedMapRenderer;
         }
 
         [HttpPost("generate")]
         [DisableRequestSizeLimit]
         [RequestFormLimits(ValueLengthLimit = int.MaxValue, MultipartBodyLengthLimit = long.MaxValue, ValueCountLimit = int.MaxValue)]
-        public IActionResult GenerateReports([FromForm] List<IFormFile> files)
+        public async Task<IActionResult> GenerateReportsAsync([FromForm] List<IFormFile> files)
         {
             if (files == null || !files.Any())
             {
@@ -136,6 +142,7 @@ namespace Report_Generator.Controllers
                         
                         string[] periods = { "AM", "MID", "PM" };
                         string[] directions = { "NB", "SB" };
+                        var reportImages = new Dictionary<string, byte[]>();
 
                         foreach (var period in periods)
                         {
@@ -169,6 +176,7 @@ namespace Report_Generator.Controllers
 
                                     if (imageBytes != null)
                                     {
+                                        reportImages[$"{period}_{direction}_Chart"] = imageBytes;
                                         string chartZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/Graphs/{period}_{direction}_SpeedPair.png";
                                         var chartEntry = zip.CreateEntry(chartZipEntry, CompressionLevel.Fastest);
 
@@ -177,6 +185,47 @@ namespace Report_Generator.Controllers
                                             entryStream.Write(imageBytes, 0, imageBytes.Length);
                                         }
                                         chartsGenerated++;
+                                    }
+
+                                    // Scope file lookups to this survey's VehicleType folder, not just SegmentAnalysis —
+                                    // Snapped and KM-CP Detected are sibling folders, not under SegmentAnalysisPath.
+                                    string vehicleTypePath = survey.SegmentAnalysisPath.Substring(
+                                        0, survey.SegmentAnalysisPath.Length - "SegmentAnalysis".Length);
+                                    var vehicleFiles = files.Where(f => f.FileName.StartsWith(vehicleTypePath)).ToList();
+
+                                    // Map Generation
+                                    var tripLine = _tripLineLoader.LoadTripLinestring(vehicleFiles, period, direction);
+                                    var controlPoints = _tripLineLoader.LoadControlPoints(vehicleFiles, period);
+
+                                    if (tripLine != null && controlPoints.Any())
+                                    {
+                                        var speedLookup = _speedSegment.BuildSpeedLookup(plotSegments);
+                                        var mapSegments = _speedSegment.MakeTripCp2CpSegments(tripLine, controlPoints, speedLookup);
+
+                                        if (mapSegments.Any())
+                                        {
+                                            string mapTitle = $"{period} {directionFull} Trip Speed Map";
+                                            var mapBytes = await _speedMapRenderer.ExportTripSpeedPngAsync(mapSegments, controlPoints, mapTitle);
+
+                                            if (mapBytes != null)
+                                            {
+                                                reportImages[$"{period}_{direction}_Map"] = mapBytes;
+                                                string mapZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/Graphs/Maps/{period}_{direction}_TripSpeedMap.png";
+                                                var mapEntry = zip.CreateEntry(mapZipEntry, CompressionLevel.Fastest);
+                                                using (var entryStream = mapEntry.Open())
+                                                    entryStream.Write(mapBytes, 0, mapBytes.Length);
+
+                                                Console.WriteLine($"  ✅ Saved Survey Map: Graphs/Maps/{period}_{direction}_TripSpeedMap.png");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"  ⚠️ Could not build trip-following CP segments for {period} {direction}.");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"  ⚠️ Missing snapped trip line or control points for {period} {direction}.");
                                     }
                                 }
                             }
@@ -190,10 +239,33 @@ namespace Report_Generator.Controllers
 
                         Console.WriteLine($"   ✔ Processing completed for {survey.VehicleType}");
 
+                        // Copy Shapefiles and GeoJSONs from uploaded files
+                        var copyFiles = surveyFiles.Where(f => 
+                            f.FileName.Contains("/Shapes/shp/") || 
+                            f.FileName.Contains("/KM-CP Detected/") && f.FileName.Contains("/GIS/") && f.FileName.EndsWith(".geojson")
+                        ).ToList();
+
+                        foreach (var f in copyFiles)
+                        {
+                            // Extract relative path inside VehicleType
+                            int vtIdx = f.FileName.IndexOf($"/{survey.VehicleType}/");
+                            if (vtIdx >= 0)
+                            {
+                                string relativePath = f.FileName.Substring(vtIdx + $"/{survey.VehicleType}/".Length);
+                                string zipEntryPath = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{relativePath}";
+                                var entry = zip.CreateEntry(zipEntryPath, CompressionLevel.Fastest);
+                                using (var entryStream = entry.Open())
+                                using (var fileStream = f.OpenReadStream())
+                                {
+                                    fileStream.CopyTo(entryStream);
+                                }
+                            }
+                        }
+
                         // REPORT DOCUMENT
                         Console.WriteLine("  -> Generating DOCX Report...");
 
-                        byte[] reportBytes = _wordExport.GenerateSurveyReport(survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, directionalAverages, segmentAverages);
+                        byte[] reportBytes = _wordExport.GenerateSurveyReport(survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, directionalAverages, segmentAverages, reportImages);
 
                         string reportFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", string.Empty)}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Report.docx";
                         string reportZipEntry = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{reportFilename}";

@@ -63,9 +63,29 @@
               "target": "Package",
               "version": "[2.6.0, )"
             },
+            "NetTopologySuite.IO.GeoJSON": {
+              "target": "Package",
+              "version": "[4.0.0, )"
+            },
+            "NetTopologySuite.IO.ShapeFile": {
+              "target": "Package",
+              "version": "[2.1.0, )"
+            },
+            "ProjNET": {
+              "target": "Package",
+              "version": "[2.1.0, )"
+            },
             "ScottPlot": {
               "target": "Package",
               "version": "[5.1.58, )"
+            },
+            "SkiaSharp": {
+              "target": "Package",
+              "version": "[3.119.4, )"
+            },
+            "SkiaSharp.NativeAssets.Win32": {
+              "target": "Package",
+              "version": "[3.119.4, )"
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",

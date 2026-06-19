@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +10,7 @@ using NetTopologySuite.Noding;
 using System.Globalization;
 using System.ComponentModel;
 using DocumentFormat.OpenXml.Office2013.Drawing.Chart;
+using SkiaSharp;
 
 namespace Report_Generator.Services
 {
@@ -18,7 +19,7 @@ namespace Report_Generator.Services
         // ============================
         // FILE 1: MAIN REPORT (NO ANNEX)
         // ============================
-        public byte[] GenerateSurveyReport (string region, string roadName, string surveyDate, string vehicleType, List<DirectionalAverages> dirAverages, List<SegmentAverages> segAverages)
+        public byte[] GenerateSurveyReport (string region, string roadName, string surveyDate, string vehicleType, List<DirectionalAverages> dirAverages, List<SegmentAverages> segAverages, Dictionary<string, byte[]> images = null)
         {
             using var memoryStream = new MemoryStream();
 
@@ -79,6 +80,20 @@ namespace Report_Generator.Services
                         var segments = segAverages.Where(s => s.Period == period && s.Direction == direction).ToList();
                         AddSegmentTable(body, segments, direction);
                         AddParagraph(body, "");
+
+                        string mapKey = $"{period}_{direction}_Map";
+                        if (images != null && images.ContainsKey(mapKey))
+                        {
+                            AddImageToBody(mainPart, body, images[mapKey], $"Figure: {period} {dirText} CP-to-CP Speed Map", 15);
+                            AddParagraph(body, "");
+                        }
+
+                        string chartKey = $"{period}_{direction}_Chart";
+                        if (images != null && images.ContainsKey(chartKey))
+                        {
+                            AddImageToBody(mainPart, body, images[chartKey], $"Figure: {period} {dirText} Speed Comparison (Travel vs Running)", 16.5);
+                            AddParagraph(body, "");
+                        }
                     }
 
                     AddParagraph(body, "");
@@ -531,6 +546,73 @@ namespace Report_Generator.Services
             }
 
             body.AppendChild(table);
+        }
+
+        private void AddImageToBody(MainDocumentPart mainPart, Body body, byte[] imageBytes, string caption, double widthCm)
+        {
+            ImagePart imagePart = mainPart.AddImagePart(ImagePartType.Png);
+            using (MemoryStream stream = new MemoryStream(imageBytes))
+            {
+                imagePart.FeedData(stream);
+            }
+
+            string relationshipId = mainPart.GetIdOfPart(imagePart);
+            
+            // 1 cm = 360000 EMUs
+            long widthEmus = (long)(widthCm * 360000);
+            long heightEmus = widthEmus;
+
+            using (var bitmap = SKBitmap.Decode(imageBytes))
+            {
+                if (bitmap != null && bitmap.Width > 0)
+                {
+                    double aspectRatio = (double)bitmap.Height / bitmap.Width;
+                    heightEmus = (long)(widthEmus * aspectRatio);
+                }
+            }
+
+            uint uniqueId = (uint)Math.Abs(Guid.NewGuid().GetHashCode());
+            string uniqueName = $"Picture {uniqueId}";
+
+            var element =
+                 new Drawing(
+                     new DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline(
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent() { Cx = widthEmus, Cy = heightEmus },
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.EffectExtent() { LeftEdge = 0L, TopEdge = 0L, RightEdge = 0L, BottomEdge = 0L },
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties() { Id = uniqueId, Name = uniqueName },
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.NonVisualGraphicFrameDrawingProperties(
+                             new DocumentFormat.OpenXml.Drawing.GraphicFrameLocks() { NoChangeAspect = true }),
+                         new DocumentFormat.OpenXml.Drawing.Graphic(
+                             new DocumentFormat.OpenXml.Drawing.GraphicData(
+                                 new DocumentFormat.OpenXml.Drawing.Pictures.Picture(
+                                     new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureProperties(
+                                         new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualDrawingProperties() { Id = (UInt32Value)0U, Name = "New Bitmap Image.png" },
+                                         new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureDrawingProperties()),
+                                     new DocumentFormat.OpenXml.Drawing.Pictures.BlipFill(
+                                         new DocumentFormat.OpenXml.Drawing.Blip(
+                                             new DocumentFormat.OpenXml.Drawing.BlipExtensionList(
+                                                 new DocumentFormat.OpenXml.Drawing.BlipExtension() { Uri = "{28A0092B-C50C-407E-A947-70E740481C1C}" })
+                                         ) { Embed = relationshipId, CompressionState = DocumentFormat.OpenXml.Drawing.BlipCompressionValues.Print },
+                                         new DocumentFormat.OpenXml.Drawing.Stretch(
+                                             new DocumentFormat.OpenXml.Drawing.FillRectangle())),
+                                     new DocumentFormat.OpenXml.Drawing.Pictures.ShapeProperties(
+                                         new DocumentFormat.OpenXml.Drawing.Transform2D(
+                                             new DocumentFormat.OpenXml.Drawing.Offset() { X = 0L, Y = 0L },
+                                             new DocumentFormat.OpenXml.Drawing.Extents() { Cx = widthEmus, Cy = heightEmus }),
+                                         new DocumentFormat.OpenXml.Drawing.PresetGeometry(
+                                             new DocumentFormat.OpenXml.Drawing.AdjustValueList()
+                                         ) { Preset = DocumentFormat.OpenXml.Drawing.ShapeTypeValues.Rectangle }))
+                             ) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" })
+                     ) { DistanceFromTop = 0U, DistanceFromBottom = 0U, DistanceFromLeft = 0U, DistanceFromRight = 0U });
+
+            Paragraph p = new Paragraph(new ParagraphProperties(new Justification() { Val = JustificationValues.Center }), new Run(element));
+            body.AppendChild(p);
+
+            if (!string.IsNullOrEmpty(caption))
+            {
+                Paragraph cap = new Paragraph(new ParagraphProperties(new Justification() { Val = JustificationValues.Center }), new Run(new Text(caption)));
+                body.AppendChild(cap);
+            }
         }
     }
 }

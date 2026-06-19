@@ -1,7 +1,7 @@
 [
   {
     "ContainingType": "Report_Generator.Controllers.ReportController",
-    "Method": "GenerateReports",
+    "Method": "GenerateReportsAsync",
     "RelativePath": "api/Report/generate",
     "HttpMethod": "POST",
     "IsController": true,

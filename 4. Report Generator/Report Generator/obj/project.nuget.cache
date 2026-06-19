@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "dCzBC1YCcuY=",
+  "dgSpecHash": "rgO+ZGhA15s=",
   "success": true,
   "projectFilePath": "E:\\Documents\\1. OJT\\Github\\Main-Processing\\4. Report Generator\\Report Generator\\Report Generator.csproj",
   "expectedPackageFiles": [
@@ -12,19 +12,27 @@
     "C:\\Users\\Matt\\.nuget\\packages\\harfbuzzsharp.nativeassets.macos\\8.3.1.1\\harfbuzzsharp.nativeassets.macos.8.3.1.1.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\harfbuzzsharp.nativeassets.win32\\8.3.1.1\\harfbuzzsharp.nativeassets.win32.8.3.1.1.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\microsoft.extensions.apidescription.server\\6.0.5\\microsoft.extensions.apidescription.server.6.0.5.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\microsoft.netcore.platforms\\2.1.2\\microsoft.netcore.platforms.2.1.2.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\microsoft.openapi\\1.6.14\\microsoft.openapi.1.6.14.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\nettopologysuite\\2.6.0\\nettopologysuite.2.6.0.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\nettopologysuite.features\\2.0.0\\nettopologysuite.features.2.0.0.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\nettopologysuite.io.geojson\\4.0.0\\nettopologysuite.io.geojson.4.0.0.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\nettopologysuite.io.shapefile\\2.1.0\\nettopologysuite.io.shapefile.2.1.0.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\newtonsoft.json\\13.0.1\\newtonsoft.json.13.0.1.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\projnet\\2.1.0\\projnet.2.1.0.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\scottplot\\5.1.58\\scottplot.5.1.58.nupkg.sha512",
-    "C:\\Users\\Matt\\.nuget\\packages\\skiasharp\\3.119.0\\skiasharp.3.119.0.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\skiasharp\\3.119.4\\skiasharp.3.119.4.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\skiasharp.harfbuzz\\3.119.0\\skiasharp.harfbuzz.3.119.0.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\skiasharp.nativeassets.linux.nodependencies\\3.119.0\\skiasharp.nativeassets.linux.nodependencies.3.119.0.nupkg.sha512",
-    "C:\\Users\\Matt\\.nuget\\packages\\skiasharp.nativeassets.macos\\3.119.0\\skiasharp.nativeassets.macos.3.119.0.nupkg.sha512",
-    "C:\\Users\\Matt\\.nuget\\packages\\skiasharp.nativeassets.win32\\3.119.0\\skiasharp.nativeassets.win32.3.119.0.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\skiasharp.nativeassets.macos\\3.119.4\\skiasharp.nativeassets.macos.3.119.4.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\skiasharp.nativeassets.win32\\3.119.4\\skiasharp.nativeassets.win32.3.119.4.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\swashbuckle.aspnetcore\\6.6.2\\swashbuckle.aspnetcore.6.6.2.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\swashbuckle.aspnetcore.swagger\\6.6.2\\swashbuckle.aspnetcore.swagger.6.6.2.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\swashbuckle.aspnetcore.swaggergen\\6.6.2\\swashbuckle.aspnetcore.swaggergen.6.6.2.nupkg.sha512",
     "C:\\Users\\Matt\\.nuget\\packages\\swashbuckle.aspnetcore.swaggerui\\6.6.2\\swashbuckle.aspnetcore.swaggerui.6.6.2.nupkg.sha512",
-    "C:\\Users\\Matt\\.nuget\\packages\\system.io.packaging\\8.0.1\\system.io.packaging.8.0.1.nupkg.sha512"
+    "C:\\Users\\Matt\\.nuget\\packages\\system.io.packaging\\8.0.1\\system.io.packaging.8.0.1.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\4.5.2\\system.runtime.compilerservices.unsafe.4.5.2.nupkg.sha512",
+    "C:\\Users\\Matt\\.nuget\\packages\\system.text.encoding.codepages\\4.5.1\\system.text.encoding.codepages.4.5.1.nupkg.sha512"
   ],
   "logs": []
 }

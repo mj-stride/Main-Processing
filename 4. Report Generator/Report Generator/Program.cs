@@ -13,6 +13,9 @@ builder.Services.AddScoped<CsvParserService>();
 builder.Services.AddScoped<DataProcessorService>();
 builder.Services.AddScoped<FolderScannerService>();
 builder.Services.AddScoped<WordExportService>();
+builder.Services.AddScoped<TripLineLoaderService>();
+builder.Services.AddScoped<SpeedSegmentService>();
+builder.Services.AddScoped<SpeedMapRenderer>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 //builder.Services.AddEndpointsApiExplorer();
