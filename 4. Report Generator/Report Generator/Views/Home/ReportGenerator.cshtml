@@ -1,0 +1,477 @@
+@{
+    ViewData["Title"] = "Generate Survey Reports";
+    ViewData["Section"] = "Processing";
+    Layout = "_Layout";
+}
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+
+<style>
+    :root {
+        --primary: #1d4470;
+        --accent: #da471f;
+        --muted: #888;
+        --card-bg: #ffffff;
+        --card-border: #d0d8e4;
+        --surf: #e8ecf0;
+    }
+
+    /* Loading overlay */
+    #loadingOverlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    #loadingOverlay[aria-hidden="false"] { display: flex; }
+
+    #loadingCard {
+        width: min(520px, 92vw);
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        border: 1px solid #e5e5e5;
+    }
+    #loadingTitle { font-weight: 600; margin-bottom: 8px; font-size: 1.05rem; }
+    #loadingMsg   { font-size: 0.92rem; color: #555; margin-bottom: 12px; }
+
+    .progress { height: 12px; border-radius: 999px; overflow: hidden; background: #e9ecef; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), #2f6db5); transition: width .35s ease; }
+
+    /* Layout */
+    .page-heading { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .page-heading .icon { font-size: 2.4rem; color: var(--primary); }
+
+    /* Upload card */
+    .upload-card {
+        background: var(--card-bg);
+        border-radius: 16px;
+        border: 1px solid var(--card-border);
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        padding: 1.25rem;
+    }
+    .upload-card h5 { font-weight: 700; font-size: 1rem; margin-bottom: 1rem; }
+
+    /* Drop zone */
+    .drop-zone {
+        border: 2px dashed #aab4c4;
+        border-radius: 12px;
+        background: var(--surf);
+        padding: 1.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        transition: background .12s, transform .06s;
+    }
+    .drop-zone:hover { background: #dde3ea; transform: translateY(-1px); }
+    .drop-zone.show-drag { background: #d0d8e2; }
+    .drop-zone i { font-size: 2.6rem; color: var(--accent); }
+    .drop-zone p { font-size: 0.92rem; color: #444; margin: 0; text-align: center; }
+    .drop-zone .hint { font-size: 0.78rem; color: var(--muted); }
+
+    #folderInput { display: none; }
+
+    /* Buttons */
+    .btn-ttds {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        padding: 10px 28px;
+        cursor: pointer;
+    }
+    .btn-ttds:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* File / survey list */
+    .file-list-header { font-size: 0.86rem; font-weight: 700; color: var(--primary); margin-bottom: 0.5rem; }
+    .file-list-scroll { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; }
+    .file-item { display: flex; align-items: center; gap: 10px; background: #f7fafc; border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 12px; }
+    .file-item i { color: var(--accent); font-size: 1.1rem; flex-shrink: 0; }
+    .file-item-name { font-size: 0.86rem; color: #333; word-break: break-all; flex: 1; }
+    .file-item-name small { display: block; color: var(--muted); font-size: 0.76rem; }
+    .file-item-size { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; }
+
+    .divider { border: none; border-top: 1px dashed var(--card-border); margin: 1rem 0; }
+    .muted-note { font-size: 0.86rem; color: var(--muted); text-align: center; margin: 0; }
+
+    #serverOutput {
+        background: #1e293b;
+        color: #ef4444;
+        padding: 15px;
+        border-radius: 10px;
+        overflow-x: auto;
+        text-align: left;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 13px;
+        margin-top: 1rem;
+        border: 1px solid #0f172a;
+        display: none;
+        white-space: pre-wrap;
+    }
+</style>
+
+<div class="page-wrapper">
+
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" role="status" aria-hidden="true" aria-live="polite">
+        <div id="loadingCard">
+            <div id="loadingTitle">Generating Reports…</div>
+            <div id="loadingMsg">Uploading and processing your survey files. This can take a few minutes for large folders.</div>
+            <div class="progress" aria-hidden="true">
+                <div id="progressBar" class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="small text-muted mt-2">Don't refresh or go back while processing.</div>
+        </div>
+    </div>
+
+    <!-- Page heading -->
+    <header class="page-heading" aria-labelledby="pageTitle">
+        <i class="bi bi-signpost-split icon" aria-hidden="true"></i>
+        <h1 id="pageTitle" class="fw-bold mb-0" style="font-size:1.7rem;">@ViewData["Title"]</h1>
+    </header>
+
+    <!-- Upload card -->
+    <section class="upload-card" aria-labelledby="uploadTitle">
+        <h5 id="uploadTitle">Upload Region Folder</h5>
+
+        <form id="uploadForm"
+              action="/api/Report/generate"
+              method="post"
+              enctype="multipart/form-data"
+              onsubmit="return startUpload();">
+
+            <!-- Click-to-browse fallback input (webkitdirectory). Drag-and-drop is handled
+                 separately in JS via the DataTransferItem API so a dropped folder also works. -->
+            <input type="file"
+                   name="files"
+                   id="folderInput"
+                   webkitdirectory
+                   directory
+                   multiple
+                   aria-label="Region folder" />
+
+            <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-controls="folderInput" title="Click or drop your Region folder here">
+                <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                <p>Drag &amp; drop your <strong>Region</strong> folder here, or click to browse</p>
+                <span class="hint">Should contain RoadName / SurveyDate / VehicleType / SegmentAnalysis subfolders</span>
+            </div>
+
+            <!-- Detected survey / file summary -->
+            <div id="fileLabel" aria-live="polite" style="margin-top:0.75rem"></div>
+
+            <p id="uploadError" style="display:none; font-size:0.86rem; color:#c0392b; text-align:center; margin-top:0.5rem;">
+                <i class="bi bi-exclamation-circle me-1" aria-hidden="true"></i>
+                Please select a Region folder before continuing.
+            </p>
+
+            <div class="d-flex justify-content-center mt-4">
+                <button id="btnUpload" type="submit" class="btn-ttds">
+                    <i class="bi bi-gear-wide-connected me-1" aria-hidden="true"></i> Generate Reports
+                </button>
+            </div>
+        </form>
+
+        <pre id="serverOutput"></pre>
+    </section>
+</div>
+
+<script>
+    (function () {
+        const API_URL = '/api/Report/generate'; // relative — same origin as this page
+
+        let fakeProgressTimer = null;
+        let selectedFiles = []; // [{ file, relativePath }]
+
+        const dropZone = document.getElementById('dropZone');
+        const folderInput = document.getElementById('folderInput');
+        const progressBar = document.getElementById('progressBar');
+        const overlay = document.getElementById('loadingOverlay');
+        const loadingMsg = document.getElementById('loadingMsg');
+        const serverOutput = document.getElementById('serverOutput');
+        const uploadForm = document.getElementById('uploadForm');
+
+        // ---------------------------------------------------------------
+        // Folder selection: click-to-browse (webkitdirectory input)
+        // ---------------------------------------------------------------
+        folderInput.addEventListener('change', () => {
+            selectedFiles = Array.from(folderInput.files).map(f => ({
+                file: f,
+                relativePath: f.webkitRelativePath || f.name
+            }));
+            renderFileSummary();
+        });
+
+        // ---------------------------------------------------------------
+        // Folder selection: drag-and-drop via DataTransferItem traversal.
+        // Dropped File objects don't carry webkitRelativePath, so we walk
+        // the FileSystemEntry tree ourselves and build it manually.
+        // ---------------------------------------------------------------
+        function readEntryAsFile(entry) {
+            return new Promise((resolve) => {
+                entry.file(file => resolve(file), () => resolve(null));
+            });
+        }
+
+        function readAllDirectoryEntries(dirReader) {
+            return new Promise((resolve) => {
+                let all = [];
+                function readBatch() {
+                    dirReader.readEntries((entries) => {
+                        if (!entries.length) { resolve(all); return; }
+                        all = all.concat(entries);
+                        readBatch(); // browsers cap entries per call — keep reading until empty
+                    }, () => resolve(all));
+                }
+                readBatch();
+            });
+        }
+
+        async function traverseEntry(entry, path) {
+            if (entry.isFile) {
+                const file = await readEntryAsFile(entry);
+                if (!file) return [];
+                return [{ file, relativePath: path + entry.name }];
+            }
+            if (entry.isDirectory) {
+                const reader = entry.createReader();
+                const children = await readAllDirectoryEntries(reader);
+                const results = await Promise.all(
+                    children.map(child => traverseEntry(child, path + entry.name + '/'))
+                );
+                return results.flat();
+            }
+            return [];
+        }
+
+        async function handleDroppedItems(items) {
+            const entries = [];
+            for (let i = 0; i < items.length; i++) {
+                const entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+                if (entry) entries.push(entry);
+            }
+            if (!entries.length) return [];
+            const results = await Promise.all(entries.map(e => traverseEntry(e, '')));
+            return results.flat();
+        }
+
+        if (dropZone) {
+            ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+                e.preventDefault();
+                dropZone.classList.add('show-drag');
+            }));
+            ['dragleave', 'dragend'].forEach(ev => dropZone.addEventListener(ev, () => {
+                dropZone.classList.remove('show-drag');
+            }));
+
+            dropZone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('show-drag');
+
+                const items = e.dataTransfer && e.dataTransfer.items;
+                if (items && items.length && items[0].webkitGetAsEntry) {
+                    selectedFiles = await handleDroppedItems(items);
+                } else if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                    // Fallback for browsers without webkitGetAsEntry support — only works
+                    // if individual files were dropped, not a folder.
+                    selectedFiles = Array.from(e.dataTransfer.files).map(f => ({
+                        file: f,
+                        relativePath: f.webkitRelativePath || f.name
+                    }));
+                }
+                renderFileSummary();
+            });
+
+            dropZone.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); folderInput.click(); }
+            });
+            dropZone.addEventListener('click', () => folderInput.click());
+        }
+
+        // ---------------------------------------------------------------
+        // Client-side survey preview — mirrors FolderScannerService's
+        // "SegmentAnalysis" detection so the user sees what will be
+        // processed before they hit Generate.
+        // ---------------------------------------------------------------
+        function detectSurveys(entries) {
+            const seen = new Map();
+            entries.forEach(({ relativePath }) => {
+                const idx = relativePath.indexOf('/SegmentAnalysis');
+                if (idx === -1) return;
+                const segPath = relativePath.substring(0, idx + '/SegmentAnalysis'.length);
+                if (seen.has(segPath)) return;
+
+                const parts = segPath.split('/').filter(Boolean);
+                const i = parts.lastIndexOf('SegmentAnalysis');
+                if (i >= 4) {
+                    seen.set(segPath, {
+                        region: parts[i - 4],
+                        roadName: parts[i - 3],
+                        surveyDate: parts[i - 2],
+                        vehicleType: parts[i - 1],
+                    });
+                }
+            });
+            return Array.from(seen.values());
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function renderFileSummary() {
+            const label = document.getElementById('fileLabel');
+            const err = document.getElementById('uploadError');
+            if (!label) return;
+
+            if (!selectedFiles.length) {
+                label.innerHTML = '';
+                return;
+            }
+
+            if (err) err.style.display = 'none';
+
+            const totalBytes = selectedFiles.reduce((sum, e) => sum + (e.file.size || 0), 0);
+            const surveys = detectSurveys(selectedFiles);
+
+            const surveyItems = surveys.map(s => `
+                <div class="file-item">
+                    <i class="bi bi-truck"></i>
+                    <span class="file-item-name">
+                        ${s.region} / ${s.roadName} / ${s.surveyDate}
+                        <small>${s.vehicleType}</small>
+                    </span>
+                </div>
+            `).join('');
+
+            label.innerHTML = `
+                <div>
+                    <p class="file-list-header">
+                        <i class="bi bi-folder2-open me-1"></i>
+                        ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''} selected (${formatBytes(totalBytes)})
+                    </p>
+                    ${surveys.length
+                        ? `<p class="file-list-header" style="color:#15803d;">
+                               <i class="bi bi-check2-circle me-1"></i>
+                               ${surveys.length} survey${surveys.length > 1 ? 's' : ''} detected
+                           </p>
+                           <div class="file-list-scroll">${surveyItems}</div>`
+                        : `<p class="muted-note" style="color:#c0392b;">
+                               <i class="bi bi-exclamation-triangle me-1"></i>
+                               No "SegmentAnalysis" folders found — check you selected the Region folder.
+                           </p>`
+                    }
+                </div>
+            `;
+        }
+
+        // ---------------------------------------------------------------
+        // Fake progress bar — same simulation pattern as the CSV uploader,
+        // since the server gives no real progress signal during processing.
+        // ---------------------------------------------------------------
+        function startFakeProgress() {
+            if (!progressBar) return;
+            progressBar.style.width = "0%";
+            let progress = 0;
+            if (fakeProgressTimer) clearInterval(fakeProgressTimer);
+            fakeProgressTimer = setInterval(() => {
+                if (progress < 60) progress += (Math.random() * 10) + 6;
+                else if (progress < 85) progress += (Math.random() * 6) + 2;
+                else if (progress < 98) progress += (Math.random() * 2) + 0.5;
+                progress = Math.min(progress, 98);
+                progressBar.style.width = Math.round(progress) + "%";
+            }, 350);
+        }
+
+        function stopFakeProgress() {
+            if (fakeProgressTimer) {
+                clearInterval(fakeProgressTimer);
+                fakeProgressTimer = null;
+            }
+            if (progressBar) progressBar.style.width = "100%";
+        }
+
+        // ---------------------------------------------------------------
+        // Submit — intercepts the form, uploads via fetch, downloads the
+        // returned ZIP exactly like index.html already does.
+        // ---------------------------------------------------------------
+        window.startUpload = function () {
+            const err = document.getElementById('uploadError');
+            const btn = document.getElementById('btnUpload');
+
+            if (!selectedFiles.length) {
+                if (err) err.style.display = 'block';
+                return false;
+            }
+            if (err) err.style.display = 'none';
+
+            serverOutput.style.display = 'none';
+            serverOutput.textContent = '';
+
+            overlay.setAttribute('aria-hidden', 'false');
+            loadingMsg.textContent = `Uploading and processing ${selectedFiles.length} files. This can take a few minutes for large folders.`;
+            if (btn) btn.disabled = true;
+            startFakeProgress();
+
+            const formData = new FormData();
+            selectedFiles.forEach(({ file, relativePath }) => {
+                formData.append('files', file, relativePath);
+            });
+
+            fetch(API_URL, { method: 'POST', body: formData })
+                .then(async (response) => {
+                    stopFakeProgress();
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+
+                        let filename = 'Reports.zip';
+                        const disposition = response.headers.get('content-disposition');
+                        if (disposition && disposition.includes('filename=')) {
+                            filename = disposition.split('filename=')[1].split(';')[0].replace(/['"]/g, '');
+                        }
+
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        loadingMsg.textContent = `✅ Done — downloaded ${filename}`;
+                        setTimeout(() => {
+                            overlay.setAttribute('aria-hidden', 'true');
+                        }, 1200);
+                    } else {
+                        const text = await response.text();
+                        serverOutput.textContent = text || `Server returned ${response.status}`;
+                        serverOutput.style.display = 'block';
+                        overlay.setAttribute('aria-hidden', 'true');
+                    }
+                })
+                .catch((error) => {
+                    stopFakeProgress();
+                    serverOutput.textContent = 'Failed to reach the server.\n\nDetails: ' + error.message;
+                    serverOutput.style.display = 'block';
+                    overlay.setAttribute('aria-hidden', 'true');
+                })
+                .finally(() => {
+                    if (btn) btn.disabled = false;
+                });
+
+            return false; // we handle submission ourselves
+        };
+    })();
+</script>

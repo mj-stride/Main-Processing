@@ -20,17 +20,19 @@ namespace Report_Generator.Controllers
         private readonly FolderScannerService _folderScanner;
         private readonly CsvParserService _csvParser;
         private readonly CsvExportService _csvExport;
+        private readonly DataProcessorService _dataProcessor;
         private readonly ChartGeneratorService _chartGenerator;
         private readonly WordExportService _wordExport;
         private readonly TripLineLoaderService _tripLineLoader;
         private readonly SpeedSegmentService _speedSegment;
         private readonly SpeedMapRenderer _speedMapRenderer;
 
-        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport, ChartGeneratorService chartGenerator, WordExportService wordExport, TripLineLoaderService tripLineLoader, SpeedSegmentService speedSegment, SpeedMapRenderer speedMapRenderer)
+        public ReportController (FolderScannerService folderScanner, CsvParserService csvParser, CsvExportService csvExport, DataProcessorService dataProcessor, ChartGeneratorService chartGenerator, WordExportService wordExport, TripLineLoaderService tripLineLoader, SpeedSegmentService speedSegment, SpeedMapRenderer speedMapRenderer)
         {
             _folderScanner = folderScanner;
             _csvParser = csvParser;
             _csvExport = csvExport;
+            _dataProcessor = dataProcessor;
             _chartGenerator = chartGenerator;
             _wordExport = wordExport;
             _tripLineLoader = tripLineLoader;
@@ -57,8 +59,6 @@ namespace Report_Generator.Controllers
                 Console.WriteLine("⚠️ No VehicleType folders found. Upload the Region Folder");
                 return NotFound("⚠️ No VehicleType folders found (no SegmentAnalysis folder detected). Upload the Region Folder");
             }
-
-            var dataProcessor = new DataProcessorService();
 
             using var memory = new MemoryStream();
             using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, true))
@@ -135,10 +135,10 @@ namespace Report_Generator.Controllers
                     if (surveyTripData.Any())
                     {
                         Console.WriteLine(" -> Calculating Directional Averages...");
-                        var directionalAverages = dataProcessor.CalculateDirectionalAverages(surveyTripTotals);
+                        var directionalAverages = _dataProcessor.CalculateDirectionalAverages(surveyTripTotals);
 
                         Console.WriteLine(" -> Calculating Segment Averages...");
-                        var segmentAverages = dataProcessor.CalculateSegmentAverages(surveyTripData);
+                        var segmentAverages = _dataProcessor.CalculateSegmentAverages(surveyTripData);
                         
                         string[] periods = { "AM", "MID", "PM" };
                         string[] directions = { "NB", "SB" };

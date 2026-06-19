@@ -1,12 +1,10 @@
 using Report_Generator.Services;
 using System.Text;
-
 Console.OutputEncoding = Encoding.UTF8;
-
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllersWithViews();
+
 builder.Services.AddScoped<ChartGeneratorService>();
 builder.Services.AddScoped<CsvExportService>();
 builder.Services.AddScoped<CsvParserService>();
@@ -16,10 +14,6 @@ builder.Services.AddScoped<WordExportService>();
 builder.Services.AddScoped<TripLineLoaderService>();
 builder.Services.AddScoped<SpeedSegmentService>();
 builder.Services.AddScoped<SpeedMapRenderer>();
-
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-//builder.Services.AddEndpointsApiExplorer();
-//builder.Services.AddSwaggerGen();
 
 builder.Services.AddCors(options =>
 {
@@ -32,10 +26,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseDefaultFiles();
-
-app.UseStaticFiles();
-
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -43,12 +33,20 @@ if (app.Environment.IsDevelopment())
     //app.UseSwaggerUI();
 }
 
+
+app.UseRouting();
+
 app.UseCors("AllowAll");
-
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
 
+// Conventional MVC routing — used by HomeController (e.g. /Home/ReportGenerator).
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=ReportGenerator}/{id?}");
+
+// Attribute routing — used by ReportController ([Route("api/[controller]")]).
+// Both can coexist: this matches anything the convention route above doesn't.
 app.MapControllers();
 
 app.Run();
