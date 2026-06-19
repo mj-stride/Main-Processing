@@ -175,7 +175,7 @@ namespace PrivateTransportCleaning.Controllers
                     writer.WriteLine(
                         "OriginalLat,OriginalLon,SnappedLat,SnappedLon,DeviationMeters,Timestamp,Speed," +
                         "DeviceID,TrackingID,UserID,ModeID,CauseID,KilometerPostID,FilePath,DistrictID," +
-                        "SecDiff,DistanceDiff,IsBreak"
+                        "secDiff,distanceDiff,IsBreak"
                     );
 
                     foreach (var r in processed)
