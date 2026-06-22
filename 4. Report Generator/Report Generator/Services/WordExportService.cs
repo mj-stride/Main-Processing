@@ -63,7 +63,7 @@ namespace Report_Generator.Services
                 {
                     AddHeading2(body, $"{period} Period", true);
                     AddPeriodSummaryParagraph(body, segAverages, period);
-                    AddParagraph(body, "");
+                    AddHeading2(body, "");
                 }
 
                 AddPageBreak(body);
