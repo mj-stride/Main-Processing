@@ -31,15 +31,10 @@ namespace Report_Generator.Controllers
             if (files == null || !files.Any())
                 return BadRequest(new { error = "No files uploaded." });
 
-            // IFormFile streams are tied to the HTTP request lifetime — copy
-            // everything into byte arrays BEFORE this action method returns.
-            var buffered = new List<InMemoryFormFile>();
-            foreach (var file in files)
-            {
-                using var ms = new MemoryStream();
-                await file.CopyToAsync(ms);
-                buffered.Add(new InMemoryFormFile(file.FileName, ms.ToArray()));
-            }
+            var scope = HttpContext.RequestServices;
+            var zipExtractor = scope.GetRequiredService<ZipExtractService>();
+
+            var buffered = await zipExtractor.ExpandUploadsAsync(files);
 
             var jobId = await _jobService.EnqueueAsync(buffered, HttpContext.RequestAborted);
             return Ok(new { jobId });

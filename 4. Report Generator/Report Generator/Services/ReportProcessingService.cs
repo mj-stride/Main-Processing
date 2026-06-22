@@ -17,6 +17,7 @@ namespace Report_Generator.Services
         private readonly TripLineLoaderService _tripLineLoader;
         private readonly SpeedSegmentService _speedSegmentService;
         private readonly SpeedMapRenderer _mapRenderer;
+        private readonly ZipExtractService _zipExtract;
 
         public ReportProcessingService(
             FolderScannerService folderScanner,
@@ -26,7 +27,8 @@ namespace Report_Generator.Services
             WordExportService wordExport,
             TripLineLoaderService tripLineLoader,
             SpeedSegmentService speedSegmentService,
-            SpeedMapRenderer mapRenderer)
+            SpeedMapRenderer mapRenderer,
+            ZipExtractService zipExtract)
         {
             _folderScanner = folderScanner;
             _csvParser = csvParser;
@@ -36,6 +38,7 @@ namespace Report_Generator.Services
             _tripLineLoader = tripLineLoader;
             _speedSegmentService = speedSegmentService;
             _mapRenderer = mapRenderer;
+            _zipExtract = zipExtract;
         }
 
         public async Task<(byte[] ZipBytes, string ZipFilename)> ProcessAsync(
@@ -281,7 +284,7 @@ namespace Report_Generator.Services
             }
 
             memory.Position = 0;
-            string zipName = $"{vehicleDirs.First().Region}_Reports.zip";
+            string zipName = $"Survey_Reports.zip";
             Console.WriteLine("\n✅ All reports bundled successfully into ZIP.");
             return (memory.ToArray(), zipName);
         }
