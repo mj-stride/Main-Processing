@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,12 +9,17 @@ using Report_Generator.Models;
 using NetTopologySuite.Noding;
 using System.Globalization;
 using System.ComponentModel;
+using DocumentFormat.OpenXml.Office2013.Drawing.Chart;
+using SkiaSharp;
 
 namespace Report_Generator.Services
 {
     public class WordExportService
     {
-        public byte[] GenerateReport (string region, string roadName, string surveyDate, string vehicleType, List<DirectionalAverages> dirAverages, List<SegmentAverages> segAverages)
+        // ============================
+        // FILE 1: MAIN REPORT (NO ANNEX)
+        // ============================
+        public byte[] GenerateSurveyReport (string region, string roadName, string surveyDate, string vehicleType, List<DirectionalAverages> dirAverages, List<SegmentAverages> segAverages, Dictionary<string, byte[]> images = null)
         {
             using var memoryStream = new MemoryStream();
 
@@ -58,7 +63,7 @@ namespace Report_Generator.Services
                 {
                     AddHeading2(body, $"{period} Period", true);
                     AddPeriodSummaryParagraph(body, segAverages, period);
-                    AddParagraph(body, "");
+                    AddHeading2(body, "");
                 }
 
                 AddPageBreak(body);
@@ -75,6 +80,20 @@ namespace Report_Generator.Services
                         var segments = segAverages.Where(s => s.Period == period && s.Direction == direction).ToList();
                         AddSegmentTable(body, segments, direction);
                         AddParagraph(body, "");
+
+                        string mapKey = $"{period}_{direction}_Map";
+                        if (images != null && images.ContainsKey(mapKey))
+                        {
+                            AddImageToBody(mainPart, body, images[mapKey], $"Figure: {period} {dirText} CP-to-CP Speed Map", 15);
+                            AddParagraph(body, "");
+                        }
+
+                        string chartKey = $"{period}_{direction}_Chart";
+                        if (images != null && images.ContainsKey(chartKey))
+                        {
+                            AddImageToBody(mainPart, body, images[chartKey], $"Figure: {period} {dirText} Speed Comparison (Travel vs Running)", 16.5);
+                            AddParagraph(body, "");
+                        }
                     }
 
                     AddParagraph(body, "");
@@ -84,6 +103,65 @@ namespace Report_Generator.Services
 
 
                 SetA4PageLayout(body);
+            }
+
+            return memoryStream.ToArray();
+        }
+
+        // ============================
+        // FILE 2: ANNEX ONLY
+        // ============================
+        public byte[] GenerateSurveyAnnex (string region, string roadName, string surveyDate, string vehicleType, List<TripData> allTrips)
+        {
+            using var memoryStream = new MemoryStream ();
+
+            using (var wordDocument = WordprocessingDocument.Create(memoryStream, WordprocessingDocumentType.Document, true))
+            {
+                MainDocumentPart mainPart = wordDocument.AddMainDocumentPart();
+                mainPart.Document = new Document();
+                Body body = mainPart.Document.AppendChild(new Body());
+
+                SetDefaultFont(mainPart, "Tahoma");
+
+                AddTitle(body, $"{region} - {roadName} ({vehicleType})");
+                AddParagraph(body, $"Survey Date: {surveyDate}");
+                AddHeading1(body, "ANNEX A - Segment Analysis Source Tables (Per Trip)", true);
+
+                AddSectionBreakPortrait(body);
+
+                string[] periods = { "AM", "MID", "PM" };
+
+                foreach (var period in periods)
+                {
+                    AddHeading1(body, $"{period} - Per Trip Source Tables", true);
+                    AddParagraph(body, "");
+
+                    var periodTrips = allTrips
+                        .Where(t => t.Period == period)
+                        .GroupBy(t => t.SourceFile)
+                        .OrderBy(t => t.First().TripNo)
+                        .ToList();
+
+                    if (!periodTrips.Any())
+                    {
+                        AddParagraph(body, "No Data Found.");
+                        AddPageBreak(body);
+                        continue;
+                    }
+
+                    foreach (var tripGroup in periodTrips)
+                    {
+                        var firstRow = tripGroup.First();
+
+                        AddHeading2(body, $"Trip {firstRow.TripNo} ({firstRow.Direction})", true);
+                        AddTripTable(body, tripGroup.ToList());
+                        AddParagraph(body, "");
+                    }
+
+                    if (period != "PM") AddPageBreak(body);
+                }
+
+                SetLandscapePageLayout(body);
             }
 
             return memoryStream.ToArray();
@@ -134,6 +212,30 @@ namespace Report_Generator.Services
             Paragraph para = body.AppendChild(new Paragraph());
             Run run = para.AppendChild(new Run());
             run.AppendChild(new Break() { Type = BreakValues.Page });
+        }
+
+        private void AddSectionBreakPortrait(Body body)
+        {
+            Paragraph para = body.AppendChild(new Paragraph());
+            ParagraphProperties paraProps = para.AppendChild(new ParagraphProperties());
+
+            SectionProperties secProps = new SectionProperties(
+                new SectionType() { Val = SectionMarkValues.NextPage },
+                new PageSize() { Width = 11906U, Height = 16838U, Orient = PageOrientationValues.Portrait }, // A4 Portrait
+                new PageMargin() { Top = 1134, Right = 1134, Bottom = 1134, Left = 1440 }
+            );
+
+            paraProps.Append(secProps);
+        }
+
+        private void SetLandscapePageLayout(Body body)
+        {
+            SectionProperties secProps = new SectionProperties(
+                new PageSize() { Width = 16838U, Height = 11906U, Orient = PageOrientationValues.Landscape }, // A4 Landscape
+                new PageMargin() { Top = 720, Right = 720, Bottom = 720, Left = 720 } // 0.5 inch margins
+            );
+
+            body.AppendChild(secProps);
         }
 
         private void AddTitle (Body body, string text)
@@ -383,6 +485,134 @@ namespace Report_Generator.Services
             }
 
             body.AppendChild(table);
+        }
+
+        private void AddTripTable(Body body, List<TripData> tripData)
+        {
+            string formatVal(double? val) => val.HasValue ? val.Value.ToString("0.00") : "";
+
+            Table table = new Table();
+
+            TableProperties tblProp = new TableProperties(
+                new TableBorders(
+                    new TopBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new BottomBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new LeftBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new RightBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new InsideHorizontalBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" },
+                    new InsideVerticalBorder() { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4, Color = "000000" }
+                ),
+                new TableLayout() { Type = TableLayoutValues.Fixed },
+                new TableWidth() { Width = "5000", Type = TableWidthUnitValues.Pct }
+            );
+            table.AppendChild(tblProp);
+
+            TableGrid tableGrid = new TableGrid(
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1600" }, 
+                new GridColumn() { Width = "1200" }, 
+                new GridColumn() { Width = "1800" }, 
+                new GridColumn() { Width = "1800" }, 
+                new GridColumn() { Width = "1000" }, 
+                new GridColumn() { Width = "1500" }, 
+                new GridColumn() { Width = "1600" }
+            );
+            table.AppendChild(tableGrid);
+
+            table.AppendChild(CreateRow(new[] { "From", "To",
+                "StartTime", "EndTime", "TravelTimeSec", "DistanceM",
+                "TravelSpeedKph", "RunningSpeedKph", "Delays", "DelayLengthM",
+                "DelayCauses" }, "20", true));
+
+            foreach (var row in tripData)
+            {
+                table.AppendChild(CreateRow(new[]
+                {
+                    row.From ?? "",
+                    row.To ?? "",
+                    row.StartTime.ToString("yyyyy-MM-dd HH:mm:ss"),
+                    row.EndTime.ToString("yyyyy-MM-dd HH:mm:ss"),
+                    row.TravelTimeSec.ToString(),
+                    formatVal(row.DistanceM),
+                    formatVal(row.TravelSpeedKph),
+                    formatVal(row.RunningSpeedKph),
+                    row.Delays.ToString(),
+                    formatVal(row.DelayLengthM),
+                    string.IsNullOrWhiteSpace(row.DelayCauses) ? "nan" : row.DelayCauses
+                }, "18", true));
+            }
+
+            body.AppendChild(table);
+        }
+
+        private void AddImageToBody(MainDocumentPart mainPart, Body body, byte[] imageBytes, string caption, double widthCm)
+        {
+            ImagePart imagePart = mainPart.AddImagePart(ImagePartType.Png);
+            using (MemoryStream stream = new MemoryStream(imageBytes))
+            {
+                imagePart.FeedData(stream);
+            }
+
+            string relationshipId = mainPart.GetIdOfPart(imagePart);
+            
+            // 1 cm = 360000 EMUs
+            long widthEmus = (long)(widthCm * 360000);
+            long heightEmus = widthEmus;
+
+            using (var bitmap = SKBitmap.Decode(imageBytes))
+            {
+                if (bitmap != null && bitmap.Width > 0)
+                {
+                    double aspectRatio = (double)bitmap.Height / bitmap.Width;
+                    heightEmus = (long)(widthEmus * aspectRatio);
+                }
+            }
+
+            uint uniqueId = (uint)Math.Abs(Guid.NewGuid().GetHashCode());
+            string uniqueName = $"Picture {uniqueId}";
+
+            var element =
+                 new Drawing(
+                     new DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline(
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent() { Cx = widthEmus, Cy = heightEmus },
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.EffectExtent() { LeftEdge = 0L, TopEdge = 0L, RightEdge = 0L, BottomEdge = 0L },
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties() { Id = uniqueId, Name = uniqueName },
+                         new DocumentFormat.OpenXml.Drawing.Wordprocessing.NonVisualGraphicFrameDrawingProperties(
+                             new DocumentFormat.OpenXml.Drawing.GraphicFrameLocks() { NoChangeAspect = true }),
+                         new DocumentFormat.OpenXml.Drawing.Graphic(
+                             new DocumentFormat.OpenXml.Drawing.GraphicData(
+                                 new DocumentFormat.OpenXml.Drawing.Pictures.Picture(
+                                     new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureProperties(
+                                         new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualDrawingProperties() { Id = (UInt32Value)0U, Name = "New Bitmap Image.png" },
+                                         new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureDrawingProperties()),
+                                     new DocumentFormat.OpenXml.Drawing.Pictures.BlipFill(
+                                         new DocumentFormat.OpenXml.Drawing.Blip(
+                                             new DocumentFormat.OpenXml.Drawing.BlipExtensionList(
+                                                 new DocumentFormat.OpenXml.Drawing.BlipExtension() { Uri = "{28A0092B-C50C-407E-A947-70E740481C1C}" })
+                                         ) { Embed = relationshipId, CompressionState = DocumentFormat.OpenXml.Drawing.BlipCompressionValues.Print },
+                                         new DocumentFormat.OpenXml.Drawing.Stretch(
+                                             new DocumentFormat.OpenXml.Drawing.FillRectangle())),
+                                     new DocumentFormat.OpenXml.Drawing.Pictures.ShapeProperties(
+                                         new DocumentFormat.OpenXml.Drawing.Transform2D(
+                                             new DocumentFormat.OpenXml.Drawing.Offset() { X = 0L, Y = 0L },
+                                             new DocumentFormat.OpenXml.Drawing.Extents() { Cx = widthEmus, Cy = heightEmus }),
+                                         new DocumentFormat.OpenXml.Drawing.PresetGeometry(
+                                             new DocumentFormat.OpenXml.Drawing.AdjustValueList()
+                                         ) { Preset = DocumentFormat.OpenXml.Drawing.ShapeTypeValues.Rectangle }))
+                             ) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" })
+                     ) { DistanceFromTop = 0U, DistanceFromBottom = 0U, DistanceFromLeft = 0U, DistanceFromRight = 0U });
+
+            Paragraph p = new Paragraph(new ParagraphProperties(new Justification() { Val = JustificationValues.Center }), new Run(element));
+            body.AppendChild(p);
+
+            if (!string.IsNullOrEmpty(caption))
+            {
+                Paragraph cap = new Paragraph(new ParagraphProperties(new Justification() { Val = JustificationValues.Center }), new Run(new Text(caption)));
+                body.AppendChild(cap);
+            }
         }
     }
 }
