@@ -16,16 +16,12 @@ namespace Report_Generator.Services
 
         private static readonly char[] HeaderTrimChars = { ' ', '\r', '\n', '\uFEFF', '"' };
 
-        // Mirrors Python's is_trip_file bad_words list.
+        // Python's is_trip_file bad_words list.
         private static readonly string[] BadWords = { "anchor", "cp", "detected", "table", "summary" };
 
-        // ⚠️ PLACEHOLDER — your Python SNAP_RE / _time_in_period weren't included in what
-        // you pasted. This regex + the period windows below are a best-effort stand-in so
-        // the rest of the pipeline compiles and runs. Replace the pattern with whatever your
-        // actual Snapped filenames look like (e.g. "12_07-45-30-NB.csv" -> group 2/3/4 =
-        // hh/mm/ss), and adjust the AM/MID/PM cutoffs to your real survey windows.
         private static readonly Regex SnapTimeRegex =
-            new Regex(@"^(\d+)_(\d{2})[-:](\d{2})[-:](\d{2})", RegexOptions.Compiled);
+            new Regex(@"_(\d{8})-(\d{2})(\d{2})(\d{2})_snapped\.csv$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
 
         private static readonly Dictionary<string, (TimeSpan Start, TimeSpan End)> PeriodWindows = new()
         {
@@ -48,11 +44,6 @@ namespace Report_Generator.Services
             return t >= window.Start && t <= window.End;
         }
 
-        /// <summary>
-        /// Port of Python's load_trip_linestring. `vehicleScopedFiles` should already be
-        /// filtered to one Region/RoadName/SurveyDate/VehicleType survey (not just the
-        /// SegmentAnalysis subfolder — Snapped and KM-CP Detected are siblings of it).
-        /// </summary>
         public LineString? LoadTripLinestring(IEnumerable<IFormFile> vehicleScopedFiles, string period, string direction)
         {
             var all = vehicleScopedFiles.ToList();
@@ -94,7 +85,7 @@ namespace Report_Generator.Services
                 }
                 else
                 {
-                    periodFiles.Add(f); // fallback include, same as Python
+                    periodFiles.Add(f); // fallback include
                 }
             }
             if (!periodFiles.Any()) periodFiles = candidates;
@@ -155,10 +146,6 @@ namespace Report_Generator.Services
             return _geomFactory.CreateLineString(coords.ToArray());
         }
 
-        /// <summary>
-        /// Port of Python's load_cp_points_from_excel. Looks in
-        /// "KM-CP Detected/{period}/tables/" for one CSV (prefers a "-NB" filename).
-        /// </summary>
         public List<ControlPoint> LoadControlPoints(IEnumerable<IFormFile> vehicleScopedFiles, string period)
         {
             var cps = new List<ControlPoint>();

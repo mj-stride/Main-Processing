@@ -14,9 +14,6 @@ namespace Report_Generator.Services
         private const double EarthRadius = 6378137.0; // Web Mercator sphere radius, meters
         private const int TileSize = 256;
 
-        // Tune these to change output resolution / layout. The reference Python image is
-        // ~1980x2027 (figsize 9x9 @ 220dpi + title padding) — these are scaled down a bit
-        // but keep the same proportions.
         private const int TargetMapSizePx = 1600;
         private const int TitleBarHeightPx = 70;
         private const int MinZoom = 3;
@@ -28,7 +25,7 @@ namespace Report_Generator.Services
             ("31–45 kph", "green"), ("46+ kph", "blue")
         };
 
-        // Matplotlib's named-color RGB values, so the legend/segment colors match python's
+        // Matplotlib's named-color RGB values
         private static readonly Dictionary<string, SKColor> ColorMap = new()
         {
             ["red"] = new SKColor(0xFF, 0x00, 0x00),
@@ -130,7 +127,7 @@ namespace Report_Generator.Services
             return data.ToArray();
         }
 
-        // ---------- Web Mercator helpers (replace contextily's internal projection) ----------
+        // ---------- Web Mercator helpers ----------
 
         private static (double X, double Y) LonLatToMeters(double lon, double lat)
         {
@@ -152,24 +149,16 @@ namespace Report_Generator.Services
             return (Math.PI * EarthRadius - yMeters) / (2 * Math.PI * EarthRadius) * mapSize;
         }
 
-        // Safety cap: never mosaic more than this many tiles per axis, regardless of what
-        // PickZoom suggests. A 16x16 mosaic at 256px tiles is already 4096px square — far
-        // more than TargetMapSizePx needs — so this should only ever bite as a last resort.
         private const int MaxTilesPerAxis = 16;
 
         private static int PickZoom(double bboxSizeMeters)
         {
-            // As zoom increases, meters-per-pixel DECREASES (finer resolution), so the same
-            // physical bbox needs MORE pixels to render at higher zoom. We want the highest
-            // zoom whose resolution still keeps the full bbox within roughly TargetMapSizePx —
-            // i.e. the largest zoom where mpp(zoom) is still >= desiredMpp. Iterate low-to-high
-            // and keep the last zoom that satisfies this; stop as soon as one doesn't.
             double desiredMpp = bboxSizeMeters / TargetMapSizePx;
             int zoom = MinZoom;
             for (int z = MinZoom; z <= MaxZoom; z++)
             {
                 double mpp = (2 * Math.PI * EarthRadius) / (TileSize * Math.Pow(2, z));
-                if (mpp < desiredMpp) break; // any higher zoom would make the image bigger than target
+                if (mpp < desiredMpp) break;
                 zoom = z;
             }
             return zoom;
@@ -193,10 +182,6 @@ namespace Report_Generator.Services
 
             if (tilesX > MaxTilesPerAxis || tilesY > MaxTilesPerAxis)
             {
-                // Defensive fallback in case the bbox math ever produces something larger
-                // than expected (e.g. a stray outlier GPS point blowing out the extent).
-                // Re-derive a coarser zoom directly from the actual pixel span instead of
-                // trusting PickZoom's estimate.
                 Console.WriteLine($"    ⚠️ Tile mosaic would be {tilesX}x{tilesY} at zoom {zoom} — clamping to a coarser zoom.");
                 while (zoom > MinZoom && (tilesX > MaxTilesPerAxis || tilesY > MaxTilesPerAxis))
                 {
@@ -274,8 +259,6 @@ namespace Report_Generator.Services
             foreach (var seg in segments)
             {
                 paint.Color = ColorMap.TryGetValue(seg.ColorName, out var c) ? c : ColorMap["gray"];
-                // Python: linewidth=LineWidth*0.65 in points @220dpi. Calibrated for
-                // TargetMapSizePx so segments read the same relative thickness on screen.
                 paint.StrokeWidth = seg.LineWidth * 1.6f;
 
                 var coords = seg.Geometry.Coordinates;
@@ -303,8 +286,6 @@ namespace Report_Generator.Services
                 canvas.DrawCircle(pt, 5, dotPaint);
 
                 float tx = pt.X + 15, ty = pt.Y + 8;
-                // Cheap white-halo text: stroke the glyphs in white underneath, fill in black on top —
-                // matches Python's path_effects=[pe.withStroke(linewidth=2, foreground="white")].
                 canvas.DrawText(cp.Name, tx, ty, SKTextAlign.Left, font, haloPaint);
                 canvas.DrawText(cp.Name, tx, ty, SKTextAlign.Left, font, textPaint);
             }

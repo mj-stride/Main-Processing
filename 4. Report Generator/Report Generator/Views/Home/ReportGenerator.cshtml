@@ -8,8 +8,8 @@
 
 <style>
     :root {
-        --primary: #1d4470;
-        --accent: #da471f;
+        --primary: #211d71;
+        --accent: #db4b27;
         --muted: #888;
         --card-bg: #ffffff;
         --card-border: #d0d8e4;
@@ -149,8 +149,6 @@
               enctype="multipart/form-data"
               onsubmit="return startUpload();">
 
-            <!-- Click-to-browse fallback input (webkitdirectory). Drag-and-drop is handled
-                 separately in JS via the DataTransferItem API so a dropped folder also works. -->
             <input type="file"
                    name="files"
                    id="folderInput"
@@ -375,10 +373,6 @@
             `;
         }
 
-        // ---------------------------------------------------------------
-        // Fake progress bar — same simulation pattern as the CSV uploader,
-        // since the server gives no real progress signal during processing.
-        // ---------------------------------------------------------------
         function startFakeProgress() {
             if (!progressBar) return;
             progressBar.style.width = "0%";
@@ -471,7 +465,7 @@
                     if (btn) btn.disabled = false;
                 });
 
-            return false; // we handle submission ourselves
+            return false;
         };
     })();
 </script>

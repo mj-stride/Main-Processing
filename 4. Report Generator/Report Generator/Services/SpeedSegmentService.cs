@@ -51,7 +51,7 @@ namespace Report_Generator.Services
             return 6;
         }
 
-        // build_speed_lookup. Keyed the same way: (From, To) -> TravelSpeedKph.
+        // build_speed_lookup: (From, To) -> TravelSpeedKph.
         public Dictionary<(string From, string To), double?> BuildSpeedLookup(IEnumerable<SegmentAverages> segments)
         {
             var lookup = new Dictionary<(string, string), double?>();
@@ -89,14 +89,6 @@ namespace Report_Generator.Services
             }
         }
 
-        /// <summary>
-        /// Port of Python's make_trip_cp2cp_segments. Projects CPs onto the trip line in
-        /// EPSG:3857, sorts them along the line, then extracts the trip-following sub-curve
-        /// between each consecutive pair. NTS's LengthIndexedLine.ExtractLine is the native
-        /// equivalent of Python's manual 60-point trip.interpolate() loop — both follow the
-        /// real path rather than drawing a straight chord between CPs; ExtractLine is exact
-        /// rather than a 60-point approximation.
-        /// </summary>
         public List<TripCp2CpSegment> MakeTripCp2CpSegments(
             LineString tripWgs84,
             List<ControlPoint> controlPoints,
