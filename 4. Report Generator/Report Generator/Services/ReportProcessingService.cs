@@ -17,6 +17,7 @@ namespace Report_Generator.Services
         private readonly TripLineLoaderService _tripLineLoader;
         private readonly SpeedSegmentService _speedSegmentService;
         private readonly SpeedMapRenderer _mapRenderer;
+        private readonly ShapefileExportService _shapefileExport;
         private readonly ZipExtractService _zipExtract;
 
         public ReportProcessingService(
@@ -28,6 +29,7 @@ namespace Report_Generator.Services
             TripLineLoaderService tripLineLoader,
             SpeedSegmentService speedSegmentService,
             SpeedMapRenderer mapRenderer,
+            ShapefileExportService shapefileExport,
             ZipExtractService zipExtract)
         {
             _folderScanner = folderScanner;
@@ -38,6 +40,7 @@ namespace Report_Generator.Services
             _tripLineLoader = tripLineLoader;
             _speedSegmentService = speedSegmentService;
             _mapRenderer = mapRenderer;
+            _shapefileExport = shapefileExport;
             _zipExtract = zipExtract;
         }
 
@@ -91,6 +94,15 @@ namespace Report_Generator.Services
                                       entryPath.Contains("/Graphs/MID/", StringComparison.OrdinalIgnoreCase) ||
                                       entryPath.Contains("/Graphs/PM/", StringComparison.OrdinalIgnoreCase) ||
                                       entryPath.Contains("/Shapes/", StringComparison.OrdinalIgnoreCase);
+
+                    if (shouldCopy)
+                    {
+                        string fileName = System.IO.Path.GetFileName(entryPath);
+                        bool isGeneratedShapefile = fileName.StartsWith("AM_", StringComparison.OrdinalIgnoreCase) ||
+                                                    fileName.StartsWith("MID_", StringComparison.OrdinalIgnoreCase) ||
+                                                    fileName.StartsWith("PM_", StringComparison.OrdinalIgnoreCase);
+                        if (isGeneratedShapefile) shouldCopy = false;
+                    }
 
                     if (shouldCopy && addedEntries.Add(entryPath))
                     {
@@ -219,7 +231,7 @@ namespace Report_Generator.Services
                                 chartsGenerated++;
                             }
 
-                            // ---- Map generation ----
+                            // ---- Map + Shapefile generation ----
                             var tripLine = _tripLineLoader.LoadTripLinestring(vehicleFiles, period, direction);
                             var controlPoints = _tripLineLoader.LoadControlPoints(vehicleFiles, period);
 
@@ -230,6 +242,34 @@ namespace Report_Generator.Services
 
                                 if (mapSegments.Any())
                                 {
+                                    // ---- Shapefiles (written before PNG, matching Python output order) ----
+                                    // Port of: nb_seg_gdf_3857.to_crs(epsg=4326).to_file(nb_shp)
+                                    //      and: gpd.GeoDataFrame([{..., "geometry": nb_trip}]).to_file(nb_trip_shp)
+                                    string shpFolder = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/Shapes/shp/{period}";
+                                    string cpShpBase = $"{period}_{direction}_CP2CP_Speed";
+                                    string tripShpBase = $"{period}_{direction}_TripLine";
+
+                                    var cpShpFiles = _shapefileExport.WriteSegmentsShapefile(mapSegments, cpShpBase);
+                                    foreach (var (fname, content) in cpShpFiles)
+                                    {
+                                        var shpEntry = zip.CreateEntry($"{shpFolder}/{fname}", CompressionLevel.Fastest);
+                                        using var ses = shpEntry.Open();
+                                        ses.Write(content, 0, content.Length);
+                                    }
+                                    if (cpShpFiles.Any(f => f.FileName.EndsWith(".shp")))
+                                        Console.WriteLine($"  ✅ Saved CP2CP shapefile: Shapes/shp/{period}/{cpShpBase}.shp");
+
+                                    var tripShpFiles = _shapefileExport.WriteTripLineShapefile(tripLine, period, direction, tripShpBase);
+                                    foreach (var (fname, content) in tripShpFiles)
+                                    {
+                                        var shpEntry = zip.CreateEntry($"{shpFolder}/{fname}", CompressionLevel.Fastest);
+                                        using var ses = shpEntry.Open();
+                                        ses.Write(content, 0, content.Length);
+                                    }
+                                    if (tripShpFiles.Any(f => f.FileName.EndsWith(".shp")))
+                                        Console.WriteLine($"  ✅ Saved TripLine shapefile: Shapes/shp/{period}/{tripShpBase}.shp");
+
+                                    // ---- PNG map ----
                                     string mapTitle = $"{period} {directionFull} Trip Speed Map";
                                     var mapBytes = await _mapRenderer.ExportTripSpeedPngAsync(mapSegments, controlPoints, mapTitle);
 

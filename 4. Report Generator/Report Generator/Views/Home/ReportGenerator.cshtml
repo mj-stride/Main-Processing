@@ -133,9 +133,9 @@
 
         <div class="drop-zone" id="dropZone" tabindex="0">
             <div style="display: flex; gap: 15px; justify-content: center; align-items: center; margin-bottom: 5px">
-                <i class="bi bi-folder" aria-hidden="true"></i>
+                <i class="bi bi-folder2" aria-hidden="true"></i>
                 <p> or </p>
-                <i class="bi bi-file-earmark-zip" aria-hidden="true"></i>
+                <i class="bi bi-file-zip" aria-hidden="true"></i>
             </div>
             <p>Drag &amp; drop your <strong>Region</strong> folder or ZIP here</p>
 
@@ -276,7 +276,7 @@
         return (b/1048576).toFixed(1) + ' MB';
     }
 
-        function renderSummary() {
+    function renderSummary() {
         const label = document.getElementById('fileLabel');
         const err = document.getElementById('uploadError');
         if (!label) return;
@@ -305,7 +305,7 @@
         if (surveys.length > 0) {
             const items = surveys.map(s => `
                 <div class="file-item">
-                    <i class="bi bi-truck"></i>
+                    <i class="bi ${getVehicleIcon(s.vehicleType)}"></i>
                     <span class="file-item-name">
                         ${s.region} / ${s.roadName} / ${s.surveyDate}
                         <small>${s.vehicleType}</small>
@@ -317,8 +317,7 @@
                      </p>
                      <div class="file-list-scroll">${items}</div>`;
         }
-        // Only show the "No folders detected" error if NO folders were used
-        // AND NO zips were used
+        
         else if (zips.length === 0) {
             html += `<p style="color:#c0392b;font-size:0.86rem;text-align:center;">
                         <i class="bi bi-exclamation-triangle me-1"></i>
@@ -327,6 +326,14 @@
         }
 
         label.innerHTML = html + `</div>`;
+    }
+
+    function getVehicleIcon(type) {
+        const t = type.toLowerCase();
+        if (t.includes('car')) return 'bi-car-front';
+        if (t.includes('bus')) return 'bi-bus-front';
+        if (t.includes('uv')) return 'bi-taxi-front';
+        return 'bi-car-front'; // Default icon
     }
 
     // ── Progress helpers ───────────────────────────────────────────────────
