@@ -1,8 +1,40 @@
 [
   {
     "ContainingType": "Report_Generator.Controllers.ReportController",
-    "Method": "GenerateReportsAsync",
-    "RelativePath": "api/Report/generate",
+    "Method": "Download",
+    "RelativePath": "api/Report/download/{jobId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "jobId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Report_Generator.Controllers.ReportController",
+    "Method": "GetStatus",
+    "RelativePath": "api/Report/status/{jobId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "jobId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Report_Generator.Controllers.ReportController",
+    "Method": "SubmitAsync",
+    "RelativePath": "api/Report/submit",
     "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,

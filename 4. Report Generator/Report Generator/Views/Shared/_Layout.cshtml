@@ -16,34 +16,53 @@
 
         .app-nav {
             background: #211d71;
-            color: #fff;
-            padding: 0.85rem 1.5rem;
+            height: 72px;
+            padding: 0 36px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            box-shadow: 0 1px 4px rgba(0,0,0,.15);
         }
 
-        .app-nav .brand {
-            font-weight: 700;
-            font-size: 1.1rem;
+            .app-nav .brand {
+                color: white;
+                font-weight: 700;
+                font-size: 1.1rem;
+            }
+
+            .app-nav .section-badge {
+                background: rgba(255,255,255,0.15);
+                border-radius: 999px;
+                padding: 4px 14px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                letter-spacing: 0.3px;
+            }
+
+        .dashboard-btn {
+            background: #d9471f;
+            color: white;
+            text-decoration: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.95rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 5px;
+            transition: .2s;
         }
 
-        .app-nav .section-badge {
-            background: rgba(255,255,255,0.15);
-            border-radius: 999px;
-            padding: 4px 14px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-        }
+            .dashboard-btn:hover {
+                background: #cc441d;
+                color: white;
+            }
 
         .page-wrapper {
-            max-width: 900px;
+            max-width: 1600px;
+            width: 95%;
             margin: 2rem auto;
-            padding: 0 1rem 3rem;
+            padding-bottom: 3rem;
         }
     </style>
 
@@ -54,10 +73,10 @@
         <span class="brand">
             Report Generator
         </span>
-        @if (ViewData["Section"] != null)
-        {
-            <span class="section-badge">@ViewData["Section"]</span>
-        }
+        <a href="/Dashboard" class="dashboard-btn">
+            <i class="bi bi-grid"></i>
+            Dashboard
+        </a>
     </nav>
 
     @RenderBody()
