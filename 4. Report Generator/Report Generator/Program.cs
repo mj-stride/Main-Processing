@@ -18,6 +18,7 @@ builder.Services.AddScoped<SpeedSegmentService>();
 builder.Services.AddScoped<SpeedMapRenderer>();
 builder.Services.AddScoped<ReportProcessingService>();
 builder.Services.AddScoped<ZipExtractService>();
+builder.Services.AddScoped<ShapefileExportService>();
 
 // ---- Job infrastructure ----
 builder.Services.AddSingleton<ReportJobService>();
