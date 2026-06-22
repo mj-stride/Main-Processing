@@ -57,6 +57,47 @@ namespace Report_Generator.Services
             using var memory = new MemoryStream();
             using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, true))
             {
+                Console.WriteLine(" -> Copying uploaded files to output ZIP...");
+                var addedEntries = new HashSet<string>();
+                string prefixToStrip = "";
+
+                if (vehicleDirs.Any())
+                {
+                    var first = vehicleDirs.First();
+                    string normPath = first.SegmentAnalysisPath.Replace('\\', '/');
+                    string suffix = $"{first.Region}/{first.RoadName}/{first.SurveyDate}/{first.VehicleType}/SegmentAnalysis";
+                    int suffixIdx = normPath.IndexOf(suffix);
+                    if (suffixIdx > 0)
+                    {
+                        prefixToStrip = first.SegmentAnalysisPath.Substring(0, suffixIdx).Replace('\\', '/');
+                    }
+                }
+
+                foreach (var file in files)
+                {
+                    string entryPath = file.FileName.Replace('\\', '/');
+                    if (!string.IsNullOrEmpty(prefixToStrip) && entryPath.StartsWith(prefixToStrip))
+                    {
+                        entryPath = entryPath.Substring(prefixToStrip.Length);
+                    }
+
+                    bool shouldCopy = entryPath.Contains("/KM-CP Detected/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/Snapped/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/SegmentAnalysis/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/Graphs/AM/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/Graphs/MID/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/Graphs/PM/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/Shapes/", StringComparison.OrdinalIgnoreCase);
+
+                    if (shouldCopy && addedEntries.Add(entryPath))
+                    {
+                        var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
+                        using var es = entry.Open();
+                        using var fs = file.OpenReadStream();
+                        fs.CopyTo(es);
+                    }
+                }
+
                 foreach (var survey in vehicleDirs)
                 {
                     ct.ThrowIfCancellationRequested();
@@ -64,10 +105,6 @@ namespace Report_Generator.Services
                     Console.WriteLine($"\n▶ Processing: {survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}");
                     Console.WriteLine(" -> Reading CSV files...");
 
-                    // ---- Scope all files to this survey's VehicleType folder ----
-                    // SegmentAnalysisPath ends with "SegmentAnalysis"; trimming that
-                    // gives the VehicleType folder, whose siblings contain Snapped/
-                    // and KM-CP Detected/ used for map generation.
                     string vtPath = survey.SegmentAnalysisPath[
                         ..(survey.SegmentAnalysisPath.Length - "SegmentAnalysis".Length)];
 
@@ -216,24 +253,6 @@ namespace Report_Generator.Services
 
                         if (chartsGenerated > 0)
                             Console.WriteLine($"  -> Generated {chartsGenerated} speed charts for {period}.");
-                    }
-
-                    // ---- Copy shapefiles and GeoJSONs ----
-                    var copyFiles = surveyFiles.Where(f =>
-                        f.FileName.Contains("/Shapes/shp/") ||
-                        (f.FileName.Contains("/KM-CP Detected/") && f.FileName.Contains("/GIS/") && f.FileName.EndsWith(".geojson")))
-                        .ToList();
-
-                    foreach (var f in copyFiles)
-                    {
-                        int vtIdx = f.FileName.IndexOf($"/{survey.VehicleType}/");
-                        if (vtIdx < 0) continue;
-                        string relPath = f.FileName[(vtIdx + $"/{survey.VehicleType}/".Length)..];
-                        string entryPath = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{relPath}";
-                        var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
-                        using var es = entry.Open();
-                        using var fs = f.OpenReadStream();
-                        fs.CopyTo(es);
                     }
 
                     // ---- DOCX Report ----
