@@ -59,6 +59,10 @@
               "target": "Package",
               "version": "[3.5.1, )"
             },
+            "Microsoft.AspNetCore.Http": {
+              "target": "Package",
+              "version": "[2.3.11, )"
+            },
             "NetTopologySuite": {
               "target": "Package",
               "version": "[2.6.0, )"

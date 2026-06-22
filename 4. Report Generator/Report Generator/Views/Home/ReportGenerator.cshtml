@@ -68,7 +68,7 @@
         justify-content: center; gap: 0.5rem;
         cursor: pointer; transition: background .12s, transform .06s;
     }
-    .drop-zone:hover { background: #dde3ea; transform: translateY(-1px); }
+    /* .drop-zone:hover { background: #dde3ea; transform: translateY(-1px); } */
     .drop-zone.show-drag { background: #d0d8e2; border-color: var(--primary); }
     .drop-zone i { font-size: 2.6rem; color: var(--accent); }
     .drop-zone p { font-size: 0.92rem; color: #444; margin: 0; text-align: center; }
@@ -126,22 +126,32 @@
 
     <!-- Upload card -->
     <section class="upload-card" aria-labelledby="uploadTitle">
-        <h5 id="uploadTitle">Upload Region Folder</h5>
+        <h5 id="uploadTitle">Upload Region Folder/ZIP</h5>
 
-        <input type="file" id="folderInput" webkitdirectory directory multiple aria-label="Region folder" />
+        <input type="file" id="folderInput" webkitdirectory directory multiple aria-label="Region folder" style="display:none;" />
+        <input type="file" id="zipInput" accept=".zip" multiple aria-label="Region ZIP" style="display:none;" />
 
-        <div class="drop-zone" id="dropZone" role="button" tabindex="0"
-             title="Click or drop your Region folder here">
-            <i class="bi bi-folder2-open" aria-hidden="true"></i>
-            <p>Drag &amp; drop your <strong>Region</strong> folder here, or click to browse</p>
-            <span class="hint">Should contain RoadName / SurveyDate / VehicleType / SegmentAnalysis subfolders</span>
+        <div class="drop-zone" id="dropZone" tabindex="0">
+            <div style="display: flex; gap: 15px; justify-content: center; align-items: center; margin-bottom: 5px">
+                <i class="bi bi-folder" aria-hidden="true"></i>
+                <p> or </p>
+                <i class="bi bi-file-earmark-zip" aria-hidden="true"></i>
+            </div>
+            <p>Drag &amp; drop your <strong>Region</strong> folder or ZIP here</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('folderInput').click()">Browse Folder</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('zipInput').click()">Browse ZIP</button>
+            </div>
+
+            <span class="hint mt-2">Should contain Region / RoadName / SurveyDate / VehicleType / SegmentAnalysis</span>
         </div>
 
         <div id="fileLabel" aria-live="polite" style="margin-top:0.75rem"></div>
 
         <p id="uploadError" style="display:none; font-size:0.86rem; color:#c0392b; text-align:center; margin-top:0.5rem;">
             <i class="bi bi-exclamation-circle me-1"></i>
-            Please select a Region folder before continuing.
+            Please select a folder/zip before continuing.
         </p>
 
         <div class="d-flex justify-content-center mt-4">
@@ -160,6 +170,7 @@
 
     const dropZone     = document.getElementById('dropZone');
     const folderInput  = document.getElementById('folderInput');
+    const zipInput     = document.getElementById('zipInput');
     const overlay      = document.getElementById('loadingOverlay');
     const progressBar  = document.getElementById('progressBar');
     const progressLabel = document.getElementById('progressLabel');
@@ -172,11 +183,21 @@
 
     // ── Folder selection: click-to-browse ─────────────────────────────────
     folderInput.addEventListener('change', () => {
+        zipInput.value = "";
         selectedFiles = Array.from(folderInput.files).map(f => ({
             file: f, relativePath: f.webkitRelativePath || f.name
         }));
         renderSummary();
     });
+
+        // ── ZIP selection: click-to-browse ────────────────────────────────────
+        zipInput.addEventListener('change', () => {
+            folderInputvalues = "";
+            selectedFiles = Array.from(zipInput.files).map(f => ({
+                file: f, relativePath: f.name // ZIPs don't have deep relative paths
+            }));
+            renderSummary();
+        });
 
     // ── Folder selection: drag-and-drop (FileSystemEntry tree walk) ────────
     function readEntryAsFile(entry) {
@@ -214,6 +235,10 @@
 
     dropZone.addEventListener('drop', async e => {
         e.preventDefault(); dropZone.classList.remove('show-drag');
+
+        folderInput.value = "";
+        zipInput.value = "";
+
         const items = e.dataTransfer?.items;
         if (items?.length && items[0].webkitGetAsEntry) {
             const entries = Array.from(items).map(i => i.webkitGetAsEntry()).filter(Boolean);
@@ -225,10 +250,6 @@
             }));
         }
         renderSummary();
-    });
-    dropZone.addEventListener('click', () => folderInput.click());
-    dropZone.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); folderInput.click(); }
     });
 
     // ── Client-side survey detection (mirrors FolderScannerService) ────────
@@ -255,42 +276,57 @@
         return (b/1048576).toFixed(1) + ' MB';
     }
 
-    function renderSummary() {
+        function renderSummary() {
         const label = document.getElementById('fileLabel');
-        const err   = document.getElementById('uploadError');
+        const err = document.getElementById('uploadError');
         if (!label) return;
         if (!selectedFiles.length) { label.innerHTML = ''; return; }
         if (err) err.style.display = 'none';
 
-        const total   = selectedFiles.reduce((s,e) => s + (e.file.size||0), 0);
-        const surveys = detectSurveys(selectedFiles);
+        const total = selectedFiles.reduce((s, e) => s + (e.file.size || 0), 0);
 
-        const items = surveys.map(s => `
-            <div class="file-item">
-                <i class="bi bi-truck"></i>
-                <span class="file-item-name">
-                    ${s.region} / ${s.roadName} / ${s.surveyDate}
-                    <small>${s.vehicleType}</small>
-                </span>
-            </div>`).join('');
+        const zips = selectedFiles.filter(f => f.file.name.toLowerCase().endsWith('.zip'));
+        const folders = selectedFiles.filter(f => !f.file.name.toLowerCase().endsWith('.zip'));
+        const surveys = detectSurveys(folders);
 
-        label.innerHTML = `
+        let html = `
             <div>
                 <p class="file-list-header">
                     <i class="bi bi-folder2-open me-1"></i>
-                    ${selectedFiles.length} file${selectedFiles.length!==1?'s':''} selected (${fmtBytes(total)})
-                </p>
-                ${surveys.length
-                    ? `<p class="file-list-header" style="color:#15803d;">
-                           <i class="bi bi-check2-circle me-1"></i>
-                           ${surveys.length} survey${surveys.length!==1?'s':''} detected
-                       </p>
-                       <div class="file-list-scroll">${items}</div>`
-                    : `<p style="color:#c0392b;font-size:0.86rem;text-align:center;">
-                           <i class="bi bi-exclamation-triangle me-1"></i>
-                           No SegmentAnalysis folders detected — check you selected the Region folder.
-                       </p>`}
-            </div>`;
+                    ${selectedFiles.length} file(s) selected (${fmtBytes(total)})
+                </p>`;
+
+        if (zips.length > 0) {
+            html += `<p class="file-list-header" style="color:#211d71;">
+                        <i class="bi bi-file-earmark-zip me-1"></i> ${zips.length} ZIP archive(s) added
+                     </p>`;
+        }
+
+        if (surveys.length > 0) {
+            const items = surveys.map(s => `
+                <div class="file-item">
+                    <i class="bi bi-truck"></i>
+                    <span class="file-item-name">
+                        ${s.region} / ${s.roadName} / ${s.surveyDate}
+                        <small>${s.vehicleType}</small>
+                    </span>
+                </div>`).join('');
+
+            html += `<p class="file-list-header" style="color:#15803d;">
+                        <i class="bi bi-check2-circle me-1"></i> ${surveys.length} survey(s) detected in folders
+                     </p>
+                     <div class="file-list-scroll">${items}</div>`;
+        }
+        // Only show the "No folders detected" error if NO folders were used
+        // AND NO zips were used
+        else if (zips.length === 0) {
+            html += `<p style="color:#c0392b;font-size:0.86rem;text-align:center;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        No SegmentAnalysis folders detected.
+                     </p>`;
+        }
+
+        label.innerHTML = html + `</div>`;
     }
 
     // ── Progress helpers ───────────────────────────────────────────────────

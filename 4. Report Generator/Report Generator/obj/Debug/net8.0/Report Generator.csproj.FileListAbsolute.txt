@@ -156,3 +156,5 @@ E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\
 E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\bin\Debug\net8.0\Newtonsoft.Json.dll
 E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\obj\Debug\net8.0\Report Generator.RazorAssemblyInfo.cache
 E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\obj\Debug\net8.0\Report Generator.RazorAssemblyInfo.cs
+E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\bin\Debug\net8.0\Microsoft.Extensions.ObjectPool.dll
+E:\Documents\1. OJT\Github\Main-Processing\4. Report Generator\Report Generator\bin\Debug\net8.0\Microsoft.Extensions.Options.dll
