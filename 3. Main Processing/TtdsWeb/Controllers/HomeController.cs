@@ -3094,6 +3094,21 @@ namespace TtdsWeb.Controllers
                     AddSegmentAnalysisToZip(zip, list, $"{root}/SegmentAnalysis");
                     AddShapesToZip(zip, list, $"{root}/Shapes");
 
+                    // ===== EXPORT ORIGINAL SNAPPED/CLEANED CSVs =====
+                    foreach (var d in list)
+                    {
+                        if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                            continue;
+
+                        var csvFileName = Path.GetFileName(d.Path);
+                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+
+                        var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
+                        using var es = entry.Open();
+                        using var fs = System.IO.File.OpenRead(d.Path);
+                        fs.CopyTo(es);
+                    }
+
                     // ✅ OPTIONAL (but you asked): export KM/CP used in analysis (per trip) with lat/lon
                     foreach (var d in list)
                     {
@@ -3223,6 +3238,21 @@ namespace TtdsWeb.Controllers
                     //AddDirectionalAveragesToZip_ByDate(zip, list, $"{root}/DirectionalAverages");
                     AddSegmentAnalysisToZip(zip, list, $"{root}/SegmentAnalysis");
                     AddShapesToZip(zip, list, $"{root}/Shapes");
+
+                    // ===== EXPORT ORIGINAL SNAPPED/CLEANED CSVs =====
+                    foreach (var d in list)
+                    {
+                        if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                            continue;
+
+                        var csvFileName = Path.GetFileName(d.Path);
+                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+
+                        var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
+                        using var es = entry.Open();
+                        using var fs = System.IO.File.OpenRead(d.Path);
+                        fs.CopyTo(es);
+                    }
                 }
 
                 if (byDateVehicle.Count == 0)
