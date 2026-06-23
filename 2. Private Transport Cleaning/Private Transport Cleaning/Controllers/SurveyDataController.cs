@@ -85,7 +85,7 @@ namespace PrivateTransportCleaning.Controllers
                     {
                         success = false,
                         code = "DATE_MISMATCH",
-                        message = "THE DATES ON THE GEOTAB CSV AND ZIP FILES DOES NOT MATCH"
+                        message = "Process Error: Dates do not match."
                     });
                 }
             }
