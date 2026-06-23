@@ -48,49 +48,6 @@ The system architecture has been systematically modernized from the legacy frame
 * [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 * A local copy of the spatial lookup database (`kilometer_post.db`) placed inside the application's target environment directory.
 
-### Step-by-Step Execution
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-organization/private-transport-cleaning.git](https://github.com/your-organization/private-transport-cleaning.git)
-   cd private-transport-cleaning
-
-```
-
-2. **Restore dependencies:**
-```bash
-dotnet restore
-
-```
-
-
-3. **Verify the Configuration:**
-Ensure your local pathing configurations inside `appsettings.Development.json` correctly align with your local data files:
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Data Source=Database/kilometer_post.db"
-  }
-}
-
-```
-
-
-4. **Build the Solution:**
-```bash
-dotnet build
-
-```
-
-
-5. **Run the Application:**
-```bash
-dotnet run --project "Private Transport Cleaning"
-
-```
-
-
-Once started, navigate to `http://localhost:5000` (or the configured HTTPS port indicated in your console output) to access the workspace web panel.
-
 ---
 
 ## 📂 Core Project Layout
