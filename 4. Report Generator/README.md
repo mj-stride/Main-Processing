@@ -110,6 +110,12 @@ Inside the ZIP archive, the system preserves your original folder structure and 
 
 This document provides technical details, architectural overview, and maintainer information for the **Report Generator** project. It is intended for developers taking over the maintenance and future development of the application.
 
+## Table of Contents
+1. [System Overview](#1-system-overview)
+2. [Architecture and Workflow](#2-architecture-and-workflow)
+3. [Frontend Implementation](#3-frontend-implementation)
+4. [Development and Maintenance Guide](#4-development-and-maintenance-guide)
+
 ## 1. System Overview
 The Report Generator is an **ASP.NET Core 8 MVC** application that automates the generation of traffic survey reports from raw CSV and geographic data. It processes uploaded data to calculate averages, generates visualizations (PNG charts/maps), produces GIS Shapefiles, and compiles final MS Word (.docx) reports.
 
@@ -125,7 +131,7 @@ The Report Generator is an **ASP.NET Core 8 MVC** application that automates the
   * `NetTopologySuite` (2.6.0) & `NetTopologySuite.IO.ShapeFile` - For parsing, manipulating, and exporting geographic data and ESRI Shapefiles.
   * `ProjNET` (2.1.0) - For coordinate reference system (CRS) projections.
 
-## 2. Architecture & Workflow
+## 2. Architecture and Workflow
 
 The application uses an asynchronous background-processing architecture. Because report generation can take a long time, the HTTP request cannot block until completion.
 
@@ -156,7 +162,7 @@ The frontend is a single-page interface located in `Views/Home/ReportGenerator.c
 * **File Processing**: The Drag-and-Drop zone utilizes the `webkitGetAsEntry` API to recursively walk uploaded directories on the client side. It parses file paths to provide a real-time preview of detected surveys before uploading.
 * **Polling**: Once the upload completes, it sets up a `setInterval` to ping `/api/Report/status/{jobId}` every 1.5 seconds. The UI log panel is populated using regex-based milestones against the server logs to update the progress bar.
 
-## 4. Development & Maintenance Guide
+## 4. Development and Maintenance Guide
 
 ### 4.1 Running Locally
 1. Ensure the .NET 8 SDK is installed.
