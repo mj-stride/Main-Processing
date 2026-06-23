@@ -1,9 +1,8 @@
-﻿@page
+@page
 @model IndexModel
 @{
     Layout = null;
 }
-
 
 <!DOCTYPE html>
 <html lang="en">
@@ -13,204 +12,90 @@
     <title>Traffic Time and Delay Survey Processing</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
-    <style>
-        body {
-            background-color: #eeeeee;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Top bar */
-        .topbar {
-            background: #211d70;
-            color: #eeeeee;
-            font-size: 0.95rem;
-            font-weight: 600;
-            padding: 14px 32px;
-            letter-spacing: 0.01em;
-        }
-
-        /* Step badge */
-        .step-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            border: 1.5px solid #aaa;
-            border-radius: 999px;
-            padding: 3px 12px 3px 8px;
-            font-size: 0.78rem;
-            color: #555;
-            font-weight: 500;
-            width: fit-content;
-        }
-
-            .step-badge .circle {
-                width: 18px;
-                height: 18px;
-                border: 1.5px solid #888;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 0.7rem;
-                font-weight: 700;
-                color: #555;
-            }
-
-        .ttds-card {
-            flex: 1 1 220px;
-            min-width: 0;
-            background-color: #eeeeee;
-            border-radius: 18px;
-            border: 1px solid #000000;
-            box-shadow: 0 0 50px 5px rgba(0, 0, 0, 0.20);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card-icon {
-            text-align: center;
-        }
-        
-        .card-icon i {
-            font-size: 6.5em;
-            color: #da471f;
-        }
-
-        /* Arrow between cards */
-        .step-arrow {
-            font-size: 1.6rem;
-            color: #888;
-            flex-shrink: 0;
-            padding: 0 4px;
-            margin-top: -28px;
-        }
-
-        /* Button — w337 h69 fill #1d4470 text #eeeeee */
-        .btn-ttds {
-            width: 100%;
-            height: 45px;
-            background: #1d4470;
-            color: #eeeeee;
-            border: none;
-            border-radius: 999px;
-            font-size: 0.88rem;
-            font-weight: 600;
-            transition: background 0.18s, transform 0.1s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-            .btn-ttds:hover {
-                background: #245490;
-                color: #eeeeee;
-                transform: translateY(-1px);
-            }
-
-            .btn-ttds:active {
-                transform: translateY(0);
-            }
-
-        /* Responsive */
-        @@media (max-width: 660px) {
-            .step-arrow {
-                transform: rotate(90deg);
-                margin-top: 0;
-            }
-
-            .ttds-card {
-                width: 100%;
-            }
-
-            .btn-ttds {
-                width: 100%;
-            }
-        }
-
-        }
-        </style>
+    <link rel="stylesheet" href="/css/shared.css" />
 </head>
 <body>
 
-    <!-- Top bar -->
     <div class="topbar">Traffic Time and Delay Survey Processing</div>
 
-    <!-- Main -->
     <main class="flex-grow-1 d-flex flex-column align-items-center justify-content-center py-5 px-3">
 
-        <!-- Heading -->
-        <div class="w-100 mb-4" style="max-width: 1340px;">
-            <h1 class="fw-bold mb-1" style="font-size: 2.4rem;">TTDS Processing</h1>
-            <p class="text-secondary mb-0">Complete each step in sequence to process your survey data.</p>
-        </div>
+        <div class="w-100" style="max-width: 1240px;">
 
-        <!-- Steps -->
-        <div class="d-flex flex-column flex-md-row align-items-stretch" style="gap: 0;">
-
-            <!-- Step 1: Clean/Snap -->
-            <div class="card ttds-card p-4">
-                <div class="step-badge mb-3">
-                    <span class="circle">1</span> Step 1
-                </div>
-                <div class="card-icon mb-3">
-                    <i class="bi bi-geo-alt-fill"></i>
-                </div>
-                <h2 class="fw-bold mb-2" style="font-size: 1.45rem;">Clean/Snap</h2>
-                <p class="text-secondary flex-grow-1" style="font-size: 0.85rem;">
-                    Clean survey records and/or snap GPS coordinates to the road network.
-                </p>
-                <div class="d-flex flex-column align-items-center gap-2 mt-3">
-                    <button class="btn btn-ttds" onclick="handleStep('puv')">Public Utility Vehicle</button>
-                    <button class="btn btn-ttds" onclick="handleStep('private')">Private Transport</button>
-                </div>
+            <div class="mb-4">
+                <h1 class="fw-bold mb-1" style="font-size: 2.4rem;">TTDS Processing</h1>
+                <p class="text-secondary mb-0">Complete each step in sequence to process your survey data.</p>
             </div>
 
-            <span class="step-arrow d-flex align-items-center px-2">→</span>
+            <div class="d-flex flex-column flex-lg-row align-items-stretch justify-content-between gap-3 gap-lg-0">
 
-            <!-- Step 2: Processing -->
-            <div class="card ttds-card p-4">
-                <div class="step-badge mb-3">
-                    <span class="circle">2</span> Step 2
+                <div class="card ttds-card p-4">
+                    <div class="card-body-top">
+                        <div class="step-badge mb-3">
+                            <span class="circle">1</span> Step 1
+                        </div>
+                        <div class="card-icon mb-3">
+                            <i class="bi bi-geo-alt-fill"></i>
+                        </div>
+                        <h2 class="fw-bold mb-2" style="font-size: 1.45rem;">Clean/Snap</h2>
+                        <p class="text-secondary mb-0" style="font-size: 0.875rem; line-height: 1.5;">
+                            Clean survey records and/or snap GPS coordinates to the road network.
+                        </p>
+                    </div>
+
+                    <div class="mt-auto d-flex flex-column gap-2 pt-4">
+                        <button class="btn btn-ttds" onclick="handleStep('puv')">Public Utility Vehicle</button>
+                        <button class="btn btn-ttds" onclick="handleStep('private')">Private Transport</button>
+                    </div>
                 </div>
-                <div class="card-icon mb-3">
-                    <i class="bi bi-gear-wide"></i>
+
+                <div class="step-arrow">→</div>
+
+                <div class="card ttds-card p-4">
+                    <div class="card-body-top">
+                        <div class="step-badge mb-3">
+                            <span class="circle">2</span> Step 2
+                        </div>
+                        <div class="card-icon mb-3">
+                            <i class="bi bi-gear-wide"></i>
+                        </div>
+                        <h2 class="fw-bold mb-2" style="font-size: 1.45rem;">Processing</h2>
+                        <p class="text-secondary mb-0" style="font-size: 0.875rem; line-height: 1.5;">
+                            Run traffic time and delay analysis on the cleaned and/or snapped data.
+                        </p>
+                    </div>
+
+                    <div class="mt-auto d-flex flex-column gap-2 pt-4">
+                        <button class="btn btn-ttds" onclick="handleStep('process')">Process Data</button>
+                    </div>
                 </div>
-                <h2 class="fw-bold mb-2" style="font-size: 1.45rem;">Processing</h2>
-                <p class="text-secondary flex-grow-1" style="font-size: 0.85rem;">
-                    Run traffic time and delay analysis on the cleaned and/or snapped data.
-                </p>
-                <div class="d-flex flex-column align-items-center gap-2 mt-3">
-                    <button class="btn btn-ttds" onclick="handleStep('process')">Process Data</button>
+
+                <div class="step-arrow">→</div>
+
+                <div class="card ttds-card p-4">
+                    <div class="card-body-top">
+                        <div class="step-badge mb-3">
+                            <span class="circle">3</span> Step 3
+                        </div>
+                        <div class="card-icon mb-3">
+                            <i class="bi bi-file-text"></i>
+                        </div>
+                        <h2 class="fw-bold mb-2" style="font-size: 1.45rem;">Report Maker</h2>
+                        <p class="text-secondary mb-0" style="font-size: 0.875rem; line-height: 1.5;">
+                            Generate a formatted report from the completed analysis outputs.
+                        </p>
+                    </div>
+
+                    <div class="mt-auto d-flex flex-column gap-2 pt-4">
+                        <button class="btn btn-ttds" onclick="handleStep('report')">Generate Report</button>
+                    </div>
                 </div>
+
             </div>
-
-            <span class="step-arrow d-flex align-items-center px-2">→</span>
-
-            <!-- Step 3: Report Maker -->
-            <div class="card ttds-card p-4">
-                <div class="step-badge mb-3">
-                    <span class="circle">3</span> Step 3
-                </div>
-                <div class="card-icon mb-3">
-                    <i class="bi bi-file-text"></i>
-                </div>
-                <h2 class="fw-bold mb-2" style="font-size: 1.45rem;">Report Maker</h2>
-                <p class="text-secondary flex-grow-1" style="font-size: 0.85rem;">
-                    Generate a formatted report from the completed analysis outputs.
-                </p>
-                <div class="d-flex flex-column align-items-center gap-2 mt-3">
-                    <button class="btn btn-ttds" onclick="handleStep('report')">Generate Report</button>
-                </div>
-            </div>
-
         </div>
     </main>
 
-    <!-- Footer -->
-    <footer class="text-center py-3 text-secondary" style="font-size: 0.78rem;">
+    <footer class="site-footer">
         © 2025 Travel Time and Delay Survey
     </footer>
 

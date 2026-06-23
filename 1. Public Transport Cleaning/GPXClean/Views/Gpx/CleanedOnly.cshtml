@@ -7,257 +7,153 @@
     var tripCount = Model.Trips?.Count ?? 0;
 }
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-    html, body {
-        height: 100%;
-        margin: 0;
-    }
-
-    .preview-wrapper {
+    /* Viewport-filling flex wrapper */
+    .preview-view-wrapper {
         display: flex;
         flex-direction: column;
-        height: calc(100vh - 48px);
-        padding: 1rem;
-        gap: 1rem;
-        box-sizing: border-box;
+        flex: 1;
+        gap: 1.25rem;
+        min-height: 0;
     }
 
-    .preview-heading {
+    .preview-body-grid {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-shrink: 0;
-    }
-
-        .preview-heading h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .preview-heading .meta {
-            font-size: 0.82rem;
-            color: #666;
-            margin-top: 2px;
-        }
-
-    .preview-body {
-        display: flex;
-        gap: 1rem;
+        gap: 1.5rem;
         flex: 1;
         min-height: 0;
     }
 
-    /* LEFT PANEL */
+    /* LEFT PANEL: The Scrollable Container */
     .panel-left {
-        width: 320px;
+        width: 350px;
         flex-shrink: 0;
-        background: #ffffff;
-        border-radius: 16px;
-        border: 1px solid #ccc;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        max-height: calc(100vh - 130px);
     }
 
     .panel-left-header {
-        padding: 1rem 1rem 0.5rem;
+        padding: 1rem 1.25rem 0.75rem;
         font-weight: 700;
         font-size: 0.95rem;
-        color: #1d4470;
-        flex-shrink: 0;
-        border-bottom: 1px solid #e0e6ee;
+        color: var(--color-primary);
+        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-surface);
     }
 
-    /* Selection toggle buttons */
-    .selection-controls {
-        display: flex;
-        gap: 6px;
-        padding: 0.6rem 1rem;
-        flex-shrink: 0;
-        border-bottom: 1px solid #e0e6ee;
-        flex-wrap: wrap;
-    }
-
-    .btn-sel {
-        font-size: 0.75rem;
-        font-weight: 600;
-        border-radius: 999px;
-        padding: 4px 12px;
-        border: 1.5px solid #1d4470;
-        background: transparent;
-        color: #1d4470;
-        cursor: pointer;
-        transition: background 0.12s;
-    }
-
-        .btn-sel:hover {
-            background: #e8eef5;
-        }
-
-        .btn-sel.warning {
-            border-color: #b57a00;
-            color: #b57a00;
-        }
-
-            .btn-sel.warning:hover {
-                background: #fdf3dc;
-            }
-
-    /* Trip list */
     .trip-list-scroll {
-        flex: 1;
+        flex: 1 1 auto;
         overflow-y: auto;
+        min-height: 0; /* Crucial for scrollability */
         padding: 0.75rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
     }
 
         .trip-list-scroll::-webkit-scrollbar {
-            width: 5px;
+            width: 6px;
         }
 
         .trip-list-scroll::-webkit-scrollbar-track {
-            background: #f0f0f0;
-            border-radius: 999px;
+            background: var(--color-bg);
         }
 
         .trip-list-scroll::-webkit-scrollbar-thumb {
-            background: #aab4c4;
+            background: #cbd5e1;
             border-radius: 999px;
         }
 
+    /* Selection Controls */
+    .selection-controls {
+        display: flex;
+        gap: 6px;
+        padding: 0.75rem 1rem;
+        flex-shrink: 0;
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-surface);
+    }
+
+    .btn-sel {
+        font-size: 0.72rem;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 4px 12px;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        color: var(--color-text-main);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .btn-sel:hover {
+            background: var(--color-bg);
+            border-color: var(--color-primary);
+        }
+
+        .btn-sel.warning {
+            color: #b45309;
+            border-color: #fcd34d;
+            background: #fffbeb;
+        }
+
+    /* Trip Row */
     .trip-row {
         display: flex;
         align-items: flex-start;
-        gap: 8px;
-        background: #f0f4f8;
-        border: 1px solid #d0d8e4;
+        gap: 10px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
         border-radius: 8px;
         padding: 8px 10px;
         cursor: pointer;
-        transition: background 0.12s;
+        transition: all 0.15s ease;
     }
 
         .trip-row:hover {
-            background: #e2eaf3;
+            background: #f1f5f9;
+            border-color: #cbd5e1;
         }
 
         .trip-row input[type="checkbox"] {
-            accent-color: #1d4470;
-            flex-shrink: 0;
-            width: 15px;
-            height: 15px;
+            accent-color: var(--color-primary);
             margin-top: 3px;
             cursor: pointer;
         }
 
-    .trip-row-body {
-        flex: 1;
-        min-width: 0;
-    }
-
     .trip-row-title {
         font-size: 0.8rem;
         font-weight: 700;
-        color: #1d4470;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        color: var(--color-primary);
     }
 
     .trip-row-meta {
-        font-size: 0.72rem;
-        color: #666;
-        margin-top: 1px;
+        font-size: 0.7rem;
+        color: var(--color-text-muted);
     }
 
     .trip-row-zip {
         font-size: 0.7rem;
-        color: #999;
-        margin-top: 1px;
-        word-break: break-all;
+        color: #94a3b8;
     }
-
-    /* Action buttons */
-    .panel-left-actions {
-        padding: 0.75rem 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        border-top: 1px solid #e0e6ee;
-        flex-shrink: 0;
-    }
-
-    .btn-ttds {
-        background: #1d4470;
-        color: #eeeeee;
-        border: none;
-        border-radius: 999px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        padding: 9px 16px;
-        width: 100%;
-        text-align: center;
-        transition: background 0.18s, transform 0.1s;
-        cursor: pointer;
-        text-decoration: none;
-        display: block;
-    }
-
-        .btn-ttds:hover {
-            background: #245490;
-            color: #eeeeee;
-            transform: translateY(-1px);
-        }
-
-        .btn-ttds:active {
-            transform: translateY(0);
-        }
-
-        .btn-ttds.success {
-            background: #1a6640;
-        }
-
-            .btn-ttds.success:hover {
-                background: #1f7a4c;
-            }
-
-        .btn-ttds.outline {
-            background: transparent;
-            color: #1d4470;
-            border: 1.5px solid #1d4470;
-        }
-
-            .btn-ttds.outline:hover {
-                background: #e8eef5;
-            }
-
-        .btn-ttds.secondary {
-            background: transparent;
-            color: #555;
-            border: 1.5px solid #bbb;
-        }
-
-            .btn-ttds.secondary:hover {
-                background: #f0f0f0;
-            }
 
     /* RIGHT PANEL */
     .panel-right {
         flex: 1;
         min-width: 0;
-        background: #ffffff;
-        border-radius: 16px;
-        border: 1px solid #ccc;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -267,79 +163,61 @@
         flex: 1;
         min-height: 0;
         width: 100%;
+        background: #e5e7eb;
     }
 
     .map-footer {
-        padding: 0.5rem 1rem;
-        font-size: 0.78rem;
-        color: #888;
-        border-top: 1px solid #e0e6ee;
-        flex-shrink: 0;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        border-top: 1px solid var(--color-border);
     }
 
-    /* Divider between action groups */
-    .action-divider {
-        border: none;
-        border-top: 1px dashed #d0d8e4;
-        margin: 2px 0;
+    /* Action styling */
+    .panel-left-actions {
+        padding: 1rem;
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
     }
 
-    @@media (max-width: 767px) {
-        .preview-body {
-            flex-direction: column;
-        }
-
-        .panel-left {
-            width: 100%;
-            max-height: 45vh;
-        }
-
-        .panel-right {
-            min-height: 50vh;
-        }
+    .btn-ttds-next {
+        background: var(--color-accent) !important;
+        color: #fff;
     }
+
+        .btn-ttds-next:hover {
+            background: var(--color-accent-hover) !important;
+        }
 </style>
 
-<div class="preview-wrapper">
+<div class="preview-view-wrapper py-4 px-2">
 
-    <!-- Heading -->
-    <div class="preview-heading">
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 pb-3 border-bottom" style="border-color: var(--color-border) !important;">
         <div>
-            <h1><i class="bi bi-check2-circle me-2" style="color: #da471f;"></i>Cleaned Trips Only</h1>
-            <div class="meta">
-                <i class="bi bi-collection me-1"></i>Batch: @Model.BatchId
-                &nbsp;·&nbsp;
-                <i class="bi bi-signpost-split me-1"></i>@tripCount trip@(tripCount != 1 ? "s" : "")
-            </div>
+            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size: 1.85rem; color: var(--color-text-main);">
+                <i class="bi bi-check2-circle" style="color: var(--color-accent);"></i> Cleaned Trips
+            </h1>
+            <p class="text-muted mb-0" style="font-size: 0.95rem;">Batch: @Model.BatchId • @tripCount valid trip(s) remaining</p>
         </div>
-        <a href="/gpx/preview-map/@Model.BatchId" class="btn-ttds secondary" style="width: auto; padding: 8px 20px;">
-            <i class="bi bi-arrow-left me-1"></i> Back to Map Preview
+        <a href="/gpx/preview-map/@Model.BatchId" class="btn-action">
+            <i class="bi bi-arrow-left"></i> Back to Map
         </a>
     </div>
 
-    <!-- Body -->
-    <div class="preview-body">
+    <div class="preview-body-grid">
 
-        <!-- LEFT -->
         <div class="panel-left">
             <div class="panel-left-header">
-                <i class="bi bi-signpost-split me-1"></i> Trips (Cleaned)
+                <i class="bi bi-signpost-split me-2"></i>Select Trips
             </div>
 
-            <!-- Selection controls -->
             <div class="selection-controls">
-                <button type="button" class="btn-sel" id="selectAllBtn">
-                    <i class="bi bi-check-all me-1"></i>All
-                </button>
-                <button type="button" class="btn-sel" id="deselectAllBtn">
-                    <i class="bi bi-x-lg me-1"></i>None
-                </button>
-                <button type="button" class="btn-sel warning" id="toggleBtn">
-                    <i class="bi bi-arrow-left-right me-1"></i>Toggle
-                </button>
+                <button type="button" class="btn-sel" id="selectAllBtn">All</button>
+                <button type="button" class="btn-sel" id="deselectAllBtn">None</button>
+                <button type="button" class="btn-sel warning" id="toggleBtn">Toggle</button>
             </div>
 
-            <form id="cleanedActionForm" method="post" style="display:contents;">
+            <form id="cleanedActionForm" method="post" class="d-flex flex-column flex-grow-1" style="min-height:0;">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="batchId" value="@Model.BatchId" />
                 <div id="selectedFilesContainer"></div>
@@ -350,52 +228,37 @@
                         var t = Model.Trips[i];
                         var id = "trip_" + i;
                         <label class="trip-row" for="@id">
-                            <input class="trip-checkbox"
-                                   type="checkbox"
-                                   id="@id"
-                                   data-files='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.SourceZipFiles))'
-                                   checked />
+                            <input class="trip-checkbox" type="checkbox" id="@id"
+                                   data-files='@Html.Raw(JsonSerializer.Serialize(t.SourceZipFiles))' checked />
                             <div class="trip-row-body">
-                                <div class="trip-row-title">
-                                    @t.VehicleCode @t.TripId
-                                    <span style="font-weight:400; color:#555;">(@t.Direction-@t.PartIndex)</span>
-                                </div>
+                                <div class="trip-row-title">@t.VehicleCode @t.TripId (@t.Direction-@t.PartIndex)</div>
                                 <div class="trip-row-meta">
-                                    <i class="bi bi-geo me-1"></i>@(t.DetectedRegionId ?? "UNK")
-                                    &nbsp;·&nbsp;
-                                    <i class="bi bi-road me-1"></i>@(t.DetectedRoadName ?? "UNK")
-                                    &nbsp;·&nbsp;@(t.Points?.Count ?? 0) pts
+                                    <i class="bi bi-geo"></i> @(t.DetectedRegionId ?? "UNK") |
+                                    <i class="bi bi-road"></i> @(t.DetectedRoadName ?? "UNK") | @(t.Points?.Count ?? 0) pts
                                 </div>
-                                <div class="trip-row-zip">
-                                    <i class="bi bi-file-zip me-1"></i>@t.SourceZipFileName
-                                </div>
+                                <div class="trip-row-zip"><i class="bi bi-file-zip"></i> @t.SourceZipFileName</div>
                             </div>
                         </label>
                     }
                 </div>
 
+                <div class="panel-left-actions">
+                    <button type="submit" formaction="/gpx/process-selected" class="btn-ttds btn-ttds-next">
+                        <i class="bi bi-download me-2"></i>Download CSV ZIP
+                    </button>
+                </div>
             </form>
-
-            <div class="panel-left-actions">
-                <button type="submit" form="cleanedActionForm" formaction="/gpx/process-selected" class="btn-ttds next">
-                    <i class="bi bi-download me-1"></i> Download CSV ZIP
-                </button>
-            </div>
         </div>
 
-        <!-- RIGHT: Map -->
         <div class="panel-right">
             <div id="map"></div>
-            <div class="map-footer" style="display:flex; align-items:center; justify-content:space-between;">
-                <span>
-                    <i class="bi bi-info-circle me-1"></i>
-                    Click a line on the map to toggle its selection. Green = start, red = end.
-                </span>
-                <a href="https://localhost:7046/" class="btn-ttds next" style="width:auto; padding:8px 20px; white-space:nowrap; text-decoration:none;">
-                    <i class="bi bi-arrow-right-circle me-1"></i> Next: Processing
+            <div class="map-footer d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-info-circle-fill me-1" style="color:var(--color-primary)"></i>Click lines to toggle selection</span>
+                <a href="https://localhost:7046/" class="btn-ttds btn-ttds-next" style="width:auto; padding:4px 16px;">
+                    Next: Processing <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
-
+        </div>
     </div>
 </div>
 
@@ -403,19 +266,16 @@
     <script>
         const vm = @Html.Raw(JsonSerializer.Serialize(Model));
         const trips = vm.trips || vm.Trips || [];
-
         const map = L.map('map').setView([12.8797, 121.7740], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
 
+        setTimeout(() => { map.invalidateSize(); }, 250);
+
         let layers = [];
 
-        function clearLayers() {
+        function updateMap() {
             layers.forEach(l => map.removeLayer(l));
             layers = [];
-        }
-
-        function updateMap() {
-            clearLayers();
             const boundsList = [];
 
             trips.forEach((t, i) => {
@@ -423,8 +283,6 @@
                 if (!cb || !cb.checked) return;
 
                 const pts = t.points || t.Points || [];
-                if (!pts || pts.length < 2) return;
-
                 const latlngs = pts.map(p => {
                     const lat = p.snappedLat ?? p.SnappedLat ?? p.lat ?? p.Lat ?? p.latitude ?? p.Latitude ?? p.item1 ?? p.Item1;
                     const lon = p.snappedLon ?? p.SnappedLon ?? p.lon ?? p.Lon ?? p.longitude ?? p.Longitude ?? p.item2 ?? p.Item2;
@@ -434,11 +292,6 @@
                 if (latlngs.length < 2) return;
 
                 const line = L.polyline(latlngs, { weight: 4, color: '#1d4470', opacity: 0.9 }).addTo(map);
-                line.bindPopup(`
-                    <strong>${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}</strong><br/>
-                    ${(t.direction || t.Direction || "")}-${(t.partIndex || t.PartIndex || "")}<br/>
-                    ${(t.detectedRegionId || t.DetectedRegionId || "UNK")} | ${(t.detectedRoadName || t.DetectedRoadName || "UNK")}
-                `);
                 line.on("click", () => { cb.checked = !cb.checked; updateMap(); });
                 layers.push(line);
                 boundsList.push(line.getBounds());
@@ -447,16 +300,11 @@
                 const e = t.end || t.End;
 
                 if ((s?.lat ?? s?.Lat) != null) {
-                    const sm = L.circleMarker([s.lat ?? s.Lat, s.lon ?? s.Lon],
-                        { radius: 6, color: 'green', fillColor: 'green', fillOpacity: 1 }).addTo(map);
-                    sm.bindPopup(`Start: ${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
+                    const sm = L.circleMarker([s.lat ?? s.Lat, s.lon ?? s.Lon], { radius: 6, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1 }).addTo(map);
                     layers.push(sm);
                 }
-
                 if ((e?.lat ?? e?.Lat) != null) {
-                    const em = L.circleMarker([e.lat ?? e.Lat, e.lon ?? e.Lon],
-                        { radius: 6, color: 'red', fillColor: 'red', fillOpacity: 1 }).addTo(map);
-                    em.bindPopup(`End: ${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
+                    const em = L.circleMarker([e.lat ?? e.Lat, e.lon ?? e.Lon], { radius: 6, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1 }).addTo(map);
                     layers.push(em);
                 }
             });
@@ -465,44 +313,15 @@
                 let b = boundsList[0];
                 for (let i = 1; i < boundsList.length; i++) b = b.extend(boundsList[i]);
                 map.fitBounds(b.pad(0.15));
-            } else {
-                map.setView([12.8797, 121.7740], 6);
             }
         }
 
+        // Event Bindings
         document.querySelectorAll(".trip-checkbox").forEach(cb => cb.addEventListener("change", updateMap));
-        document.getElementById("selectAllBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = true);
-            updateMap();
-        });
-        document.getElementById("deselectAllBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = false);
-            updateMap();
-        });
-        document.getElementById("toggleBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = !cb.checked);
-            updateMap();
-        });
+        document.getElementById("selectAllBtn").addEventListener("click", () => { document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = true); updateMap(); });
+        document.getElementById("deselectAllBtn").addEventListener("click", () => { document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = false); updateMap(); });
+        document.getElementById("toggleBtn").addEventListener("click", () => { document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = !cb.checked); updateMap(); });
 
         updateMap();
-
-        const form = document.getElementById("cleanedActionForm");
-        const container = document.getElementById("selectedFilesContainer");
-        form.addEventListener("submit", function () {
-            container.innerHTML = "";
-            const all = new Set();
-            document.querySelectorAll(".trip-checkbox:checked").forEach(cb => {
-                try {
-                    JSON.parse(cb.getAttribute("data-files") || "[]").forEach(z => all.add(z));
-                } catch (e) {}
-            });
-            all.forEach(z => {
-                const inp = document.createElement("input");
-                inp.type = "hidden";
-                inp.name = "selectedFiles";
-                inp.value = z;
-                container.appendChild(inp);
-            });
-        });
     </script>
 }

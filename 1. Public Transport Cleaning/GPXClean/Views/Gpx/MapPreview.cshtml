@@ -2,207 +2,136 @@
 @using System.Text.Json
 
 @{
-    ViewData["Title"] = "Preview GPX on Map";
+    ViewData["Title"] = "Preview Raw GPX Logs on Map";
     ViewData["Section"] = "Clean and Snap (PUV)";
 }
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-    html, body {
-        height: 100%;
-        margin: 0;
-    }
-
-    .preview-wrapper {
+    /* Viewport-filling flex wrapper */
+    .preview-view-wrapper {
         display: flex;
         flex-direction: column;
-        height: calc(100vh - 48px);
-        padding: 1rem;
-        gap: 1rem;
-        box-sizing: border-box;
+        flex: 1;
+        gap: 1.25rem;
+        min-height: 0;
+        height: calc(100vh - 130px);
     }
 
-    .preview-heading {
+    /* Main split container */
+    .preview-body-grid {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-shrink: 0;
-    }
-
-        .preview-heading h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin: 0;
-        }
-
-        .preview-heading .meta {
-            font-size: 0.82rem;
-            color: #666;
-            margin-top: 2px;
-        }
-
-    .preview-body {
-        display: flex;
-        gap: 1rem;
+        gap: 1.5rem;
         flex: 1;
         min-height: 0;
+        overflow: hidden;
     }
 
     /* LEFT PANEL */
     .panel-left {
-        width: 320px;
+        width: 350px;
         flex-shrink: 0;
-        background: #ffffff;
-        border-radius: 16px;
-        border: 1px solid #ccc;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        max-height: 100%;
     }
 
     .panel-left-header {
-        padding: 1rem 1rem 0.5rem;
+        padding: 1rem 1.25rem 0.75rem;
         font-weight: 700;
         font-size: 0.95rem;
-        color: #1d4470;
-        flex-shrink: 0;
-        border-bottom: 1px solid #e0e6ee;
+        color: var(--color-primary);
+        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-surface);
     }
 
     .file-list-scroll {
-        flex: 1;
+        flex: 1 1 0;
         overflow-y: auto;
+        min-height: 0;
         padding: 0.75rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
     }
 
         .file-list-scroll::-webkit-scrollbar {
-            width: 5px;
+            width: 6px;
         }
 
         .file-list-scroll::-webkit-scrollbar-track {
-            background: #f0f0f0;
-            border-radius: 999px;
+            background: var(--color-bg);
         }
 
         .file-list-scroll::-webkit-scrollbar-thumb {
-            background: #aab4c4;
+            background: #cbd5e1;
             border-radius: 999px;
         }
 
-    .file-row {
+    .file-toggle-row {
         display: flex;
         align-items: center;
-        gap: 8px;
-        background: #f0f4f8;
-        border: 1px solid #d0d8e4;
+        gap: 10px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
         border-radius: 8px;
-        padding: 7px 10px;
+        padding: 8px 12px;
         cursor: pointer;
-        transition: background 0.12s;
+        transition: all 0.15s ease;
     }
 
-        .file-row:hover {
-            background: #e2eaf3;
+        .file-toggle-row:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
         }
 
-        .file-row input[type="checkbox"] {
-            accent-color: #1d4470;
-            flex-shrink: 0;
-            width: 15px;
-            height: 15px;
+        .file-toggle-row input[type="checkbox"] {
+            accent-color: var(--color-primary);
+            width: 16px;
+            height: 16px;
             cursor: pointer;
         }
 
-    .file-row-name {
-        font-size: 0.78rem;
-        color: #333;
+    .file-toggle-name {
+        font-size: 0.82rem;
+        color: var(--color-text-main);
+        font-weight: 500;
         word-break: break-all;
         flex: 1;
-        line-height: 1.3;
+        line-height: 1.25;
+        margin-bottom: 0;
     }
 
-    .file-row-pts {
-        font-size: 0.72rem;
-        color: #888;
-        flex-shrink: 0;
-        white-space: nowrap;
-    }
-
-    /* Action buttons */
-    .panel-left-actions {
-        padding: 0.75rem 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        border-top: 1px solid #e0e6ee;
-        flex-shrink: 0;
-    }
-
-    .btn-ttds {
-        background: #1d4470;
-        color: #eeeeee;
-        border: none;
-        border-radius: 999px;
-        font-size: 0.82rem;
+    .file-toggle-pts {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        background: #e2e8f0;
+        padding: 2px 6px;
+        border-radius: 4px;
         font-weight: 600;
-        padding: 9px 16px;
-        width: 100%;
-        text-align: center;
-        transition: background 0.18s, transform 0.1s;
-        cursor: pointer;
-        text-decoration: none;
-        display: block;
     }
 
-        .btn-ttds:hover {
-            background: #245490;
-            color: #eeeeee;
-            transform: translateY(-1px);
-        }
-
-        .btn-ttds:active {
-            transform: translateY(0);
-        }
-
-        .btn-ttds.secondary {
-            background: transparent;
-            color: #555;
-            border: 1.5px solid #bbb;
-        }
-
-            .btn-ttds.secondary:hover {
-                background: #f0f0f0;
-                color: #555;
-            }
-
-        .btn-ttds:disabled {
-            background: #5a7fa8;
-            color: #ccc;
-            pointer-events: none;
-        }
-
-    .action-divider {
-        border: none;
-        border-top: 1px dashed #d0d8e4;
-        margin: 2px 0;
+    .panel-left-actions {
+        padding: 1rem;
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
     }
 
     /* RIGHT PANEL */
     .panel-right {
         flex: 1;
         min-width: 0;
-        background: #ffffff;
-        border-radius: 16px;
-        border: 1px solid #ccc;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -212,21 +141,23 @@
         flex: 1;
         min-height: 0;
         width: 100%;
+        background-color: #e5e7eb;
     }
 
     .map-footer {
-        padding: 0.5rem 1rem;
-        font-size: 0.78rem;
-        color: #888;
-        border-top: 1px solid #e0e6ee;
-        flex-shrink: 0;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
     }
 
-    /* Loading overlay */
+    /* Processing Modal */
     #loadingOverlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.55);
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(3px);
         display: none;
         align-items: center;
         justify-content: center;
@@ -235,151 +166,148 @@
 
     #loadingCard {
         width: min(520px, 92vw);
-        background: #fff;
-        border-radius: 12px;
-        padding: 18px 18px 14px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-        border: 1px solid #e5e5e5;
+        background: var(--color-surface);
+        border-radius: 16px;
+        padding: 28px 24px;
+        box-shadow: var(--shadow-lg);
+        border: 1px solid var(--color-border);
+        text-align: center;
     }
 
     #loadingTitle {
-        font-weight: 600;
+        font-weight: 700;
         margin-bottom: 8px;
-        font-size: 1.05rem;
+        font-size: 1.2rem;
+        color: var(--color-text-main);
     }
 
     #loadingMsg {
         font-size: 0.92rem;
-        color: #555;
-        margin-bottom: 12px;
+        color: var(--color-text-muted);
+        margin-bottom: 20px;
     }
 
     .progress {
-        height: 12px;
+        height: 10px;
         border-radius: 999px;
         overflow: hidden;
-        background: #e9ecef;
+        background: var(--color-border);
+        margin-bottom: 12px;
     }
 
     .progress-bar {
         width: 30%;
         height: 100%;
-        background: linear-gradient(90deg, #1d4470, #2f6db5);
+        background: linear-gradient(90deg, var(--color-primary), #3b82f6);
         animation: indeterminate 1.1s infinite ease-in-out;
     }
 
     @@keyframes indeterminate {
-        0% {
-            transform: translateX(-120%);
-        }
+        0%
 
-        100% {
-            transform: translateX(420%);
-        }
+    {
+        transform: translateX(-120%);
+    }
+
+    100% {
+        transform: translateX(420%);
+    }
+
     }
 
     .disabled-clicks {
         pointer-events: none;
-        opacity: .75;
+        opacity: 0.75;
     }
 
-    @@media (max-width: 767px) {
-        .preview-body {
-            flex-direction: column;
-        }
+    @@media (max-width: 991px) {
+        .preview-body-grid
 
-        .panel-left {
-            width: 100%;
-            max-height: 45vh;
-        }
+    {
+        flex-direction: column;
+    }
 
-        .panel-right {
-            min-height: 50vh;
-        }
+    .panel-right {
+        min-height: 500px;
+    }
+
     }
 </style>
 
-<!-- Loading overlay -->
 <div id="loadingOverlay">
     <div id="loadingCard">
-        <div id="loadingTitle">Cleaning selected files…</div>
-        <div id="loadingMsg">Grouping trips and preparing cleaned preview. Please wait.</div>
+        <div class="spinner-border mb-3" role="status" style="color: var(--color-primary); width: 2.2rem; height: 2.2rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div id="loadingTitle">Cleaning survey logs…</div>
+        <div id="loadingMsg">Filtering outlier GPS jumps and grouping trip paths. Please wait.</div>
         <div class="progress">
             <div class="progress-bar"></div>
         </div>
-        <div class="small text-muted mt-2">Don't refresh or go back while processing.</div>
+        <div class="small mt-2" style="color: var(--color-text-muted);">Don't refresh or navigate away while processing.</div>
     </div>
 </div>
 
-<div class="preview-wrapper">
+<div class="preview-view-wrapper">
 
-    <!-- Heading -->
-    <div class="preview-heading">
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 border-bottom" style="border-color: var(--color-border) !important;">
         <div>
-            <h1><i class="bi bi-map me-2" style="color: #da471f;"></i>GPX Map Preview</h1>
-            <div class="meta">
-                <i class="bi bi-collection me-1"></i>Batch: @Model.BatchId
-                &nbsp;·&nbsp;
-                <i class="bi bi-files me-1"></i>@Model.Files.Count file@(Model.Files.Count != 1 ? "s" : "")
+            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size: 1.85rem; color: var(--color-text-main);">
+                <i class="bi bi-map-fill" style="color: var(--color-accent);"></i> Raw GPX Route Inspection
+            </h1>
+            <div class="d-flex align-items-center gap-2" style="font-size: 0.85rem; color: var(--color-text-muted);">
+                <span><strong class="text-dark">Batch:</strong> @Model.BatchId</span>
+                <span>•</span>
+                <span>@Model.Files.Count survey log@(Model.Files.Count != 1 ? "s" : "") parsed</span>
             </div>
         </div>
-        <a id="btnBack" href="/gpx/upload" class="btn-ttds secondary" style="width:auto; padding:8px 20px;">
-            <i class="bi bi-arrow-left me-1"></i> Back to Upload
+
+        <a id="btnBack" href="/gpx/upload" class="btn-action">
+            <i class="bi bi-arrow-left"></i> Back to Packages
         </a>
     </div>
 
-    <!-- Body -->
-    <div class="preview-body">
+    <div class="preview-body-grid">
 
-        <!-- LEFT -->
         <div class="panel-left">
             <div class="panel-left-header">
-                <i class="bi bi-folder2-open me-1"></i> Files
+                <i class="bi bi-files me-2"></i>Parsed Package Logs
             </div>
 
-            <form id="processForm" method="post" action="/gpx/process-selected" style="display:contents;">
+            <form id="processForm" method="post" action="/gpx/process-selected" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="batchId" value="@Model.BatchId" />
 
                 <div class="file-list-scroll">
-                    @{
-                        var idx = 0;
-                    }
                     @foreach (var f in Model.Files)
                     {
-                        var safeId = "chk_" + idx;
-                        idx++;
-                        <label class="file-row" for="@safeId">
-                            <input class="file-check"
+                        var safeId = "chk_" + Guid.NewGuid().ToString("N");
+                        <label class="file-toggle-row" for="@safeId">
+                            <input class="form-check-input file-check"
                                    type="checkbox"
                                    value="@f.FileName"
                                    id="@safeId"
                                    name="selectedFiles"
                                    checked />
-                            <span class="file-row-name">@f.FileName</span>
-                            <span class="file-row-pts">@(f.Points?.Count ?? 0) pts</span>
+                            <span class="file-toggle-name">@f.FileName</span>
+                            <span class="file-toggle-pts">@(f.Points?.Count ?? 0)</span>
                         </label>
                     }
                 </div>
-            </form>
 
-            <div class="panel-left-actions">
-                <button id="btnClean"
-                        type="submit"
-                        form="processForm"
-                        formaction="/gpx/cleaned-only-view"
-                        class="btn-ttds">
-                    <i class="bi bi-check2-circle me-1"></i> Continue (Clean Selected)
-                </button>
-            </div>
+                <div class="panel-left-actions mt-auto">
+                    <button id="btnClean" type="submit" formaction="/gpx/cleaned-only-view" class="btn-ttds w-100 d-flex align-items-center justify-content-center gap-2">
+                        <i class="bi bi-magic"></i> Run Algorithm (Clean Selected)
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <!-- RIGHT: Map -->
         <div class="panel-right">
             <div id="map"></div>
-            <div class="map-footer">
-                <i class="bi bi-info-circle me-1"></i>
-                Toggle files on the left to show or hide their routes on the map.
+            <div class="map-footer d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle-fill" style="color: var(--color-primary);"></i>
+                <span>Showing uncleaned, raw GPS telemetry. Toggle layers on the left to include/exclude routes from the cleaning pipeline.</span>
             </div>
         </div>
 
@@ -393,12 +321,11 @@
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
+    // Re-measure canvas after flex container finishes calculating
+    setTimeout(() => { map.invalidateSize(); }, 250);
+
     const vm = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model));
     const files = vm.files ?? vm.Files ?? [];
-
-    console.log("files:", files);
-    console.log("first file:", files[0]);
-    console.log("first point:", (files[0]?.points ?? files[0]?.Points)?.[0]);
 
     function toLatLngArray(pts) {
         return (pts || []).map(p => {
@@ -417,13 +344,14 @@
         const pts = f.points ?? f.Points ?? [];
         const latlngs = toLatLngArray(pts);
         if (latlngs.length >= 2) {
-            const layer = L.polyline(latlngs, { weight: 3, color: '#1d4470' }).addTo(map);
+            // Mapped to --color-primary
+            const layer = L.polyline(latlngs, { weight: 3.5, color: '#1d4470', opacity: 0.85 }).addTo(map);
             layers[name] = layer;
             latlngs.forEach(ll => bounds.extend(ll));
         }
     });
 
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
     else map.setView([12.8797, 121.7740], 6);
 
     document.querySelectorAll('.file-check').forEach(cb => {
@@ -436,7 +364,8 @@
         });
     });
 
-        (function () {
+    // Modal Trigger Logic
+    (function () {
         const form = document.getElementById("processForm");
         const overlay = document.getElementById("loadingOverlay");
         const btnClean = document.getElementById("btnClean");

@@ -36,7 +36,7 @@ namespace Report_Generator.Services
 
                 attrs.Add("SpeedCat", Truncate(s.SpeedCat,   20));
                 attrs.Add("Color",    Truncate(s.ColorName,  10));
-                attrs.Add("LineWd",   (double)s.LineWidth);  // double → dBase N field
+                attrs.Add("LineWd",   (double)s.LineWidth);
 
                 return (IFeature)new Feature(s.Geometry, attrs);
             }).ToList();

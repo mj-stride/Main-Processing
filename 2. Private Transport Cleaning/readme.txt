@@ -42,6 +42,7 @@ The system architecture has been systematically modernized from the legacy frame
 
 ---
 
+<<<<<<< Updated upstream
 ## 🔧 Installation & Local Setup
 
 ### Prerequisites
@@ -50,6 +51,8 @@ The system architecture has been systematically modernized from the legacy frame
 
 ---
 
+=======
+>>>>>>> Stashed changes
 ## 📂 Core Project Layout
 
 Private Transport Cleaning/
