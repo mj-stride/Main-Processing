@@ -2,77 +2,49 @@
 
 @{
     ViewData["Title"] = "Snapped CSVs Ready";
+    ViewData["Section"] = "Clean and Snap (Private Transport)";
 }
 
-<style>
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f4f6f9;
-        padding: 40px;
-    }
+<div class="upload-view-wrapper py-5 px-3">
 
-    .container {
-        max-width: 600px;
-        margin: auto;
-        background-color: white;
-        padding: 30px 40px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border-radius: 10px;
-    }
+    <div class="premium-card p-4 p-md-5 mx-auto" style="max-width: 600px;">
 
-    h1 {
-        text-align: center;
-        color: #28a745;
-    }
+        <div class="text-center mb-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                 style="width: 80px; height: 80px; background-color: #dcfce7; color: #15803d;">
+                <i class="bi bi-check-circle-fill" style="font-size: 3rem;"></i>
+            </div>
+            <h1 class="fw-bold" style="color: var(--color-text-main);">Processing Complete</h1>
+            <p class="text-muted">Your snapped CSV files are ready for download.</p>
+        </div>
 
-    ul {
-        list-style: none;
-        padding-left: 0;
-    }
-
-    li {
-        margin: 10px 0;
-    }
-
-    a {
-        color: #007bff;
-        text-decoration: none;
-        font-weight: 500;
-    }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-    .back {
-        display: block;
-        text-align: center;
-        margin-top: 30px;
-        font-size: 14px;
-        color: #666;
-    }
-</style>
-
-<div class="container">
-    <h1>Snapped CSVs Ready</h1>
-
-    <ul>
-        @if (Model != null && Model.Count > 0)
-        {
-            foreach (var file in Model)
+        <div class="d-flex flex-column gap-2 mb-4">
+            @if (Model != null && Model.Count > 0)
             {
-                <li>
-                    <a href="/SurveyData/Download?file=@file">@file</a>
-                </li>
+                foreach (var file in Model)
+                {
+                    <a href="/SurveyData/Download?file=@System.Net.WebUtility.UrlEncode(file)"
+                       class="d-flex align-items-center justify-content-between p-3 rounded-3"
+                       style="background-color: var(--color-bg); border: 1px solid var(--color-border); text-decoration: none; transition: 0.2s;">
+                        <span class="d-flex align-items-center text-dark fw-medium">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-3" style="color: var(--color-primary);"></i>
+                            @System.IO.Path.GetFileName(file)
+                        </span>
+                        <i class="bi bi-download" style="color: var(--color-accent);"></i>
+                    </a>
+                }
             }
-        }
-        else
-        {
-            <li>No files generated.</li>
-        }
-    </ul>
+            else
+            {
+                <div class="alert alert-warning text-center">
+                    <i class="bi bi-exclamation-triangle me-2"></i> No files were generated in this batch.
+                </div>
+            }
+        </div>
 
-    <a class="back" href="/SurveyData">
-        ← Back to upload
-    </a>
+        <a href="/SurveyData" class="btn-ttds w-100 d-flex align-items-center justify-content-center mt-2">
+            <i class="bi bi-arrow-left me-2"></i> Return to Upload
+        </a>
+    </div>
+
 </div>

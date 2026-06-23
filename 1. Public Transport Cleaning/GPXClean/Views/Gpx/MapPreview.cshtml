@@ -10,14 +10,20 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-    /* Viewport-filling flex wrapper */
+    /* 1. STRICT VIEWPORT LOCK: Outlaws outer browser scrolling */
+    html, body {
+        height: 100vh !important;
+        overflow: hidden !important;
+    }
+
+    /* 2. MASTER BOUNDING BOX: Fits exactly between Topbar and Footer */
     .preview-view-wrapper {
         display: flex;
         flex-direction: column;
-        flex: 1;
-        gap: 1.25rem;
-        min-height: 0;
-        height: calc(100vh - 130px);
+        height: calc(100vh - 110px); /* 100vh minus Topbar (~60px), Footer (~40px), and margins */
+        max-width: 1600px;
+        margin: 0 auto;
+        width: 100%;
     }
 
     /* Main split container */
@@ -25,8 +31,7 @@
         display: flex;
         gap: 1.5rem;
         flex: 1;
-        min-height: 0;
-        overflow: hidden;
+        min-height: 0; /* Crucial flex lock */
     }
 
     /* LEFT PANEL */
@@ -40,7 +45,6 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        max-height: 100%;
     }
 
     .panel-left-header {
@@ -53,13 +57,13 @@
     }
 
     .file-list-scroll {
-        flex: 1 1 0;
+        flex: 1 1 auto;
         overflow-y: auto;
-        min-height: 0;
+        min-height: 0; /* Forces long lists to spawn internal scrollbar */
         padding: 0.75rem 1rem;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
     }
 
         .file-list-scroll::-webkit-scrollbar {
@@ -82,7 +86,7 @@
         background: var(--color-bg);
         border: 1px solid var(--color-border);
         border-radius: 8px;
-        padding: 8px 12px;
+        padding: 6px 10px;
         cursor: pointer;
         transition: all 0.15s ease;
     }
@@ -94,13 +98,12 @@
 
         .file-toggle-row input[type="checkbox"] {
             accent-color: var(--color-primary);
-            width: 16px;
-            height: 16px;
+            margin-top: 2px;
             cursor: pointer;
         }
 
     .file-toggle-name {
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         color: var(--color-text-main);
         font-weight: 500;
         word-break: break-all;
@@ -110,7 +113,7 @@
     }
 
     .file-toggle-pts {
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         color: var(--color-text-muted);
         background: #e2e8f0;
         padding: 2px 6px;
@@ -219,19 +222,6 @@
         pointer-events: none;
         opacity: 0.75;
     }
-
-    @@media (max-width: 991px) {
-        .preview-body-grid
-
-    {
-        flex-direction: column;
-    }
-
-    .panel-right {
-        min-height: 500px;
-    }
-
-    }
 </style>
 
 <div id="loadingOverlay">
@@ -248,11 +238,11 @@
     </div>
 </div>
 
-<div class="preview-view-wrapper">
+<div class="preview-view-wrapper py-3 px-2">
 
-    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 border-bottom" style="border-color: var(--color-border) !important;">
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 pb-3 border-bottom flex-shrink-0" style="border-color: var(--color-border) !important;">
         <div>
-            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size: 1.85rem; color: var(--color-text-main);">
+            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size: 1.75rem; color: var(--color-text-main);">
                 <i class="bi bi-map-fill" style="color: var(--color-accent);"></i> Raw GPX Route Inspection
             </h1>
             <div class="d-flex align-items-center gap-2" style="font-size: 0.85rem; color: var(--color-text-muted);">
@@ -267,7 +257,7 @@
         </a>
     </div>
 
-    <div class="preview-body-grid">
+    <div class="preview-body-grid pt-2">
 
         <div class="panel-left">
             <div class="panel-left-header">
@@ -307,7 +297,7 @@
             <div id="map"></div>
             <div class="map-footer d-flex align-items-center gap-2">
                 <i class="bi bi-info-circle-fill" style="color: var(--color-primary);"></i>
-                <span>Showing uncleaned, raw GPS telemetry. Toggle layers on the left to include/exclude routes from the cleaning pipeline.</span>
+                <span>Showing uncleaned, raw GPS telemetry. Toggle layers on the left to include/exclude routes.</span>
             </div>
         </div>
 
@@ -344,7 +334,6 @@
         const pts = f.points ?? f.Points ?? [];
         const latlngs = toLatLngArray(pts);
         if (latlngs.length >= 2) {
-            // Mapped to --color-primary
             const layer = L.polyline(latlngs, { weight: 3.5, color: '#1d4470', opacity: 0.85 }).addTo(map);
             layers[name] = layer;
             latlngs.forEach(ll => bounds.extend(ll));

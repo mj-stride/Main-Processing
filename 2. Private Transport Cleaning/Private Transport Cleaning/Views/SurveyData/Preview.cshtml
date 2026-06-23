@@ -1,6 +1,5 @@
 ﻿@{
     Layout = null;
-
     var filename = ViewBag.Filename as string;
     var originalJson = ViewBag.OriginalPointsJson ?? "[]";
     var snappedJson = ViewBag.SnappedPointsJson ?? "[]";
@@ -10,11 +9,9 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>@filename</title>
+    <title>Map Preview: @filename</title>
 
-    <link rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
@@ -23,16 +20,35 @@
             height: 100%;
             margin: 0;
             padding: 0;
+            font-family: 'Segoe UI', sans-serif;
         }
 
         #map {
             width: 100%;
             height: 100%;
         }
+
+        /* Custom Legend/Title Overlay */
+        .map-overlay {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
     </style>
 </head>
 
 <body>
+    <div class="map-overlay">
+        <i style="color: #64748b;">—</i> Original Raw
+        <i style="color: #1d4470; margin-left: 10px;">—</i> Snapped Route
+    </div>
     <div id="map"></div>
 
     <script>
@@ -40,71 +56,47 @@
         const snappedPoints = @Html.Raw(snappedJson);
 
         if (!snappedPoints || snappedPoints.length === 0) {
-            document.body.innerHTML =
-                "<div style='padding:20px'>No map data found.</div>";
+            document.body.innerHTML = "<div style='padding:20px; font-family:sans-serif;'>No valid spatial data found.</div>";
         } else {
+            const map = L.map("map", { zoomControl: true });
 
-            let sumLat = 0;
-            let sumLon = 0;
-
-            snappedPoints.forEach(p => {
-                sumLat += p[0];
-                sumLon += p[1];
-            });
-
-            const centerLat = sumLat / snappedPoints.length;
-            const centerLon = sumLon / snappedPoints.length;
-
-            const map = L.map("map", {
-                zoomControl: true
-            });
-
-            L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
                 maxZoom: 19,
                 attribution: "&copy; OpenStreetMap contributors"
             }).addTo(map);
 
+            // Raw Original Data (Subtle Slate)
             if (originalPoints.length > 0) {
                 L.polyline(originalPoints, {
-                    color: "red",
-                    weight: 4,
-                    opacity: 0.8
+                    color: "#64748b",
+                    weight: 3,
+                    opacity: 0.5,
+                    dashArray: "5, 10"
                 }).addTo(map);
             }
 
-            L.polyline(snappedPoints, {
-                color: "blue",
+            // Snapped Data (Strong Navy)
+            const snappedLine = L.polyline(snappedPoints, {
+                color: "#1d4470",
                 weight: 4,
                 opacity: 0.9
             }).addTo(map);
 
+            // Start Marker (Emerald)
             L.circleMarker(snappedPoints[0], {
-                radius: 7,
-                color: "green",
-                fillColor: "green",
-                fillOpacity: 1
-            }).addTo(map);
+                radius: 6, color: "#16a34a", fillColor: "#16a34a", fillOpacity: 1
+            }).addTo(map).bindPopup("Start");
 
+            // End Marker (Crimson)
             L.circleMarker(snappedPoints[snappedPoints.length - 1], {
-                radius: 7,
-                color: "red",
-                fillColor: "red",
-                fillOpacity: 1
-            }).addTo(map);
+                radius: 6, color: "#dc2626", fillColor: "#dc2626", fillOpacity: 1
+            }).addTo(map).bindPopup("End");
 
-            const bounds = [];
-
-            originalPoints.forEach(p => bounds.push(p));
-            snappedPoints.forEach(p => bounds.push(p));
-
-            const group = L.latLngBounds(bounds);
-
-            map.fitBounds(group, {
-                padding: [80, 80],
-                maxZoom: 14
-            });
+            // Auto-zoom to data
+            const bounds = L.latLngBounds(originalPoints.length > 0 ? originalPoints : snappedPoints);
+            bounds.extend(snappedPoints);
+            map.fitBounds(bounds, { padding: [50, 50] });
         }
     </script>
-
 </body>
 </html>
