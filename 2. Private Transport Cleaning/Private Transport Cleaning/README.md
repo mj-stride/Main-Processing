@@ -1,4 +1,4 @@
-# Private Transport Cleaning System
+﻿# Private Transport Cleaning System
 
 A high performance enterprise grade geospatial telemetry pipeline built on .NET 8.0 ASP.NET Core MVC. This system ingests raw vehicle tracking data (ZIP, CSV, GPX), processes and filters telemetry errors, executes a Snap-to-Centerline algorithm, and prepares optimized datasets for transit analysis.
 
