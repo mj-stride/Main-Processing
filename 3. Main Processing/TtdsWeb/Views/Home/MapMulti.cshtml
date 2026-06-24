@@ -4,6 +4,7 @@
 
 @{
     ViewData["Title"] = "Datasets Preview";
+    ViewData["Section"] = "Datasets Preview";
     var jsonOpts = new JsonSerializerOptions
     {
         PropertyNamingPolicy = null,
@@ -11,78 +12,31 @@
         NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowNamedFloatingPointLiterals
     };
 
-    var anchorSource = (string)(ViewBag.AnchorSource ?? "cp"); // "cp" or "km"
+    var anchorSource = (string)(ViewBag.AnchorSource ?? "cp");
     var selectedRegion = (string)(ViewBag.SelectedRegion ?? "");
     var selectedRoads = (IEnumerable<string>)(ViewBag.SelectedRoads ?? new List<string>());
     var anchorDataServer = ViewBag.AnchorData ?? new List<object>();
 }
 
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8" />
-    <title>@ViewData["Title"]</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-    <!-- Bootstrap 5 & Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
-
-    <!-- Leaflet -->
+@section Styles {
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-
     <style>
-        :root {
-            --ttds-primary: #1d4470;
-            --ttds-accent: #2f6db5;
-        }
-
-        body {
-            background: #eeeeee;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0;
-        }
-
-        .navbar-ttds {
-            background: var(--ttds-primary);
-        }
-
-            .navbar-brand, .navbar-ttds .nav-link, .navbar-ttds .navbar-text {
-                color: #fff !important;
-            }
-
-        .card-ttds {
-            border: none;
-            box-shadow: 0 2px 12px rgba(0,0,0,.08);
-            border-radius: 16px;
-            overflow: hidden;
-            margin-bottom: 1rem;
-        }
-
-            .card-ttds .card-header {
-                background: #1d4470;
-                color: #fff;
-                padding: 0.75rem 1.25rem;
-                font-size: 0.95rem;
-                font-weight: 600;
-            }
-
         #map {
             height: 70vh;
             min-height: 520px;
-            border-radius: .5rem;
-            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
         }
 
         .cp-label {
             font-size: 12px;
             font-weight: 600;
             color: #111;
-            background: #fff;
-            border: 1px solid #ddd;
-            border-radius: .25rem;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
             padding: 1px 4px;
-            box-shadow: 0 1px 4px rgba(0,0,0,.1);
+            box-shadow: var(--shadow-sm);
         }
 
         .dir-pill {
@@ -93,16 +47,16 @@
         .list-scroll {
             max-height: 36vh;
             overflow: auto;
-            border: 1px solid #e9ecef;
-            border-radius: .25rem;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
             padding: .5rem .75rem;
-            background: #fff;
+            background: var(--color-surface);
         }
 
         .road-search {
             position: sticky;
             top: 0;
-            background: #fff;
+            background: var(--color-surface);
             z-index: 2;
             padding-bottom: .5rem;
         }
@@ -111,10 +65,12 @@
             position: sticky;
             bottom: 0;
             z-index: 1030;
-            background: #fff;
-            border-top: 1px solid #e5e7eb;
+            background: var(--color-surface);
+            border-top: 1px solid var(--color-border);
             padding: .75rem 1rem;
-            box-shadow: 0 -4px 16px rgba(0,0,0,.06);
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, .06);
+            margin: 0 -1.5rem -1.5rem;
+            border-radius: 0 0 12px 12px;
         }
 
         .tag-soft {
@@ -138,194 +94,213 @@
 
         .badge-dir {
             background: #edf2ff;
-            color: var(--ttds-primary);
+            color: var(--color-primary);
         }
+
+        .btn-outline-nav {
+            border: 1.5px solid var(--color-primary);
+            color: var(--color-primary);
+            background: transparent;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 6px 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+            .btn-outline-nav:hover {
+                background: var(--color-primary);
+                color: #fff;
+            }
+
+        .btn-outline-muted {
+            border: 1.5px solid var(--color-border);
+            color: var(--color-text-muted);
+            background: transparent;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 6px 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+            .btn-outline-muted:hover {
+                background: var(--color-bg);
+            }
     </style>
-</head>
+}
 
-<body>
-    <!-- Topbar -->
-    <div style="background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em; display:flex; justify-content:space-between; align-items:center;">
-        <span>TTDS – Datasets Preview</span>
-        <a href="/dashboard" style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:none; border-radius:8px; background:#da471f; color:#eeeeee; font-size:0.85rem; font-weight:600; text-decoration:none; transition:background 0.18s;"
-           onmouseover="this.style.background='#c23d19'"
-           onmouseout="this.style.background='#da471f'">
-            <i class="bi bi-columns-gap"></i> Dashboard
-        </a>
-    </div>
+<div class="container-fluid px-0">
+    <div class="row g-3">
 
-    <div class="container-fluid px-4 pt-4 pb-3">
-        <div class="row g-3">
-
-            <!-- LEFT -->
-            <div class="col-12 col-lg-8">
-                <div class="card card-ttds mb-3">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div class="h6 mb-0"><i class="bi bi-map me-2"></i>Preview Map</div>
-                        <div class="small">
-                            <span class="legend-dot" style="background:#1f77b4"></span> Trip paths
-                            <span class="ms-3 legend-dot" style="background:purple"></span> CP
-                            <span class="ms-3 legend-dot" style="background:#d9534f"></span> KM
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div id="map"></div>
+        <!-- LEFT -->
+        <div class="col-12 col-lg-8">
+            <div class="premium-card mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h5 class="fw-bold mb-0" style="color: var(--color-primary);">
+                        <i class="bi bi-map me-2"></i>Preview Map
+                    </h5>
+                    <div class="small" style="color: var(--color-text-muted);">
+                        <span class="legend-dot" style="background: #1f77b4;"></span> Trip paths
+                        <span class="ms-3 legend-dot" style="background: purple;"></span> CP
+                        <span class="ms-3 legend-dot" style="background: #d9534f;"></span> KM
                     </div>
                 </div>
-
-                <div class="card card-ttds">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div class="h6 mb-0"><i class="bi bi-diagram-3 me-2"></i>Datasets</div>
-                        <div>
-                            <span class="badge rounded-pill badge-dir me-1">NB</span>
-                            <span class="badge rounded-pill badge-dir me-1">SB</span>
-                            <span class="badge rounded-pill badge-dir me-1">EB</span>
-                            <span class="badge rounded-pill badge-dir">WB</span>
-                        </div>
-                    </div>
-
-                    <div class="card-body">
-                        <div id="dir-filters" class="mb-2"></div>
-
-                        <form id="analyzeForm" method="post" action="/analyze_multi">
-                            <div class="d-flex mb-2">
-                                <button type="button" id="btnSelectAll" class="btn btn-sm me-2" style="border-radius:999px; border:1.5px solid #1d4470; color:#1d4470; background:transparent;">
-                                    <i class="bi bi-check2-all"></i> Select All
-                                </button>
-                                <button type="button" id="btnClearAll" class="btn btn-sm me-auto" style="border-radius:999px; border:1.5px solid #bbb; color:#555; background:transparent;">
-                                    <i class="bi bi-x-circle"></i> Clear
-                                </button>
-                                <span class="small text-muted">Only checked datasets will be analyzed.</span>
-                            </div>
-
-                            <div id="ds-list" class="list-scroll"></div>
-
-                            <div class="analyze-bar mt-2 d-flex align-items-center justify-content-between">
-                                <div class="small text-muted">
-                                    <i class="bi bi-info-circle me-1"></i>
-                                    Choose datasets and click Analyze.
-                                </div>
-                                <button type="submit" style="background:#1d4470; color:#eeeeee; border:none; border-radius:999px; font-size:0.88rem; font-weight:600; padding:9px 24px; cursor:pointer;">
-                                    <i class="bi bi-lightning-charge-fill me-1"></i> Analyze Selected
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                <div id="map"></div>
             </div>
 
-            <!-- RIGHT -->
-            <div class="col-12 col-lg-4">
-                <div class="card card-ttds mb-3">
-                    <div class="card-header h6 mb-0">
-                        <i class="bi bi-funnel-fill me-2"></i>Anchor Filter
-                    </div>
-                    <div class="card-body">
-                        <form id="kmFilterForm" method="post" action="/anchor_preview">
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Anchor Source</label>
-                                <select name="source" id="sourceSel" class="form-select">
-                                    @if (anchorSource == "cp")
-                                    {
-                                        <option value="cp" selected>Control Points (CP)</option>
-                                        <option value="km">Kilometer Posts (KM)</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="cp">Control Points (CP)</option>
-                                        <option value="km" selected>Kilometer Posts (KM)</option>
-                                    }
-                                </select>
-                                <div class="form-text">Switch between KM posts and Control Points.</div>
-                            </div>
-
-                            <div id="kmOnlyPanel" style="display:@(anchorSource == "km" ? "block" : "none");">
-                                <div class="mb-2">
-                                    <label class="form-label fw-semibold">Region</label>
-                                    <select name="region" id="regionSel" class="form-select">
-                                        <option value="">-- Any Region --</option>
-                                    </select>
-                                </div>
-
-                                <div class="mb-2">
-                                    <label class="form-label fw-semibold">Road (multi-select)</label>
-                                    <div class="road-search">
-                                        <input id="roadFilterInput" class="form-control form-control-sm" placeholder="Search road names..." />
-                                    </div>
-                                    <select name="roads" id="roadSel" multiple size="8" class="form-select"></select>
-                                    <div class="form-text">
-                                        Hold <code>Ctrl</code>/<code>Cmd</code> to select multiple roads.
-                                    </div>
-                                </div>
-
-                                <div class="d-flex gap-2">
-                                    <button type="submit" style="background:#1d4470; color:#eeeeee; border:none; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
-                                        <i class="bi bi-pin-map-fill me-1"></i> Apply KM Filter
-                                    </button>
-                                    <button type="button" id="btnClearRoads" style="background:transparent; color:#555; border:1.5px solid #bbb; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">Clear Roads</button>
-                                </div>
-                            </div>
-                        </form>
+            <div class="premium-card">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h5 class="fw-bold mb-0" style="color: var(--color-primary);">
+                        <i class="bi bi-diagram-3 me-2"></i>Datasets
+                    </h5>
+                    <div>
+                        <span class="badge rounded-pill badge-dir me-1">NB</span>
+                        <span class="badge rounded-pill badge-dir me-1">SB</span>
+                        <span class="badge rounded-pill badge-dir me-1">EB</span>
+                        <span class="badge rounded-pill badge-dir">WB</span>
                     </div>
                 </div>
 
-                <div class="card card-ttds">
-                    <div class="card-header h6 mb-0">
-                        <i class="bi bi-geo-fill me-2"></i>Control Points (CP) Tools
-                    </div>
-                    <div class="card-body" id="cpTools">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold mb-1">Upload CP CSV (CP mode only)</label>
-                            <form id="cpForm" enctype="multipart/form-data">
-                                <div class="input-group">
-                                    <input type="file" name="cp_file" accept=".csv" class="form-control" />
-                                    <button type="button" id="btnUploadCp" style="background:#1d4470; color:#eeeeee; border:none; border-radius:0 999px 999px 0; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
-                                        <i class="bi bi-upload"></i> Upload
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                <div id="dir-filters" class="mb-2"></div>
 
-                        <div class="d-flex gap-2 mb-3 flex-wrap">
-                            <button type="button" id="btnDownloadCp" style="background:transparent; color:#1d4470; border:1.5px solid #1d4470; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
-                                <i class="bi bi-download me-1"></i> Download Current CP
-                            </button>
-                            <button type="button" id="btnToggleAddCp" style="background:transparent; color:#1a6640; border:1.5px solid #1a6640; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer;">
-                                Add-CP Mode: OFF
-                            </button>
-                        </div>
-                        <div class="d-flex flex-column gap-2">
-                            <a href="/download_detected_cp?format=csv" style="background:#1d4470; color:#eeeeee; border:none; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer; text-decoration:none; text-align:center;">
-                                <i class="bi bi-download me-1"></i> Download Detected Anchor CP CSV
-                            </a>
-                            <a href="/download_detected_cp?format=geojson" style="background:transparent; color:#1d4470; border:1.5px solid #1d4470; border-radius:999px; font-size:0.82rem; font-weight:600; padding:9px 16px; cursor:pointer; text-decoration:none; text-align:center;">
-                                <i class="bi bi-download me-1"></i> Download Detected Anchor CP GeoJSON
-                            </a>
-                        </div>
-
-                        <div class="small text-muted mt-2">
-                            KM mode auto-enables Add-CP. Click on the map to add CP.
-                        </div>
+                <form id="analyzeForm" method="post" action="/analyze_multi">
+                    <div class="d-flex align-items-center mb-2 gap-2">
+                        <button type="button" id="btnSelectAll" class="btn-outline-nav">
+                            <i class="bi bi-check2-all"></i> Select All
+                        </button>
+                        <button type="button" id="btnClearAll" class="btn-outline-muted">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </button>
+                        <span class="small ms-auto" style="color: var(--color-text-muted);">Only checked datasets will be analyzed.</span>
                     </div>
-                </div>
+
+                    <div id="ds-list" class="list-scroll"></div>
+
+                    <div class="analyze-bar d-flex align-items-center justify-content-between">
+                        <div class="small" style="color: var(--color-text-muted);">
+                            <i class="bi bi-info-circle me-1"></i>Choose datasets and click Analyze.
+                        </div>
+                        <button type="submit" class="btn-ttds w-auto px-4">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> Analyze Selected
+                        </button>
+                    </div>
+                </form>
             </div>
-
         </div>
-    </div>
 
-    <!-- JS -->
+        <!-- RIGHT -->
+        <div class="col-12 col-lg-4">
+            <div class="premium-card mb-3">
+                <h5 class="fw-bold mb-3" style="color: var(--color-primary);">
+                    <i class="bi bi-funnel-fill me-2"></i>Anchor Filter
+                </h5>
+                <form id="kmFilterForm" method="post" action="/anchor_preview">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Anchor Source</label>
+                        <select name="source" id="sourceSel" class="form-control">
+                            @if (anchorSource == "cp")
+                            {
+                                <option value="cp" selected>Control Points (CP)</option>
+                                <option value="km">Kilometer Posts (KM)</option>
+                            }
+                            else
+                            {
+                                <option value="cp">Control Points (CP)</option>
+                                <option value="km" selected>Kilometer Posts (KM)</option>
+                            }
+                        </select>
+                        <div class="form-text">Switch between KM posts and Control Points.</div>
+                    </div>
+
+                    <div id="kmOnlyPanel" style="display: @(anchorSource == "km" ? "block" : "none");">
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Region</label>
+                            <select name="region" id="regionSel" class="form-control">
+                                <option value="">-- Any Region --</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold">Road (multi-select)</label>
+                            <div class="road-search">
+                                <input id="roadFilterInput" class="form-control form-control-sm" placeholder="Search road names..." />
+                            </div>
+                            <select name="roads" id="roadSel" multiple size="8" class="form-control"></select>
+                            <div class="form-text">
+                                Hold <code>Ctrl</code>/<code>Cmd</code> to select multiple roads.
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn-ttds w-auto px-3">
+                                <i class="bi bi-pin-map-fill me-1"></i> Apply KM Filter
+                            </button>
+                            <button type="button" id="btnClearRoads" class="btn-outline-muted">
+                                Clear Roads
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="premium-card">
+                <h5 class="fw-bold mb-3" style="color: var(--color-primary);">
+                    <i class="bi bi-geo-fill me-2"></i>Control Points (CP) Tools
+                </h5>
+                <div id="cpTools">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold mb-1">Upload CP CSV (CP mode only)</label>
+                        <form id="cpForm" enctype="multipart/form-data">
+                            <div class="input-group">
+                                <input type="file" name="cp_file" accept=".csv" class="form-control" />
+                                <button type="button" id="btnUploadCp" class="btn-ttds w-auto px-3" style="border-radius: 0 6px 6px 0;">
+                                    <i class="bi bi-upload"></i> Upload
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                        <button type="button" id="btnDownloadCp" class="btn-outline-nav">
+                            <i class="bi bi-download me-1"></i> Download Current CP
+                        </button>
+                        <button type="button" id="btnToggleAddCp" class="btn-outline-nav" style="border-color: #1a6640; color: #1a6640;">
+                            Add-CP Mode: OFF
+                        </button>
+                    </div>
+
+                    <div class="d-flex flex-column gap-2">
+                        <a href="/download_detected_cp?format=csv" class="btn-ttds" style="text-decoration: none; text-align: center;">
+                            <i class="bi bi-download me-1"></i> Download Detected Anchor CP CSV
+                        </a>
+                        <a href="/download_detected_cp?format=geojson" class="btn-outline-nav" style="text-decoration: none; text-align: center;">
+                            <i class="bi bi-download me-1"></i> Download Detected Anchor CP GeoJSON
+                        </a>
+                    </div>
+
+                    <div class="small mt-2" style="color: var(--color-text-muted);">
+                        KM mode auto-enables Add-CP. Click on the map to add CP.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        /* ---------- Data from server ---------- */
         const items = @Html.Raw(JsonSerializer.Serialize(Model.Items ?? new List<TtdsWeb.Models.MultiMapViewModel.Item>(), jsonOpts));
         const anchorData = @Html.Raw(JsonSerializer.Serialize(anchorDataServer, jsonOpts));
-        const anchorMode = "@anchorSource";  // "cp" or "km"
+        const anchorMode = "@anchorSource";
         const preRegion = @Html.Raw(JsonSerializer.Serialize(selectedRegion ?? "", jsonOpts));
         const preRoads = @Html.Raw(JsonSerializer.Serialize(selectedRoads ?? new List<string>(), jsonOpts));
 
-        /* ---------- Elements ---------- */
         const sourceSel = document.getElementById('sourceSel');
         const kmPanel = document.getElementById('kmOnlyPanel');
         const regionSel = document.getElementById('regionSel');
@@ -334,8 +309,7 @@
         const kmFilterForm = document.getElementById('kmFilterForm');
 
         function showKmPanel() {
-            const isKm = (sourceSel.value === 'km');
-            kmPanel.style.display = isKm ? 'block' : 'none';
+            kmPanel.style.display = (sourceSel.value === 'km') ? 'block' : 'none';
         }
 
         function submitKmFilterForm() {
@@ -374,7 +348,6 @@
                 const url = '/km/roads' + (region ? ('?region=' + encodeURIComponent(region)) : '');
                 const r = await fetch(url);
                 const arr = await r.json();
-
                 (arr || []).forEach(v => {
                     const opt = document.createElement('option');
                     opt.value = v;
@@ -414,16 +387,15 @@
             maxZoom: 19, attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        function defaultCenter() { return [14.5995, 120.9842]; }
-        let center = defaultCenter();
+        let center = [14.5995, 120.9842];
         if (items.length && items[0].Coords && items[0].Coords.length) {
             center = [items[0].Coords[0][0], items[0].Coords[0][1]];
         }
         map.setView(center, 13);
 
-        /* ---------- Render trip polylines + list ---------- */
-        const DIR_ORDER = ["NB","SB","EB","WB","Unknown"];
-        const byDir = {}; DIR_ORDER.forEach(d => byDir[d] = []);
+        const DIR_ORDER = ["NB", "SB", "EB", "WB", "Unknown"];
+        const byDir = {};
+        DIR_ORDER.forEach(d => byDir[d] = []);
         (items || []).forEach(it => {
             const dir = (it.Direction || "Unknown").toUpperCase();
             if (!byDir[dir]) byDir[dir] = [];
@@ -434,17 +406,17 @@
         const dsLayers = {};
 
         const dirFilters = document.getElementById('dir-filters');
-        ["All","NB","SB","EB","WB","Unknown"].forEach(lbl => {
+        ["All", "NB", "SB", "EB", "WB", "Unknown"].forEach(lbl => {
             const b = document.createElement('button');
-            b.type='button';
+            b.type = 'button';
             b.className = 'btn btn-sm ' + (lbl === "All" ? 'btn-primary' : 'btn-outline-primary') + ' dir-pill';
             b.textContent = lbl;
             b.addEventListener('click', () => {
                 document.querySelectorAll('.dir-group').forEach(g => {
                     g.style.display = (lbl === "All" || g.dataset.dir === lbl) ? '' : 'none';
                 });
-                document.querySelectorAll('.dir-pill').forEach(x => x.classList.replace('btn-primary','btn-outline-primary'));
-                b.classList.replace('btn-outline-primary','btn-primary');
+                document.querySelectorAll('.dir-pill').forEach(x => x.classList.replace('btn-primary', 'btn-outline-primary'));
+                b.classList.replace('btn-outline-primary', 'btn-primary');
             });
             dirFilters.appendChild(b);
         });
@@ -463,7 +435,7 @@
             h.className = 'mb-1';
             groupDiv.appendChild(h);
 
-            list.forEach((it) => {
+            list.forEach(it => {
                 const row = document.createElement('div');
                 row.className = 'form-check';
 
@@ -497,8 +469,7 @@
                     dsLayers[it.Id] = layer;
 
                     cb.addEventListener('change', e => {
-                        const id = e.target.dataset.id;
-                        const lyr = dsLayers[id];
+                        const lyr = dsLayers[e.target.dataset.id];
                         if (!lyr) return;
                         if (e.target.checked) lyr.addTo(map);
                         else map.removeLayer(lyr);
@@ -521,7 +492,7 @@
             Object.values(dsLayers).forEach(lyr => map.removeLayer(lyr));
         });
 
-        /* ---------- Anchors from server (KM/CP points) ---------- */
+        /* ---------- Anchors ---------- */
         const anchorLayer = L.layerGroup().addTo(map);
 
         function renderAnchorsFromServer() {
@@ -537,7 +508,7 @@
                     }).addTo(anchorLayer);
 
                     m.bindTooltip(`${labelPrefix} ${a.id}`, {
-                        permanent: true, direction: 'right', offset: [8,0], className: 'cp-label'
+                        permanent: true, direction: 'right', offset: [8, 0], className: 'cp-label'
                     });
                 }
             });
@@ -567,19 +538,17 @@
                 if (!res.ok) throw new Error('get_cp HTTP ' + res.status);
 
                 const cp = await res.json();
-
                 Object.values(cpMarkers).forEach(m => map.removeLayer(m));
                 for (const k of Object.keys(cpMarkers)) delete cpMarkers[k];
 
                 const color = (mode === 'km') ? '#d9534f' : 'purple';
-
                 (cp || []).forEach(row => {
                     const m = L.circleMarker([row.lat, row.lng], {
                         radius: 4, color: color, fillColor: color, fillOpacity: 0.9
                     }).addTo(map);
 
                     m.bindTooltip(`${mode === 'km' ? 'Manual CP' : 'CP'}: ${row.id}`, {
-                        permanent: true, direction: 'right', offset: [8,0], className: 'cp-label'
+                        permanent: true, direction: 'right', offset: [8, 0], className: 'cp-label'
                     });
 
                     cpMarkers[row.id] = m;
@@ -599,8 +568,7 @@
         document.getElementById('btnUploadCp')?.addEventListener('click', async () => {
             if (sourceSel?.value !== 'cp') { alert('Upload CP CSV only applies to CP mode.'); return; }
             try {
-                const form = document.getElementById('cpForm');
-                const fd = new FormData(form);
+                const fd = new FormData(document.getElementById('cpForm'));
                 const res = await fetch('/upload_cp', { method: 'POST', body: fd });
                 if (!res.ok) throw new Error('upload_cp HTTP ' + res.status);
                 const j = await res.json();
@@ -632,14 +600,8 @@
                 const res = await fetch('/add_cp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        lat: ev.latlng.lat,
-                        lng: ev.latlng.lng,
-                        name: name.trim(),
-                        mode: mode
-                    })
+                    body: JSON.stringify({ lat: ev.latlng.lat, lng: ev.latlng.lng, name: name.trim(), mode: mode })
                 });
-
                 if (!res.ok) throw new Error('add_cp HTTP ' + res.status);
                 await refreshCpList();
                 alert(`Added ${name.trim()} (${mode.toUpperCase()} mode)`);
@@ -649,12 +611,12 @@
             }
         });
 
-        /* ---------- Analyze Selected Datasets ---- */
+        /* ---------- Analyze ---------- */
         const analyzeForm = document.getElementById('analyzeForm');
         if (analyzeForm) {
-            analyzeForm.addEventListener('submit', (e) => {
+            analyzeForm.addEventListener('submit', e => {
                 const checked = [...document.querySelectorAll('#ds-list input[type=checkbox]:checked')]
-                                .map(cb => cb.dataset.id);
+                    .map(cb => cb.dataset.id);
 
                 if (!checked.length) { e.preventDefault(); alert('Select at least one dataset.'); return; }
 
@@ -673,16 +635,10 @@
         document.addEventListener('DOMContentLoaded', async () => {
             sourceSel.value = (anchorMode === 'km') ? 'km' : 'cp';
             showKmPanel();
-
             await loadRegions();
             await loadRoads(preRegion || '');
-
             syncAddCpForMode();
             await refreshCpList();
         });
     </script>
-    <footer style="text-align:center; font-size:0.78rem; color:#888; padding:1rem;">
-        &copy; 2025 Travel Time and Delay Survey
-    </footer>
-</body>
-</html>
+}

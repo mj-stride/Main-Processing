@@ -297,7 +297,6 @@ body {
         width: 100%;
     }
 }
-
 .drop-zone {
     border: 2px dashed #94a3b8;
     border-radius: 12px;
@@ -350,13 +349,3 @@ body {
     .drop-zone--active i {
         transform: scale(1.08);
     }
-
-.dropdown-menu {
-    z-index: 99999 !important;
-}
-
-.table-container,
-.premium-card,
-.page-content {
-    overflow: visible !important;
-}

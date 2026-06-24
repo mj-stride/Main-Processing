@@ -4,6 +4,9 @@
 @using System.Linq
 
 @{
+    ViewData["Title"] = "Multi Dataset Analysis";
+    ViewData["Section"] = "Multi Dataset Analysis";
+
     var jsonOpts = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -11,12 +14,10 @@
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    // Helpers (nullable-safe)
     string hhmmss(double? minutes) => TimeSpan.FromMinutes(minutes ?? 0).ToString(@"hh\:mm\:ss");
     string kmFmt(double? v) => (v ?? 0).ToString("0.##");
     string kphFmt(double? v) => (v ?? 0).ToString("0.##");
 
-    // Safe numeric conversion (works for double / double? / int / etc.)
     double safeDouble(object? v)
     {
         if (v == null) return 0;
@@ -29,18 +30,13 @@
     }
 }
 @functions {
-    // Extracts: tripNo and dtToken from "...-<tripNo>_YYYYMMDD-HHMMSS_..."
-    // Example: GPX_1_...-3_20250716-180525_snapped.csv  -> tripNo=3, dtToken=20250716-180525, date=20250716
     (string vehCode, string vehName, string tripNo, string dtToken, string date)? ParseTripInfo(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
 
-        // 1 = Private Car, 2 = UV, 3 = Jeepney, 4 = BUS
         var mv = System.Text.RegularExpressions.Regex.Match(
-            name,
-            @"\bGPX_(\d+)_",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase
-        );
+            name, @"\bGPX_(\d+)_",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         var vehCode = mv.Success ? mv.Groups[1].Value : "0";
         var vehName = vehCode switch
@@ -53,21 +49,14 @@
         };
 
         var m = System.Text.RegularExpressions.Regex.Match(
-            name,
-            @"-(\d+)_((\d{8})-(\d{6}))",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase
-        );
+            name, @"-(\d+)_((\d{8})-(\d{6}))",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
         if (!m.Success)
             return (vehCode, vehName, "0", "00000000-000000", "00000000");
 
-        var tripNo = m.Groups[1].Value;
-        var dtToken = m.Groups[2].Value;
-        var date = m.Groups[3].Value;
-
-        return (vehCode, vehName, tripNo, dtToken, date);
+        return (vehCode, vehName, m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value);
     }
-
 
     string PeriodFolder(string? peakCodeOrLabel)
     {
@@ -79,217 +68,34 @@
     }
 }
 
-
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Multi Dataset Analysis</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
+@section Styles {
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
-
-    <script>
-        // Force white background for all Chart.js canvases (screen + export)
-        Chart.register({
-          id: 'whiteBackground',
-          beforeDraw(chart) {
-            const ctx = chart.canvas.getContext('2d');
-            ctx.save();
-            ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, chart.width, chart.height);
-            ctx.restore();
-          }
-        });
-
-        // When the ALL zip form is submitted (if you still keep it)
-        (function () {
-          const f = document.getElementById('allZipForm');
-          if (!f) return;
-
-          f.addEventListener('submit', function () {
-            const r = document.getElementById('regionSelect');
-            const rd = document.getElementById('roadSelect');
-
-            const reg = r?.value || 'UnknownRegion';
-            const road = rd?.value || 'UnknownRoad';  
-
-            document.getElementById('allZipRegion').value = reg;
-            document.getElementById('allZipRoad').value = road;
-          });
-        })();
-    </script>
-
-    <script>
-        function dataUrlFromCanvas(canvas) {
-          try {
-            // PNG is safest for charts
-            return canvas.toDataURL("image/png");
-          } catch (e) {
-            return null;
-          }
-        }
-
-        function getSelectedDatasetIds() {
-          // adjust selector to match your checkbox names
-          return Array.from(document.querySelectorAll('input[name="selected_files"]:checked'))
-            .map(x => x.value);
-        }
-
-        function buildGraphsPayload(region, road) {
-          // IMPORTANT: add data-export-name to each canvas you want exported
-          const canvases = Array.from(document.querySelectorAll("canvas[data-export-name]"));
-
-          const graphs = canvases.map(c => {
-            const fileName = c.getAttribute("data-export-name") || "graph.png";
-            const folder = `${safePart(region)}/${safePart(road)}/${date}/${veh}/Graphs/${period}`;
-
-
-            return {
-              folder,
-              fileName: fileName.toLowerCase().endsWith(".png") ? fileName : (fileName + ".png"),
-              dataUrl: dataUrlFromCanvas(c)
-            };
-          }).filter(g => g.dataUrl);
-
-          return graphs;
-        }
-
-        async function exportAllWithGraphs() {
-          // read the same UI controls used on MapMulti
-          const region = (document.querySelector("#regionSel")?.value || "UnknownRegion").trim();
-
-          // for roads use the multi-select so server receives the selected roads (comma-joined)
-          const roadSel = document.querySelector("#roadSel");
-          const roadArr = Array.from((roadSel?.selectedOptions || [])).map(o => o.value).filter(Boolean);
-          const road = (roadArr.length ? roadArr.join(',') : "UnknownRoad").trim();
-
-          const payload = {
-            region,
-            roadNameOrSections: road,
-            selectedIds: getSelectedDatasetIds(),
-            graphs: buildGraphsPayload(region, road)
-          };
-
-          const res = await fetch("/export_all_with_graphs_zip", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-
-          if (!res.ok) {
-            const msg = await res.text();
-            alert("Export failed: " + msg);
-            return;
-          }
-
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${region}_${road}.zip`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-
-          window.URL.revokeObjectURL(url);
-        }
-
-        document.getElementById("btnExportAllWithGraphs")
-          ?.addEventListener("click", exportAllWithGraphs);
-    </script>
-
-    <script>
-        function getFilters() {
-          const reg = document.getElementById('regionSelect')?.value || 'UnknownRegion';
-          const road = document.getElementById('roadSelect')?.value || 'UnknownRoad';
-          const period = document.getElementById('periodSelect')?.value || 'ALL';
-          return { reg, road, period };
-        }
-
-        function wireForm(formId, regionHiddenId, roadHiddenId) {
-          const f = document.getElementById(formId);
-          if (!f) return;
-
-          f.addEventListener('submit', function () {
-            const { reg, road } = getFilters();
-            const r = document.getElementById(regionHiddenId);
-            const rd = document.getElementById(roadHiddenId);
-            if (r) r.value = reg;
-            if (rd) rd.value = road;
-          });
-        }
-
-        // wire the existing POST forms (IDs unchanged)
-        wireForm('dirZipForm', 'dirZipRegion', 'dirZipRoad');
-        wireForm('segZipForm', 'segZipRegion', 'segZipRoad');
-        wireForm('shapesZipForm', 'shapesZipRegion', 'shapesZipRoad');
-        wireForm('allZipForm', 'allZipRegion', 'allZipRoad');
-    </script>
-
     <style>
-        /* ===== Center export buttons ===== */
-        .export-actions {
-            margin: 30px auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 12px;
-        }
-
-            .export-actions form {
-                width: 100%;
-                display: flex;
-                justify-content: center;
-            }
-
-            .export-actions .km-btn {
-                min-width: 360px;
-                justify-content: center;
-            }
-
-        canvas {
-            background-color: white;
-        }
-
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            padding: 0;
-            margin: 0;
-            background: #eeeeee;
-        }
-
-        #top-wrap {
-            display: grid;
-            grid-template-columns: 1fr 280px;
-            gap: 10px;
-            align-items: start;
-        }
-
+        /* ── Map & sidebar ── */
         #map {
             height: 520px;
             width: 100%;
-            border: 1px solid #ccc;
+            border: 1px solid var(--color-border);
             border-radius: 12px;
         }
 
         #ds-toggle {
-            background: #ffffff;
-            border: 1px solid #ccc;
-            border-radius: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
             padding: 1rem;
-            max-height: 520px; /* same height as map */
+            max-height: 520px;
             display: flex;
             flex-direction: column;
         }
+
+            #ds-toggle h4 {
+                color: var(--color-primary);
+                font-size: 0.95rem;
+                font-weight: 700;
+                margin: 0 0 0.75rem;
+            }
 
         #ds-list {
             overflow-y: auto;
@@ -297,29 +103,24 @@
             padding-right: 4px;
         }
 
-            #ds-toggle h4 {
-                color: #1d4470;
-                font-size: 0.95rem;
-                font-weight: 700;
-                margin: 0 0 0.75rem;
-            }
-
         .ds-row {
             margin-bottom: 4px;
         }
 
+        /* ── CP labels ── */
         .cp-label {
             font-size: 12px;
             font-weight: bold;
-            color: black;
+            color: #111;
             background: transparent;
             border: none;
             box-shadow: none;
         }
 
+        /* ── Peak sections ── */
         .peak-section {
             margin-top: 2rem;
-            border-top: 3px solid #1d4470;
+            border-top: 3px solid var(--color-primary);
             padding-top: 1rem;
         }
 
@@ -327,48 +128,33 @@
             font-size: 1.3rem;
             font-weight: 700;
             margin: 0 0 0.75rem;
-            color: #1d4470;
+            color: var(--color-primary);
         }
 
+        /* ── Dataset accordion ── */
         .dataset-section {
             margin-top: 1.25rem;
-            background: #ffffff;
-            border: 1px solid #d0d8e4;
-            border-radius: 16px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
             overflow: hidden;
         }
 
         .dataset-section-header {
-            background: #1d4470;
-            color: #eeeeee;
-            padding: 0.85rem 1.25rem;
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
+            background: var(--color-primary);
+            color: #fff;
+            padding: 0.85rem 3rem 0.85rem 1.25rem;
             cursor: pointer;
             user-select: none;
             position: relative;
-        }
-
-        .dataset-chevron {
-            position: absolute;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #da471f;
-            font-size: 1rem;
-        }
-
-        .dataset-section.collapsed .dataset-section-body {
-            display: none;
         }
 
             .dataset-section-header .ds-title {
                 font-size: 0.92rem;
                 font-weight: 700;
                 margin: 0;
-                color: #eeeeee;
+                color: #fff;
                 word-break: break-all;
             }
 
@@ -378,6 +164,10 @@
                 margin: 0;
             }
 
+        .dataset-section.collapsed .dataset-section-body {
+            display: none;
+        }
+
         .dataset-section-body {
             padding: 1.25rem;
         }
@@ -385,7 +175,7 @@
             .dataset-section-body h4 {
                 font-size: 0.88rem;
                 font-weight: 700;
-                color: #1d4470;
+                color: var(--color-primary);
                 margin: 1.25rem 0 0.5rem;
                 display: flex;
                 align-items: center;
@@ -396,11 +186,7 @@
                     margin-top: 0;
                 }
 
-        .ds-title {
-            font-size: 20px;
-            margin: 0 0 10px 0;
-        }
-
+        /* ── Two-col chart grid ── */
         .grid-two {
             display: grid;
             grid-template-columns: 1fr 420px;
@@ -410,8 +196,8 @@
         }
 
             .grid-two > div {
-                background: #f8fafc;
-                border: 1px solid #e0e6ee;
+                background: var(--color-bg);
+                border: 1px solid var(--color-border);
                 border-radius: 12px;
                 padding: 1rem;
             }
@@ -419,58 +205,100 @@
             .grid-two h4 {
                 font-size: 0.88rem;
                 font-weight: 700;
-                color: #1d4470;
+                color: var(--color-primary);
                 margin: 0 0 0.75rem;
             }
 
-        table {
+        /* ── Tables (scoped to avoid clobbering Bootstrap) ── */
+        .ttds-table {
             border-collapse: collapse;
             width: 100%;
             margin-top: 12px;
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            box-shadow: var(--shadow-sm);
             font-size: 0.85rem;
         }
 
-        th, td {
-            border: none;
-            border-bottom: 1px solid #e8eef5;
-            padding: 10px 14px;
-            text-align: center;
+            .ttds-table th,
+            .ttds-table td {
+                border: none;
+                border-bottom: 1px solid var(--color-border);
+                padding: 10px 14px;
+                text-align: center;
+            }
+
+            .ttds-table th {
+                background-color: var(--color-primary);
+                color: #fff;
+                font-weight: 600;
+                font-size: 0.82rem;
+                letter-spacing: 0.02em;
+            }
+
+            .ttds-table td {
+                background-color: var(--color-surface);
+                color: #1a1a2e;
+            }
+
+            .ttds-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .ttds-table tbody tr:hover td {
+                background-color: #f0f5fb;
+            }
+
+            .ttds-table tbody tr:nth-child(even) td {
+                background-color: var(--color-bg);
+            }
+
+            .ttds-table tbody tr:nth-child(even):hover td {
+                background-color: #f0f5fb;
+            }
+
+        .sum-table {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid var(--color-border);
+            box-shadow: var(--shadow-sm);
+            margin-top: 10px;
+            border-collapse: collapse;
+            font-size: 0.88rem;
         }
 
-        th {
-            background-color: #1d4470;
-            color: #ffffff;
-            font-weight: 600;
-            font-size: 0.82rem;
-            letter-spacing: 0.02em;
-        }
+            .sum-table th,
+            .sum-table td {
+                text-align: left;
+                padding: 10px 16px;
+                border: none;
+                border-bottom: 1px solid var(--color-border);
+            }
 
-        td {
-            background-color: #ffffff;
-            color: #1a1a2e;
-        }
+            .sum-table th {
+                background-color: var(--color-primary);
+                color: #fff;
+                font-weight: 600;
+                width: 220px;
+            }
 
-        tr:last-child td {
-            border-bottom: none;
-        }
+            .sum-table td {
+                background-color: var(--color-surface);
+                color: #1a1a2e;
+                font-weight: 500;
+            }
 
-        tbody tr:hover td {
-            background-color: #f0f5fb;
-            transition: background-color 0.15s;
-        }
+            .sum-table tr:last-child th, .sum-table tr:last-child td {
+                border-bottom: none;
+            }
 
-        tbody tr:nth-child(even) td {
-            background-color: #f8fafc;
-        }
+            .sum-table tr:hover td {
+                background-color: #f0f5fb;
+            }
 
-        tbody tr:nth-child(even):hover td {
-            background-color: #f0f5fb;
-        }
-
+        /* ── Charts ── */
         canvas {
+            background-color: white;
             display: block;
             width: 100% !important;
         }
@@ -492,145 +320,96 @@
             height: 260px;
         }
 
-        .sum-table {
-            width: 100%;
-            border-radius: 10px;
-            border: 1px solid #d0d8e4;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            margin-top: 10px;
+        /* ── Filter box ── */
+        .filter-box {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-sm);
+            padding: 1.25rem;
+            margin-bottom: 1rem;
         }
 
-            .sum-table th, .sum-table td {
-                text-align: left;
-                padding: 10px 16px;
-                font-size: 0.88rem;
-                border: none;
-                border-bottom: 1px solid #e8eef5;
-            }
-
-            .sum-table th {
-                background-color: #1d4470;
-                color: #ffffff;
-                font-weight: 600;
-                width: 220px;
-            }
-
-            .sum-table td {
-                background-color: #ffffff;
-                color: #1a1a2e;
-                font-weight: 500;
-            }
-
-            .sum-table tr:last-child th,
-            .sum-table tr:last-child td {
-                border-bottom: none;
-            }
-
-            .sum-table tr:hover td {
-                background-color: #f0f5fb;
+            .filter-box h4 {
+                margin: 0 0 10px;
+                color: var(--color-primary);
+                font-size: 0.95rem;
+                font-weight: 700;
             }
 
         .muted {
-            color: #666;
+            color: var(--color-text-muted);
             font-size: 12px;
             margin-top: 4px;
         }
-        /* ===== Export / KM-style Buttons ===== */
-        .km-btn {
-            display: inline-flex;
+
+        /* ── Bottom action bar ── */
+        .action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--color-surface);
+            border-top: 2px solid var(--color-border);
+            padding: 14px 32px;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 10px;
-            padding: 10px 24px;
-            border: none;
-            border-radius: 999px;
-            background: #1d4470;
-            color: #eeeeee;
-            font-weight: 600;
-            font-size: 0.88rem;
-            line-height: 1;
-            cursor: pointer;
-            transition: background 0.18s, transform 0.1s;
-            text-decoration: none;
+            z-index: 1000;
+            box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
         }
 
-            .km-btn:hover {
-                background: #245490;
-                transform: translateY(-1px);
-            }
-
-            .km-btn:active {
-                transform: translateY(0);
-            }
-
-            .km-btn .km-ico {
-                width: 18px;
-                height: 18px;
-                display: inline-block;
-            }
-
-        .km-btn-primary {
-            background: #da471f;
+        /* ── Export actions ── */
+        .export-actions {
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
         }
 
-            .km-btn-primary:hover {
-                background: #c23d19;
+            .export-actions form {
+                width: 100%;
+                display: flex;
+                justify-content: center;
             }
-
     </style>
-</head>
+}
 
-<body>
+<div style="max-width: 1400px; margin: 0 auto; padding-bottom: 6rem;">
 
-    <div style="position:sticky; top:0; z-index:999; background:#211d70; color:#eeeeee; font-size:0.95rem; font-weight:600; padding:14px 32px; letter-spacing:0.01em; display:flex; justify-content:space-between; align-items:center;">
-        <span>TTDS – Multi Dataset Analysis</span>
-        <a href="/dashboard" style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:none; border-radius:8px; background:#da471f; color:#eeeeee; font-size:0.85rem; font-weight:600; text-decoration:none; transition:background 0.18s;"
-           onmouseover="this.style.background='#c23d19'"
-           onmouseout="this.style.background='#da471f'">
-            <i class="bi bi-columns-gap"></i> Dashboard
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="fw-bold mb-0" style="font-size: 1.5rem; color: var(--color-primary);">
+            <i class="bi bi-map me-2" style="color: var(--color-accent);"></i>
+            Multi Dataset Travel Time &amp; Delay Analysis
+        </h2>
+        <a href="/" class="btn-action">
+            <i class="bi bi-arrow-left"></i> Back to Upload
         </a>
     </div>
-
-    <div style="max-width:1400px; margin:0 auto; padding:1.5rem 1.5rem 6rem;">
-
-        <div style="display:flex; justify-content:space-between; align-items:center; margin:0 0 1rem;">
-            <h2 style="font-size:1.5rem; font-weight:700; margin:0; color:#1d4470;">
-                <i class="bi bi-map me-2" style="color:#da471f;"></i> Multi Dataset Travel Time & Delay Analysis
-            </h2>
-            <a href="/" style="display:inline-flex; align-items:center; gap:8px; padding:8px 20px; border:2px solid #1d4470; border-radius:999px; color:#1d4470; font-size:0.85rem; font-weight:600; text-decoration:none; background:transparent; transition:background 0.18s, color 0.18s;"
-               onmouseover="this.style.background='#1d4470'; this.style.color='#ffffff'"
-               onmouseout="this.style.background='transparent'; this.style.color='#1d4470'">
-                <i class="bi bi-arrow-left"></i> Back to Upload
-            </a>
-        </div>
 
     @{
         var regions = Model.RegionList ?? new List<string>();
         var roadsByRegion = Model.RoadsByRegion ?? new Dictionary<string, List<string>>();
-
         var defaultRegion = Model.SelectedRegion ?? regions.FirstOrDefault() ?? "";
         var defaultRoad = Model.SelectedRoad
         ?? (roadsByRegion.ContainsKey(defaultRegion) ? roadsByRegion[defaultRegion].FirstOrDefault() : "")
         ?? "";
     }
 
-    @* FILTERS (used for ZIP folder naming) *@
-        <div class="filter-box" style="background:#ffffff; border:1px solid #ccc; border-radius:16px; box-shadow:0 2px 12px rgba(0,0,0,0.08); padding:1.25rem; margin:0 0 1rem;">
-            <h4 style="margin:0 0 10px 0; color:#1d4470; font-size:0.95rem; font-weight:700;">
-                <i class="bi bi-funnel me-1"></i> Preview Filters
-            </h4>
+    <div class="filter-box">
+        <h4><i class="bi bi-funnel me-1"></i> Preview Filters</h4>
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <label class="fw-bold text-nowrap">Region:</label>
+            <select id="regionSelect" name="region" form="exportForm" class="form-control" style="width: 160px;">
+                @foreach (var r in regions)
+                {
+                    <option value="@r" selected="@(r == defaultRegion)">@r</option>
+                }
+            </select>
 
-            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
-
-                <label style="font-weight:700; white-space:nowrap;">Region:</label>
-                <select id="regionSelect" name="region" form="exportForm" style="width:160px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:0.88rem;">
-                    @foreach (var r in regions)
-                    {
-                        <option value="@r" selected="@(r == defaultRegion)">@r</option>
-                    }
-                </select>
-
-                <label style="font-weight:700; white-space:nowrap;">Road / Section:</label>
-                <select id="roadSelect" name="roadNameOrSections" form="exportForm" style="width:280px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:0.88rem;">
+            <label class="fw-bold text-nowrap">Road / Section:</label>
+            <select id="roadSelect" name="roadNameOrSections" form="exportForm" class="form-control" style="width: 280px;">
                 @if (!string.IsNullOrWhiteSpace(defaultRegion) && roadsByRegion.ContainsKey(defaultRegion))
                 {
                     foreach (var rd in roadsByRegion[defaultRegion])
@@ -640,49 +419,29 @@
                 }
             </select>
 
-            <script>
-                // Bake the full roads map into JS so region change updates road dropdown instantly
-                const roadsByRegion = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(roadsByRegion));
-
-                document.getElementById('regionSelect')?.addEventListener('change', function () {
-                    const region = this.value;
-                    const roads = roadsByRegion[region] || [];
-                    const roadSel = document.getElementById('roadSelect');
-                    roadSel.innerHTML = '';
-                    roads.forEach(rd => {
-                        const opt = document.createElement('option');
-                        opt.value = rd;
-                        opt.textContent = rd;
-                        roadSel.appendChild(opt);
-                    });
-                });
-            </script>
-
-                <label style="font-weight:700; white-space:nowrap;">Period:</label>
-                <select id="periodSelect" name="period" form="exportForm" style="width:100px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:0.88rem;">
-                    <option value="ALL">ALL</option>
-                    <option value="AM">AM</option>
-                    <option value="MID">MID</option>
-                    <option value="PM">PM</option>
-                </select>
-
-            </div>
-            <div class="muted" style="margin-top:8px;">These values will be used for the ZIP folder naming.</div>
+            <label class="fw-bold text-nowrap">Period:</label>
+            <select id="periodSelect" name="period" form="exportForm" class="form-control" style="width: 100px;">
+                <option value="ALL">ALL</option>
+                <option value="AM">AM</option>
+                <option value="MID">MID</option>
+                <option value="PM">PM</option>
+            </select>
+        </div>
+        <div class="muted mt-2">These values will be used for the ZIP folder naming.</div>
     </div>
 
-    <div id="top-wrap">
-        <div><div id="map"></div></div>
-
-        <div id="ds-toggle">
-            <h4 style="margin-top:0">Datasets on map</h4>
-            <div id="ds-list"></div>
-            <div class="muted">Tip: toggle datasets to hide/show on map.</div>
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-9">
+            <div id="map"></div>
+        </div>
+        <div class="col-12 col-lg-3">
+            <div id="ds-toggle">
+                <h4>Datasets on map</h4>
+                <div id="ds-list"></div>
+                <div class="muted">Tip: toggle datasets to hide/show on map.</div>
+            </div>
         </div>
     </div>
-
-    @* =========================
-       PER-PEAK RENDERING
-       ========================= *@
 
     @if (Model.PeakGroups != null && Model.PeakGroups.Any())
     {
@@ -691,22 +450,14 @@
             var g = Model.PeakGroups[pg];
 
             <div class="peak-section" id="peak-@pg">
-                    <h2 class="peak-title">
-                        <i class="bi bi-map me-2"></i>
-                        Map for @g.PeakLabel
-                    </h2>
-                    <div class="muted">
-                        <i class="bi bi-clock-history me-1"></i>
-                        @g.PeakLabel (@g.PeakCode)
-                    </div>
+                <h2 class="peak-title">
+                    <i class="bi bi-map me-2"></i>Map for @g.PeakLabel
+                </h2>
+                <div class="muted"><i class="bi bi-clock-history me-1"></i>@g.PeakLabel (@g.PeakCode)</div>
 
-                @* Overall Summary *@
                 @if (g.OverallSummary != null)
                 {
-                        <h2>
-                            <i class="bi bi-pin-angle-fill me-2"></i>
-                            Overall Summary (This Peak Period)
-                        </h2>
+                    <h2><i class="bi bi-pin-angle-fill me-2"></i>Overall Summary (This Peak Period)</h2>
                     <table class="sum-table">
                         <tbody>
                             <tr><th>Avg Travel Time (min)</th><td>@g.OverallSummary.TotalTravelTimeMin</td></tr>
@@ -719,7 +470,6 @@
                     </table>
                 }
 
-                @* Directional Averages (per peak) *@
                 @if (g.DirectionSummaries != null && g.DirectionSummaries.Any())
                 {
                     var dirDict = g.DirectionSummaries
@@ -731,11 +481,7 @@
                     var eb = dirDict.ContainsKey("EB") ? dirDict["EB"] : null;
                     var wb = dirDict.ContainsKey("WB") ? dirDict["WB"] : null;
 
-                        <h2>
-                            <i class="bi bi-signpost-split-fill me-2"></i>
-                            Directional Averages (This Peak Period)
-                        </h2>
-
+                    <h2><i class="bi bi-signpost-split-fill me-2"></i>Directional Averages (This Peak Period)</h2>
                     <table class="sum-table">
                         <thead>
                             <tr>
@@ -884,7 +630,6 @@
                     </table>
                 }
 
-                @* Dataset sections *@
                 @for (int idx = 0; idx < (g.Datasets?.Count ?? 0); idx++)
                 {
                     var ds = g.Datasets[idx];
@@ -892,151 +637,115 @@
 
                     var info = ParseTripInfo(ds.Name);
                     var vehName = info?.vehName ?? "UnknownVehicle";
-                    var vehCode = info?.vehCode ?? "0";
                     var tripNo = info?.tripNo ?? "0";
                     var dtToken = info?.dtToken ?? "00000000-000000";
                     var dateTok = info?.date ?? "00000000";
                     var periodTok = PeriodFolder(ds.PeakCode ?? ds.PeakLabel);
                     var dirTok = (ds.Direction ?? "UNK").Trim().ToUpperInvariant();
 
-                        <div class="dataset-section" id="peak-@pg-ds-@idx">
-                            <div class="dataset-section-header" style="padding-right: 48px;">
-                                <p class="ds-title"><i class="bi bi-file-earmark-text me-2"></i>@ds.Name</p>
-                                <p class="ds-meta">
-                                    <i class="bi bi-clock me-1"></i> Peak: <b style="color:#eeeeee;">@ds.PeakLabel</b>
-                                    &nbsp;·&nbsp;
-                                    <i class="bi bi-arrow-left-right me-1"></i> Direction: <b style="color:#eeeeee;">@ds.Direction</b>
-                                </p>
-                            </div>
-                            <div class="dataset-section-body">
-
-                        <div class="grid-two">
-                            <div>
-                                        <h4>
-                                            <i class="bi bi-graph-down me-2"></i>
-                                            Travel & Running Speeds
-                                        </h4>
-                                    <div class="chart-wrap chart-wrap-tall">
-                                        <canvas id="speedChart-@globalIndex"
-                                        class="trip-graph"
-                                        data-date="@dateTok"
-                                        data-period="@periodTok"
-                                        data-trip="@tripNo"
-                                        data-dt="@dtToken"
-                                        data-dir="@dirTok"
-                                        data-veh="@vehName"
-                                        data-graph="Travel & Running Speeds"></canvas>
-                                        </div>
-                            </div>
-                            <div>
-                                        <h4>
-                                            <i class="bi bi-pie-chart-fill me-2"></i>
-                                            Delay Cause Pie
-                                        </h4>
-                                <div class="chart-wrap chart-wrap-medium">
-                                <canvas id="pieChart-@globalIndex"
-                                        class="trip-graph"
-                                        data-date="@dateTok"
-                                        data-period="@periodTok"
-                                        data-trip="@tripNo"
-                                        data-dt="@dtToken"
-                                        data-dir="@dirTok"
-                                        data-veh="@vehName"
-                                        data-graph="Delay Cause Pie"></canvas>
-                                        </div>
-
-                                        <h4 style="margin-top:16px">
-                                            <i class="bi bi-bar-chart-fill me-2"></i>
-                                            CP-to-CP Delay Bar
-                                        </h4>
-                                    <div class="chart-wrap chart-wrap-small">
-                                        <canvas id="barChart-@globalIndex"
-                                        class="trip-graph"
-                                        data-date="@dateTok"
-                                        data-period="@periodTok"
-                                        data-trip="@tripNo"
-                                        data-dt="@dtToken"
-                                        data-dir="@dirTok"
-                                        data-veh="@vehName"
-                                        data-graph="CP-to-CP Delay Bar"></canvas>
-                                        </div>
-                            </div>
+                    <div class="dataset-section" id="peak-@pg-ds-@idx">
+                        <div class="dataset-section-header">
+                            <p class="ds-title"><i class="bi bi-file-earmark-text me-2"></i>@ds.Name</p>
+                            <p class="ds-meta">
+                                <i class="bi bi-clock me-1"></i> Peak: <b style="color:#fff;">@ds.PeakLabel</b>
+                                &nbsp;·&nbsp;
+                                <i class="bi bi-arrow-left-right me-1"></i> Direction: <b style="color:#fff;">@ds.Direction</b>
+                            </p>
                         </div>
+                        <div class="dataset-section-body">
+                            <div class="grid-two">
+                                <div>
+                                    <h4><i class="bi bi-graph-down me-2"></i>Travel &amp; Running Speeds</h4>
+                                    <div class="chart-wrap chart-wrap-tall">
+                                        <canvas id="speedChart-@globalIndex" class="trip-graph"
+                                                data-date="@dateTok" data-period="@periodTok"
+                                                data-trip="@tripNo" data-dt="@dtToken"
+                                                data-dir="@dirTok" data-veh="@vehName"
+                                                data-graph="Travel & Running Speeds"></canvas>
+                                    </div>
+                                </div>
+                                <div>
+                                    <h4><i class="bi bi-pie-chart-fill me-2"></i>Delay Cause Pie</h4>
+                                    <div class="chart-wrap chart-wrap-medium">
+                                        <canvas id="pieChart-@globalIndex" class="trip-graph"
+                                                data-date="@dateTok" data-period="@periodTok"
+                                                data-trip="@tripNo" data-dt="@dtToken"
+                                                data-dir="@dirTok" data-veh="@vehName"
+                                                data-graph="Delay Cause Pie"></canvas>
+                                    </div>
+                                    <h4 style="margin-top: 16px;"><i class="bi bi-bar-chart-fill me-2"></i>CP-to-CP Delay Bar</h4>
+                                    <div class="chart-wrap chart-wrap-small">
+                                        <canvas id="barChart-@globalIndex" class="trip-graph"
+                                                data-date="@dateTok" data-period="@periodTok"
+                                                data-trip="@tripNo" data-dt="@dtToken"
+                                                data-dir="@dirTok" data-veh="@vehName"
+                                                data-graph="CP-to-CP Delay Bar"></canvas>
+                                    </div>
+                                </div>
+                            </div>
 
-                                <h4>
-                                    <i class="bi bi-calculator-fill me-2"></i>
-                                    Summary
-                                </h4>
-                        <table class="sum-table">
-                            <tbody>
-                                <tr><th>Total Travel Time (min)</th><td>@ds.Summary?.TotalTravelTimeMin</td></tr>
-                                <tr><th>Total Distance (km)</th><td>@ds.Summary?.TotalDistanceKm</td></tr>
-                                <tr><th>Avg Travel Speed</th><td>@ds.Summary?.AvgTravelSpeed</td></tr>
-                                <tr><th>Avg Running Speed</th><td>@ds.Summary?.AvgRunningSpeed</td></tr>
-                                <tr><th>Total Delay (min)</th><td>@ds.Summary?.TotalDelayMin</td></tr>
-                                <tr><th>Total Delay Length (m)</th><td>@ds.Summary?.TotalDelayLength</td></tr>
-                            </tbody>
-                        </table>
+                            <h4><i class="bi bi-calculator-fill me-2"></i>Summary</h4>
+                            <table class="sum-table">
+                                <tbody>
+                                    <tr><th>Total Travel Time (min)</th><td>@ds.Summary?.TotalTravelTimeMin</td></tr>
+                                    <tr><th>Total Distance (km)</th><td>@ds.Summary?.TotalDistanceKm</td></tr>
+                                    <tr><th>Avg Travel Speed</th><td>@ds.Summary?.AvgTravelSpeed</td></tr>
+                                    <tr><th>Avg Running Speed</th><td>@ds.Summary?.AvgRunningSpeed</td></tr>
+                                    <tr><th>Total Delay (min)</th><td>@ds.Summary?.TotalDelayMin</td></tr>
+                                    <tr><th>Total Delay Length (m)</th><td>@ds.Summary?.TotalDelayLength</td></tr>
+                                </tbody>
+                            </table>
 
-                                <h4>
-                                    <i class="bi bi-table me-2"></i>
-                                    Segment Analysis
-                                </h4>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>From</th>
-                                    <th>To</th>
-                                    <th>Start Time</th>
-                                    <th>End Time</th>
-                                    <th>Travel Time (sec)</th>
-                                    <th>Distance (m)</th>
-                                    <th>Travel Speed (km/h)</th>
-                                    <th>Running Speed (km/h)</th>
-                                    <th>Delays</th>
-                                    <th>Delay Length (m)</th>
-                                    <th>Delay Causes</th>
-                                    <th>Note</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var r in (ds.Results ?? Enumerable.Empty<TtdsWeb.Models.SegmentResult>()))
-                                {
+                            <h4><i class="bi bi-table me-2"></i>Segment Analysis</h4>
+                            <table class="ttds-table">
+                                <thead>
                                     <tr>
-                                        <td>@r.From</td>
-                                        <td>@r.To</td>
-                                        <td>@r.StartTime</td>
-                                        <td>@r.EndTime</td>
-                                        <td>@r.TravelTimeSec</td>
-                                        <td>@r.DistanceM</td>
-                                        <td>@r.TravelSpeedKph</td>
-                                        <td>@r.RunningSpeedKph</td>
-                                        <td>@r.Delays</td>
-                                        <td>@r.DelayLengthM</td>
-                                        <td>@r.DelayCauses</td>
-                                        <td>@r.Note</td>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Start Time</th>
+                                        <th>End Time</th>
+                                        <th>Travel Time (sec)</th>
+                                        <th>Distance (m)</th>
+                                        <th>Travel Speed (km/h)</th>
+                                        <th>Running Speed (km/h)</th>
+                                        <th>Delays</th>
+                                        <th>Delay Length (m)</th>
+                                        <th>Delay Causes</th>
+                                        <th>Note</th>
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in (ds.Results ?? Enumerable.Empty<TtdsWeb.Models.SegmentResult>()))
+                                    {
+                                        <tr>
+                                            <td>@r.From</td>
+                                            <td>@r.To</td>
+                                            <td>@r.StartTime</td>
+                                            <td>@r.EndTime</td>
+                                            <td>@r.TravelTimeSec</td>
+                                            <td>@r.DistanceM</td>
+                                            <td>@r.TravelSpeedKph</td>
+                                            <td>@r.RunningSpeedKph</td>
+                                            <td>@r.Delays</td>
+                                            <td>@r.DelayLengthM</td>
+                                            <td>@r.DelayCauses</td>
+                                            <td>@r.Note</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    </div>
-
                 }
             </div>
         }
     }
     else
     {
-        <div style="margin-top:16px; color:#b00;">
+        <div class="mt-3" style="color: #b00;">
             No PeakGroups were returned. Make sure your controller returns MultiAnalyzeViewModel.PeakGroups.
         </div>
     }
-
-    @* =========================
-       ONE-TIME SECTION (OUTSIDE)
-       Separate table per period
-       ========================= *@
 
     @if (Model.PeakGroups != null && Model.PeakGroups.Any())
     {
@@ -1046,14 +755,10 @@
         x => (x.PeakCode ?? x.PeakLabel ?? "UNKNOWN").ToUpperInvariant(),
         x => x.DirectionSummaries
         .GroupBy(d => (d.Direction ?? "UNKNOWN").ToUpperInvariant())
-        .ToDictionary(k => k.Key, k => k.First())
-        );
+        .ToDictionary(k => k.Key, k => k.First()));
 
         var allDirs = peakDirMap.Values
-        .SelectMany(d => d.Keys)
-        .Distinct()
-        .OrderBy(d => d)
-        .ToList();
+        .SelectMany(d => d.Keys).Distinct().OrderBy(d => d).ToList();
 
         string dirFull(string d) => d switch
         {
@@ -1067,31 +772,26 @@
         var peakOrder = new[] { "AM", "MID", "PM" };
         var peaksSorted = peakDirMap.Keys
         .OrderBy(k => Array.IndexOf(peakOrder, k) == -1 ? 999 : Array.IndexOf(peakOrder, k))
-        .ThenBy(k => k)
-        .ToList();
+        .ThenBy(k => k).ToList();
 
         <div class="peak-section" id="dir-all-periods">
-                <h2 class="peak-title">
-                    <i class="bi bi-signpost-split-fill me-2"></i>
-                    Directional Averages (Separate Table per Time Period)
-                </h2>
+            <h2 class="peak-title">
+                <i class="bi bi-signpost-split-fill me-2"></i>
+                Directional Averages (Separate Table per Time Period)
+            </h2>
             <div class="muted">AM / MID / PM shown separately; directions are columns.</div>
 
             @if (peakDirMap.Count == 0)
             {
-                <div class="muted" style="margin-top:10px; color:#b00;">
-                    No DirectionSummaries found. Make sure your controller populates PeakGroups[n].DirectionSummaries.
+                <div class="muted mt-2" style="color: #b00;">
+                    No DirectionSummaries found.
                 </div>
             }
             else
             {
-                @foreach (var pk in peaksSorted)
+                foreach (var pk in peaksSorted)
                 {
-                        <h3 style="margin-top:16px;">
-                            <i class="bi bi-clock-history me-2"></i>
-                            @pk
-                        </h3>
-
+                    <h3 class="mt-3"><i class="bi bi-clock-history me-2"></i>@pk</h3>
                     <table class="sum-table">
                         <thead>
                             <tr>
@@ -1113,7 +813,6 @@
                                 }
                                 <td>hh:mm:ss</td>
                             </tr>
-
                             <tr>
                                 <td><b>Avg Distance</b></td>
                                 @foreach (var d in allDirs)
@@ -1123,7 +822,6 @@
                                 }
                                 <td>km</td>
                             </tr>
-
                             <tr>
                                 <td><b>Avg Travel Speed</b></td>
                                 @foreach (var d in allDirs)
@@ -1133,7 +831,6 @@
                                 }
                                 <td>kph</td>
                             </tr>
-
                             <tr>
                                 <td><b>Avg Running Speed</b></td>
                                 @foreach (var d in allDirs)
@@ -1143,7 +840,6 @@
                                 }
                                 <td>kph</td>
                             </tr>
-
                             <tr>
                                 <td><b>Avg Delay Time</b></td>
                                 @foreach (var d in allDirs)
@@ -1153,7 +849,6 @@
                                 }
                                 <td>hh:mm:ss</td>
                             </tr>
-
                             <tr>
                                 <td><b>Avg Delay Length</b></td>
                                 @foreach (var d in allDirs)
@@ -1170,218 +865,250 @@
         </div>
     }
 
-    <br />
-    @* <a href="/">← Back to Upload</a> *@
-
-    @* KEEP ONE export form (ID used by filter selects). *@
-    <form id="exportForm" method="post" action="/export_multi_csv" style="margin-top:10px;">
+    <form id="exportForm" method="post" action="/export_multi_csv" style="display:none;">
         @if (Model.PeakGroups != null)
         {
             foreach (var g in Model.PeakGroups)
-            {
                 foreach (var item in (g.Datasets ?? Enumerable.Empty<dynamic>()))
                 {
                     <input type="hidden" name="selected_files" value="@item.Id" />
                 }
-            }
         }
-        @* <button type="submit" class="km-btn">
-            <svg class="km-ico" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5 20h14v-2H5v2zm7-18L5.33 9h3.84v6h5.66V9h3.84L12 2z" />
-            </svg>
-            Download Directional Averages (AM / MID / PM)
-        </button> *@
-
     </form>
+    <form id="allZipForm" method="post" action="/export_all_zip" style="display:none;">
+        <input type="hidden" name="region" id="allZipRegion" />
+        <input type="hidden" name="roadNameOrSections" id="allZipRoad" />
+        @if (Model.PeakGroups != null)
+        {
+            foreach (var g in Model.PeakGroups)
+                foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                {
+                    <input type="hidden" name="selected_files" value="@ds.Id" />
+                }
+        }
+    </form>
+    <form id="dirZipForm" style="display:none;"><input type="hidden" name="region" id="dirZipRegion" /><input type="hidden" name="roadNameOrSections" id="dirZipRoad" /></form>
+    <form id="segZipForm" style="display:none;"><input type="hidden" name="region" id="segZipRegion" /><input type="hidden" name="roadNameOrSections" id="segZipRoad" /></form>
+    <form id="shapesZipForm" style="display:none;"><input type="hidden" name="region" id="shapesZipRegion" /><input type="hidden" name="roadNameOrSections" id="shapesZipRoad" /></form>
+
+</div><!-- /content wrapper -->
+<div class="action-bar">
+    <button type="button" id="btnDownloadAllWithGraphsBar" class="btn-ttds w-auto px-4">
+        <i class="bi bi-download"></i> Download ALL (Tables + Shapes + Graphs)
+    </button>
+    <a href="/report" class="btn-ttds w-auto px-4" style="background: var(--color-accent); text-decoration: none;">
+        Next: Generate Report <i class="bi bi-arrow-right ms-1"></i>
+    </a>
+</div>
+
+@section Scripts {
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 
     <script>
-        // ============= Server data =============
-        const cpData = @Html.Raw(JsonSerializer.Serialize(Model.CpData, jsonOpts));
+        // ── White background plugin for Chart.js export ──
+        Chart.register({
+            id: 'whiteBackground',
+            beforeDraw(chart) {
+                const ctx = chart.canvas.getContext('2d');
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, chart.width, chart.height);
+                ctx.restore();
+            }
+        });
+
+        // ── Server data ──
+        const cpData     = @Html.Raw(JsonSerializer.Serialize(Model.CpData, jsonOpts));
         const peakGroups = @Html.Raw(JsonSerializer.Serialize(Model.PeakGroups, jsonOpts));
-        const datasets = (peakGroups || []).flatMap(g => g?.datasets || []);
-        // =======================================
+        const datasets   = (peakGroups || []).flatMap(g => g?.datasets || []);
+        const roadsByRegionJs = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(roadsByRegion));
 
-        const CAUSE_MAP = {
-            "Loading and Unloading": { color: "blue" },
-            "Intersection": { color: "orange" },
-            "Traffic Light": { color: "red" },
-            "Pedestrian Crossing": { color: "purple" },
-            "Animal Crossing": { color: "brown" },
-            "Vehicle Crossing": { color: "maroon" },
-            "Road Construction": { color: "gray" },
-            "Blocked by Vehicle": { color: "black" },
-            "Others": { color: "pink" }
-        };
+        // ── Helpers ──
+        function safePart(s) {
+            return (s || '').toString().trim()
+                .replace(/[\\/:*?"<>|]/g, '-')
+                .replace(/\s+/g, '_');
+        }
 
-        // ---------- Map ----------
+        function safeNum(v) {
+            if (v === null || v === undefined) return 0;
+            if (typeof v !== 'number') v = Number(v);
+            return isFinite(v) ? v : 0;
+        }
+
+        function getFilters() {
+            return {
+                reg:    document.getElementById('regionSelect')?.value  || 'UnknownRegion',
+                road:   document.getElementById('roadSelect')?.value    || 'UnknownRoad',
+                period: document.getElementById('periodSelect')?.value  || 'ALL'
+            };
+        }
+
+        function wireForm(formId, regionHiddenId, roadHiddenId) {
+            const f = document.getElementById(formId);
+            if (!f) return;
+            f.addEventListener('submit', () => {
+                const { reg, road } = getFilters();
+                const r  = document.getElementById(regionHiddenId);
+                const rd = document.getElementById(roadHiddenId);
+                if (r)  r.value  = reg;
+                if (rd) rd.value = road;
+            });
+        }
+
+        wireForm('dirZipForm',    'dirZipRegion',    'dirZipRoad');
+        wireForm('segZipForm',    'segZipRegion',    'segZipRoad');
+        wireForm('shapesZipForm', 'shapesZipRegion', 'shapesZipRoad');
+        wireForm('allZipForm',    'allZipRegion',    'allZipRoad');
+
+        // ── Region → Road cascade ──
+        document.getElementById('regionSelect')?.addEventListener('change', function () {
+            const roads   = roadsByRegionJs[this.value] || [];
+            const roadSel = document.getElementById('roadSelect');
+            roadSel.innerHTML = '';
+            roads.forEach(rd => {
+                const opt = document.createElement('option');
+                opt.value = rd; opt.textContent = rd;
+                roadSel.appendChild(opt);
+            });
+        });
+
+        // ── Map ──
         const map = L.map('map');
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
         const bounds = L.latLngBounds();
 
-        // CP labels
-        const cpMarkers = {};
         (cpData || []).forEach(cp => {
             if (cp?.lat == null || cp?.lon == null) return;
             const m = L.circleMarker([cp.lat, cp.lon], { radius: 1, fillColor: 'gray', fillOpacity: 1 }).addTo(map);
             m.bindTooltip(`CP: ${cp.cp_id}`, { permanent: true, direction: 'right', offset: [8, 0], className: 'cp-label' });
-            cpMarkers[cp.cp_id] = m;
             bounds.extend([cp.lat, cp.lon]);
         });
 
-        // Dataset layer groups & toggles
-        const DS_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"];
-        const dsLayers = {};
+        const DS_COLORS = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+        const dsLayers  = {};
         const dsListDiv = document.getElementById('ds-list');
 
         (datasets || []).forEach((ds, i) => {
             const id = ds?.id || `ds-${i}`;
 
-            // Checkbox UI
             const wrap = document.createElement('div'); wrap.className = 'ds-row';
-            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.id = 'ds-toggle-' + i; cb.dataset.id = id;
+            const cb   = document.createElement('input');
+            cb.type = 'checkbox'; cb.checked = true;
+            cb.id = 'ds-toggle-' + i; cb.dataset.id = id;
 
-            const peakLbl = ds?.peakLabel || '';
-            const nm = ds?.name || ('Dataset ' + (i + 1));
-            const lbl = document.createElement('label'); lbl.htmlFor = cb.id;
-            lbl.textContent = ` ${nm} (${peakLbl || 'Off-Peak'})`;
+            const lbl = document.createElement('label');
+            lbl.htmlFor     = cb.id;
+            lbl.textContent = ` ${ds?.name || ('Dataset ' + (i + 1))} (${ds?.peakLabel || 'Off-Peak'})`;
 
             wrap.appendChild(cb); wrap.appendChild(lbl);
             dsListDiv.appendChild(wrap);
 
-            // Layer group
             const g = L.layerGroup().addTo(map);
             dsLayers[id] = g;
 
-            // Draw segments
             (ds?.segments || []).forEach(seg => {
                 if (!seg?.path || seg.path.length < 2) return;
-
-                const color = seg.color || DS_COLORS[i % DS_COLORS.length];
+                const color   = seg.color || DS_COLORS[i % DS_COLORS.length];
                 const latlngs = seg.path.map(p => [p[0], p[1]]);
                 latlngs.forEach(ll => bounds.extend(ll));
-
-                L.polyline(latlngs, { color: color, weight: 5, opacity: 0.9 })
-                    .bindPopup(
-                        `<b>${seg.fromCp ?? ''} → ${seg.toCp ?? ''}</b><br>
-                         Direction: ${seg.direction ?? 'N/A'}<br>
-                         Speed: ${seg.speed ?? 'N/A'} km/h<br>
-                         Cause: ${seg.cause ?? 'None'}<br>
-                         Status: ${seg.status ?? 'Unknown'}`
-                    )
+                L.polyline(latlngs, { color, weight: 5, opacity: 0.9 })
+                    .bindPopup(`<b>${seg.fromCp ?? ''} → ${seg.toCp ?? ''}</b><br>
+                                Direction: ${seg.direction ?? 'N/A'}<br>
+                                Speed: ${seg.speed ?? 'N/A'} km/h<br>
+                                Cause: ${seg.cause ?? 'None'}<br>
+                                Status: ${seg.status ?? 'Unknown'}`)
                     .addTo(g);
             });
 
-            cb.addEventListener('change', (ev) => {
+            cb.addEventListener('change', ev => {
                 const layer = dsLayers[ev.target.dataset.id];
                 if (!layer) return;
-                if (ev.target.checked) layer.addTo(map);
-                else map.removeLayer(layer);
+                if (ev.target.checked) layer.addTo(map); else map.removeLayer(layer);
             });
         });
 
         if (bounds.isValid()) map.fitBounds(bounds.pad(0.10));
         else map.setView([14.6, 121.0], 12);
 
-        // ---------- Charts ----------
-        function safeNum(v) {
-            if (v === null || v === undefined) return 0;
-            if (typeof v !== 'number') v = Number(v);
-            return (isFinite(v) ? v : 0);
-        }
+        // ── Charts ──
+        const CAUSE_MAP = {
+            "Loading and Unloading": { color: "blue" },
+            "Intersection":          { color: "orange" },
+            "Traffic Light":         { color: "red" },
+            "Pedestrian Crossing":   { color: "purple" },
+            "Animal Crossing":       { color: "brown" },
+            "Vehicle Crossing":      { color: "maroon" },
+            "Road Construction":     { color: "gray" },
+            "Blocked by Vehicle":    { color: "black" },
+            "Others":                { color: "pink" }
+        };
 
         function buildStepSeries(rows, speedKey) {
             const pts = [];
             let km = 0, prevY = null;
             rows.forEach(r => {
-                const d_m = safeNum(r["Distance (m)"]);
-                const y = safeNum(r[speedKey]);
+                const d_m  = safeNum(r["Distance (m)"]);
+                const y    = safeNum(r[speedKey]);
                 if (!isFinite(d_m) || d_m <= 0) return;
-
                 const nextKm = km + d_m / 1000;
-
                 if (isFinite(y)) {
-                    if (prevY == null) {
-                        pts.push({ x: km, y });
-                    } else if (y !== prevY) {
-                        pts.push({ x: km, y: prevY });
-                        pts.push({ x: km, y });
-                    }
+                    if (prevY == null)           pts.push({ x: km, y });
+                    else if (y !== prevY) { pts.push({ x: km, y: prevY }); pts.push({ x: km, y }); }
                     pts.push({ x: nextKm, y });
                     prevY = y;
                 }
-
                 km = nextKm;
             });
             return pts;
         }
 
         (peakGroups || []).forEach((pg, pgIndex) => {
-            const gds = pg?.datasets || [];
-            gds.forEach((ds, dsIndex) => {
-                const key = `${pgIndex}-${dsIndex}`;
-
-                const pieCtx = document.getElementById('pieChart-' + key)?.getContext('2d');
-                const barCtx = document.getElementById('barChart-' + key)?.getContext('2d');
+            (pg?.datasets || []).forEach((ds, dsIndex) => {
+                const key    = `${pgIndex}-${dsIndex}`;
+                const pieCtx = document.getElementById('pieChart-'   + key)?.getContext('2d');
+                const barCtx = document.getElementById('barChart-'   + key)?.getContext('2d');
                 const spdCtx = document.getElementById('speedChart-' + key)?.getContext('2d');
                 if (!pieCtx || !barCtx || !spdCtx) return;
 
                 const results = ds?.results || [];
-
-                const resLite = results.map(r => {
-                    const DistanceM = r.distanceM ?? 0;
-                    const TravelSpeedKph = r.travelSpeedKph ?? 0;
-                    const RunningSpeedKph = r.runningSpeedKph ?? 0;
-                    const DelayLengthM = r.delayLengthM ?? 0;
-                    const Delays = r.delays ?? 0;
-                    const From = r.from ?? '';
-                    const To = r.to ?? '';
-                    const DelayCauses = r.delayCauses ?? '';
-
-                    return {
-                        "From": From,
-                        "To": To,
-                        "Distance (m)": safeNum(DistanceM),
-                        "Travel Speed (km/h)": safeNum(TravelSpeedKph),
-                        "Running Speed (km/h)": safeNum(RunningSpeedKph),
-                        "Delays": safeNum(Delays),
-                        "Delay Length (m)": safeNum(DelayLengthM),
-                        "Delay Causes": DelayCauses
-                    };
-                });
+                const resLite = results.map(r => ({
+                    "From":                  r.from         ?? '',
+                    "To":                    r.to           ?? '',
+                    "Distance (m)":          safeNum(r.distanceM),
+                    "Travel Speed (km/h)":   safeNum(r.travelSpeedKph),
+                    "Running Speed (km/h)":  safeNum(r.runningSpeedKph),
+                    "Delays":                safeNum(r.delays),
+                    "Delay Length (m)":      safeNum(r.delayLengthM),
+                    "Delay Causes":          r.delayCauses  ?? ''
+                }));
 
                 const delayCauseCounts = {};
-                const delayCPCounts = {};
+                const delayCPCounts    = {};
 
                 resLite.forEach(row => {
-                    const from = row['From'];
-                    const to = row['To'];
-                    const cpPair = `${from} - ${to}`;
-
-                    const causes = (row['Delay Causes'] || '')
-                        .split(',')
-                        .map(s => s.trim())
-                        .filter(Boolean);
-
+                    const cpPair = `${row['From']} - ${row['To']}`;
+                    const causes = (row['Delay Causes'] || '').split(',').map(s => s.trim()).filter(Boolean);
                     if (!causes.length) return;
-
-                    causes.forEach(cause => {
-                        delayCauseCounts[cause] = (delayCauseCounts[cause] || 0) + 1;
-                    });
-
+                    causes.forEach(c => { delayCauseCounts[c] = (delayCauseCounts[c] || 0) + 1; });
                     if (!delayCPCounts[cpPair]) delayCPCounts[cpPair] = {};
-                    causes.forEach(cause => {
-                        delayCPCounts[cpPair][cause] = (delayCPCounts[cpPair][cause] || 0) + 1;
-                    });
+                    causes.forEach(c => { delayCPCounts[cpPair][c] = (delayCPCounts[cpPair][c] || 0) + 1; });
                 });
 
-                // PIE
+                // Pie
                 const pieLabels = Object.keys(delayCauseCounts);
-                const pieData = pieLabels.map(lbl => delayCauseCounts[lbl]);
-                const pieColors = pieLabels.map(lbl => (CAUSE_MAP[lbl]?.color || 'gray'));
-
                 new Chart(pieCtx, {
                     type: 'pie',
-                    data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors }] },
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            data:            pieLabels.map(l => delayCauseCounts[l]),
+                            backgroundColor: pieLabels.map(l => CAUSE_MAP[l]?.color || 'gray')
+                        }]
+                    },
                     options: {
                         maintainAspectRatio: false,
                         plugins: {
@@ -1389,62 +1116,48 @@
                             datalabels: {
                                 formatter: (value, ctx) => {
                                     const total = ctx.chart.data.datasets[0].data.reduce((s, v) => s + v, 0);
-                                    const pct = total ? ((value / total) * 100).toFixed(1) : 0;
-                                    const label = ctx.chart.data.labels[ctx.dataIndex];
-                                    return `${label}\n${pct}%`;
+                                    const pct   = total ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${ctx.chart.data.labels[ctx.dataIndex]}\n${pct}%`;
                                 },
-                                color: '#fff',
-                                font: { weight: 'bold', size: 10 },
-                                align: 'center'
+                                color: '#fff', font: { weight: 'bold', size: 10 }, align: 'center'
                             }
                         }
                     },
                     plugins: [ChartDataLabels]
                 });
 
-                // STACKED BAR
-                let stackedLabels = Object.keys(delayCPCounts);
-                const pieOrder = Object.entries(delayCauseCounts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+                // Stacked Bar
+                const pieOrder       = Object.entries(delayCauseCounts).sort((a, b) => b[1] - a[1]).map(e => e[0]);
                 const detectedCauses = pieOrder.filter(c => delayCauseCounts[c] > 0);
-
-                const stackedSets = detectedCauses.map(cause => ({
-                    label: cause,
-                    backgroundColor: (CAUSE_MAP[cause]?.color || 'gray'),
-                    data: stackedLabels.map(lbl => (delayCPCounts[lbl]?.[cause] || 0)),
-                    stack: 'causes'
-                }));
-
-                const totalsPerPair = Object.fromEntries(
-                    stackedLabels.map(lbl => [
-                        lbl, Object.values(delayCPCounts[lbl] || {}).reduce((s, v) => s + v, 0)
-                    ])
+                let stackedLabels    = Object.keys(delayCPCounts);
+                const totalsPerPair  = Object.fromEntries(
+                    stackedLabels.map(l => [l, Object.values(delayCPCounts[l] || {}).reduce((s, v) => s + v, 0)])
                 );
-
                 stackedLabels.sort((a, b) => (totalsPerPair[b] || 0) - (totalsPerPair[a] || 0));
-                stackedSets.forEach(ds2 => {
-                    ds2.data = stackedLabels.map(lbl => (delayCPCounts[lbl]?.[ds2.label] || 0));
-                });
 
                 new Chart(barCtx, {
                     type: 'bar',
-                    data: { labels: stackedLabels, datasets: stackedSets },
+                    data: {
+                        labels:   stackedLabels,
+                        datasets: detectedCauses.map(cause => ({
+                            label:           cause,
+                            backgroundColor: CAUSE_MAP[cause]?.color || 'gray',
+                            data:            stackedLabels.map(l => delayCPCounts[l]?.[cause] || 0),
+                            stack:           'causes'
+                        }))
+                    },
                     options: {
                         plugins: {
                             title: { display: true, text: 'Delays per CP Segment (Stacked by Cause)' },
                             legend: {
                                 position: 'bottom',
                                 labels: {
-                                    boxWidth: 14,
-                                    font: { size: 11 },
-                                    filter: (legendItem, chartData) => {
-                                        const ds3 = chartData.datasets[legendItem.datasetIndex];
-                                        return Array.isArray(ds3.data) && ds3.data.some(v => v > 0);
-                                    }
+                                    boxWidth: 14, font: { size: 11 },
+                                    filter: (item, data) => data.datasets[item.datasetIndex].data.some(v => v > 0)
                                 }
                             }
                         },
-                        responsive: true,
-                        maintainAspectRatio: false,
+                        responsive: true, maintainAspectRatio: false,
                         scales: {
                             x: { stacked: true, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 30 } },
                             y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 } } }
@@ -1453,250 +1166,103 @@
                     }
                 });
 
-                // SPEED LINE
-                const travelStep = buildStepSeries(resLite, "Travel Speed (km/h)");
+                // Speed line
+                const travelStep  = buildStepSeries(resLite, "Travel Speed (km/h)");
                 const runningStep = buildStepSeries(resLite, "Running Speed (km/h)");
-                const totalMeters = resLite.reduce((s, r) => s + safeNum(r["Distance (m)"]), 0);
-                const maxKm = Math.ceil(totalMeters / 1000);
+                const maxKm       = Math.ceil(resLite.reduce((s, r) => s + safeNum(r["Distance (m)"]), 0) / 1000);
 
                 new Chart(spdCtx, {
                     type: 'line',
                     data: {
                         datasets: [
-                            { label: "Travel Speed (KPH)", data: travelStep, parsing: false, fill: false, borderWidth: 2, pointRadius: 3, tension: 0 },
+                            { label: "Travel Speed (KPH)",  data: travelStep,  parsing: false, fill: false, borderWidth: 2, pointRadius: 3, tension: 0 },
                             { label: "Running Speed (KPH)", data: runningStep, parsing: false, fill: false, borderWidth: 2, pointRadius: 3, tension: 0 }
                         ]
                     },
                     options: {
-                        responsive: true,
-                            maintainAspectRatio: false,
+                        responsive: true, maintainAspectRatio: false,
                         plugins: {
-                            title: { display: true, text: "Travel Speed and Running Speed Comparison" },
+                            title:  { display: true, text: "Travel Speed and Running Speed Comparison" },
                             legend: { position: 'top' }
                         },
                         scales: {
-                            x: {
-                                type: 'linear',
-                                title: { display: true, text: "Distance (km)" },
-                                ticks: { stepSize: 1, callback: v => Math.round(v) },
-                                min: 0,
-                                max: maxKm || 1
-                            },
+                            x: { type: 'linear', title: { display: true, text: "Distance (km)" }, ticks: { stepSize: 1, callback: v => Math.round(v) }, min: 0, max: maxKm || 1 },
                             y: { title: { display: true, text: "Speed (km/h)" }, beginAtZero: true }
                         }
                     }
                 });
             });
         });
-    </script>
 
-
-        <br />
-
-    @* Hidden form data still needed for wireForm() *@
-    <form id="allZipForm" method="post" action="/export_all_zip" style="display:none;">
-        <input type="hidden" name="region" id="allZipRegion" />
-        <input type="hidden" name="roadNameOrSections" id="allZipRoad" />
-        @if (Model.PeakGroups != null)
-        {
-            foreach (var g in Model.PeakGroups)
-            {
-                foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
-                {
-                    <input type="hidden" name="selected_files" value="@ds.Id" />
-                }
-            }
-        }
-    </form>
-
-    @* Kept for wireForm compatibility *@
-    <form id="dirZipForm" style="display:none;"><input type="hidden" name="region" id="dirZipRegion" /><input type="hidden" name="roadNameOrSections" id="dirZipRoad" /></form>
-    <form id="segZipForm" style="display:none;"><input type="hidden" name="region" id="segZipRegion" /><input type="hidden" name="roadNameOrSections" id="segZipRoad" /></form>
-    <form id="shapesZipForm" style="display:none;"><input type="hidden" name="region" id="shapesZipRegion" /><input type="hidden" name="roadNameOrSections" id="shapesZipRoad" /></form>
-    <script>
-        function safePart(s) {
-          return (s || '')
-            .toString()
-            .trim()
-            .replace(/[\\/:*?"<>|]/g, '-')   // windows-invalid chars
-            .replace(/\s+/g, '_');
-        }
-
-        function canvasToJpegDataUrl(canvas) {
-          // JPEG keeps size smaller; plugin already paints white bg
-          return canvas.toDataURL("image/jpeg", 0.92);
-        }
-
-                function collectGraphs(region, road) {
-          const nodes = Array.from(document.querySelectorAll('canvas.trip-graph'));
-          const items = [];
-
-          for (const c of nodes) {
-            const date = safePart(c.dataset.date || '00000000');
-            const period = safePart(c.dataset.period || 'OFF');
-            const trip = safePart(c.dataset.trip || '0');
-            const dt = safePart(c.dataset.dt || '00000000-000000');
-            const dir = safePart(c.dataset.dir || 'UNK');
-            const veh = safePart(c.dataset.veh || 'UnknownVehicle');
-
-            const graphName = safePart(c.dataset.graph || c.id || 'Graph');
-
-            // ✅ FIXED (no double Graphs)
-            const folder = `${safePart(region)}/${safePart(road)}/${date}/${veh}/Graphs/${period}`;
-
-            const fileName = `Trip-${trip}_${dt}_${dir}_${graphName}.jpg`;
-
-            items.push({ folder, fileName, dataUrl: canvasToJpegDataUrl(c) });
-          }
-
-          return items;
-        }
-
-    </script>
-    <script>
-                document.getElementById("btnDownloadGraphs")?.addEventListener("click", async () => {
-          const { reg, road } = getFilters();
-          const items = collectGraphs(reg, road);
-
-          const res = await fetch("/export_graphs_zip", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              region: reg,
-              roadNameOrSections: road,
-              items // ✅ MUST be 'items'
-            })
-          });
-
-          if (!res.ok) { alert("Graphs download failed: " + await res.text()); return; }
-
-          const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `GRAPHS_${safePart(reg)}_${safePart(road)}.zip`;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
+        // ── Accordion ──
+        document.querySelectorAll('.dataset-section').forEach(section => {
+            section.classList.add('collapsed');
+            const header  = section.querySelector('.dataset-section-header');
+            const chevron = document.createElement('i');
+            chevron.className = 'bi bi-chevron-down';
+            chevron.style.cssText = 'position:absolute; right:20px; top:50%; transform:translateY(-50%) rotate(0deg); color:var(--color-accent); font-size:1rem; transition:transform 0.2s;';
+            header.appendChild(chevron);
+            header.addEventListener('click', () => {
+                section.classList.toggle('collapsed');
+                chevron.style.transform = section.classList.contains('collapsed')
+                    ? 'translateY(-50%) rotate(0deg)'
+                    : 'translateY(-50%) rotate(180deg)';
+            });
         });
-    </script>
 
-    <script>
-                // Wire download buttons after DOM + all scripts are ready
-            window.addEventListener("load", () => {
-              async function doDownloadAll() {
-                const reg = document.getElementById('regionSelect')?.value || 'UnknownRegion';
-                const road = document.getElementById('roadSelect')?.value || 'UnknownRoad';
+        // ── Graph collection ──
+        function collectGraphs(reg, road) {
+            return Array.from(document.querySelectorAll('canvas.trip-graph')).map(c => ({
+                folder:   `${safePart(reg)}/${safePart(road)}/${safePart(c.dataset.date || '00000000')}/${safePart(c.dataset.veh || 'UnknownVehicle')}/Graphs/${safePart(c.dataset.period || 'OFF')}`,
+                fileName: `Trip-${safePart(c.dataset.trip || '0')}_${safePart(c.dataset.dt || '00000000-000000')}_${safePart(c.dataset.dir || 'UNK')}_${safePart(c.dataset.graph || c.id)}.jpg`,
+                dataUrl:  c.toDataURL('image/jpeg', 0.92)
+            }));
+        }
 
-                const safeP = (s) => (s || '').toString().trim()
-                  .replace(/[\\/:*?"<>|]/g, '-')
-                  .replace(/\s+/g, '_');
+        // ── Download ALL ──
+        async function doDownloadAll() {
+            const { reg, road } = getFilters();
+            const selectedIds   = Array.from(document.querySelectorAll('input[name="selected_files"]')).map(x => x.value);
 
-                const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]'))
-                  .map(x => x.value);
-
-                const nodes = Array.from(document.querySelectorAll('canvas.trip-graph'));
-                const graphs = nodes.map(c => {
-                  const date   = safeP(c.dataset.date   || '00000000');
-                  const period = safeP(c.dataset.period || 'OFF');
-                  const trip   = safeP(c.dataset.trip   || '0');
-                  const dt     = safeP(c.dataset.dt     || '00000000-000000');
-                  const dir    = safeP(c.dataset.dir    || 'UNK');
-                  const veh    = safeP(c.dataset.veh    || 'UnknownVehicle');
-                  const graphName = safeP(c.dataset.graph || c.id || 'Graph');
-                  const folder = `${safeP(reg)}/${safeP(road)}/${date}/${veh}/Graphs/${period}`;
-                  const fileName = `Trip-${trip}_${dt}_${dir}_${graphName}.jpg`;
-                  return { folder, fileName, dataUrl: c.toDataURL("image/jpeg", 0.92) };
+            try {
+                const res = await fetch('/export_all_with_graphs_zip', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ region: reg, roadNameOrSections: road, selectedIds, graphs: collectGraphs(reg, road) })
                 });
 
-                const payload = {
-                  region: reg,
-                  roadNameOrSections: road,
-                  selectedIds,
-                  graphs
-                };
+                if (!res.ok) { alert('Download failed: ' + await res.text()); return; }
 
-                try {
-                  const res = await fetch("/export_all_with_graphs_zip", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                  });
+                const url = URL.createObjectURL(await res.blob());
+                const a   = document.createElement('a');
+                a.href = url; a.download = `${safePart(reg)}_${safePart(road)}.zip`;
+                document.body.appendChild(a); a.click(); a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Download error: ' + err.message);
+            }
+        }
 
-                  if (!res.ok) {
-                    const msg = await res.text();
-                    alert("Download failed: " + msg);
-                    return;
-                  }
+        document.getElementById('btnDownloadAllWithGraphsBar')?.addEventListener('click', doDownloadAll);
 
-                  const blob = await res.blob();
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `${safeP(reg)}_${safeP(road)}.zip`;
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                  URL.revokeObjectURL(url);
-
-                } catch (err) {
-                  alert("Download error: " + err.message);
-                }
-              }
-
-              document.getElementById("btnDownloadAllWithGraphs")?.addEventListener("click", doDownloadAll);
-              document.getElementById("btnDownloadAllWithGraphsBar")?.addEventListener("click", doDownloadAll);
-            });
-
+        // ── Download Graphs only ──
+        document.getElementById('btnDownloadGraphs')?.addEventListener('click', async () => {
+            const { reg, road } = getFilters();
+            try {
+                const res = await fetch('/export_graphs_zip', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ region: reg, roadNameOrSections: road, items: collectGraphs(reg, road) })
+                });
+                if (!res.ok) { alert('Graphs download failed: ' + await res.text()); return; }
+                const url = URL.createObjectURL(await res.blob());
+                const a   = document.createElement('a');
+                a.href = url; a.download = `GRAPHS_${safePart(reg)}_${safePart(road)}.zip`;
+                document.body.appendChild(a); a.click(); a.remove();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Graphs error: ' + err.message);
+            }
+        });
     </script>
-        <script>
-            document.querySelectorAll(".dataset-section").forEach(section => {
-                        section.classList.add("collapsed");
-
-                        // inject chevron icon into header
-                        const header = section.querySelector(".dataset-section-header");
-                        const chevron = document.createElement("i");
-                        chevron.className = "bi bi-chevron-down";
-                        chevron.style.cssText = "position:absolute; right:20px; top:50%; transform:translateY(-50%); color:#da471f; font-size:1rem; transition:transform 0.2s;";
-                        header.appendChild(chevron);
-
-                        header.addEventListener("click", () => {
-                            section.classList.toggle("collapsed");
-                            const isCollapsed = section.classList.contains("collapsed");
-                            chevron.style.transform = isCollapsed
-                                ? "translateY(-50%) rotate(0deg)"
-                                : "translateY(-50%) rotate(180deg)";
-                        });
-
-                        // set initial state
-                        chevron.style.transform = "translateY(-50%) rotate(0deg)";
-                    });
-        </script>
-    </div><!-- end content wrapper -->
-    @* ===== FIXED BOTTOM ACTION BAR ===== *@
-    <div style="position:fixed; bottom:0; left:0; right:0; background:#ffffff; border-top:2px solid #d0d8e4; padding:14px 32px; display:flex; justify-content:space-between; align-items:center; z-index:1000; box-shadow:0 -2px 12px rgba(0,0,0,0.08);">
-        <button type="button" id="btnDownloadAllWithGraphsBar"
-                style="display:inline-flex; align-items:center; gap:10px; padding:10px 28px; border:none; border-radius:999px; background:#1d4470; color:#eeeeee; font-weight:600; font-size:0.88rem; cursor:pointer; transition:background 0.18s;"
-                onmouseover="this.style.background='#245490'"
-                onmouseout="this.style.background='#1d4470'">
-            <i class="bi bi-download"></i>
-            Download ALL (Tables + Shapes + Graphs)
-        </button>
-
-        <a href="/report"
-           style="display:inline-flex; align-items:center; gap:10px; padding:10px 28px; border:none; border-radius:999px; background:#da471f; color:#eeeeee; font-weight:600; font-size:0.88rem; cursor:pointer; transition:background 0.18s; text-decoration:none;"
-           onmouseover="this.style.background='#c23d19'"
-           onmouseout="this.style.background='#da471f'">
-            Next: Generate Report
-            <i class="bi bi-arrow-right"></i>
-        </a>
-    </div>
-
-    <footer style="text-align:center; font-size:0.78rem; color:#888; padding:1rem; background:#eeeeee;">
-        &copy; 2025 Travel Time and Delay Survey
-    </footer>
-
-</body>
-</html>
+}
