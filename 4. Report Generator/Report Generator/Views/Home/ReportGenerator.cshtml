@@ -1,0 +1,507 @@
+@{
+    ViewData["Title"] = "Generate Survey Reports";
+    ViewData["Section"] = "Processing";
+    Layout = "_Layout";
+}
+
+<style>
+    :root {
+        --primary: #211d71;
+        --accent: #dc4521;
+        --muted: #888;
+        --card-bg: #ffffff;
+        --card-border: #d0d8e4;
+        --surf: #e8ecf0;
+    }
+
+    /* Loading overlay */
+    #loadingOverlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.55);
+        display: none; align-items: center; justify-content: center;
+        z-index: 9999;
+    }
+    #loadingOverlay[aria-hidden="false"] { display: flex; }
+    #loadingCard {
+        width: min(580px, 94vw);
+        background: var(--card-bg); border-radius: 12px;
+        padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        border: 1px solid #e5e5e5;
+    }
+    #loadingTitle { font-weight: 700; margin-bottom: 6px; font-size: 1.05rem; }
+    #loadingMsg   { font-size: 0.88rem; color: #555; margin-bottom: 12px; }
+    .progress { height: 10px; border-radius: 999px; overflow: hidden; background: #e9ecef; margin-bottom: 10px; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg,var(--primary),#2f6db5); transition: width .4s ease; }
+    #progressLabel { font-size: 0.78rem; color: var(--muted); text-align: right; margin-bottom: 10px; }
+
+    /* Log panel inside overlay — mirrors Python's ScrolledText */
+    #logPanel {
+        background: #1e293b; border-radius: 8px;
+        height: 200px; overflow-y: auto;
+        padding: 10px 12px; font-family: 'Courier New', monospace; font-size: 12px;
+        display: none;
+    }
+    #logPanel .l-default { color: #cbd5e1; }
+    #logPanel .l-success { color: #4ade80; }
+    #logPanel .l-warn    { color: #fbbf24; }
+    #logPanel .l-error   { color: #f87171; }
+    #logPanel .l-section { color: #fff; font-weight: 700; }
+    #logPanel .l-debug   { color: #64748b; }
+
+    /* Layout */
+    .page-heading { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .page-heading .icon { font-size: 2.4rem; color: var(--primary); }
+
+    /* Upload card */
+    .upload-card {
+        background: var(--card-bg); border-radius: 16px;
+        border: 1px solid var(--card-border);
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 1.25rem;
+    }
+    .upload-card h5 { font-weight: 700; font-size: 1rem; margin-bottom: 1rem; }
+
+    /* Drop zone */
+    .drop-zone {
+        border: 2px dashed #aab4c4; border-radius: 12px;
+        background: var(--surf); padding: 1.75rem 1rem;
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; gap: 0.5rem;
+        cursor: pointer; transition: background .12s, transform .06s;
+    }
+    /* .drop-zone:hover { background: #dde3ea; transform: translateY(-1px); } */
+    .drop-zone.show-drag { background: #d0d8e2; border-color: var(--primary); }
+    .drop-zone i { font-size: 2.6rem; color: var(--accent); }
+    .drop-zone p { font-size: 0.92rem; color: #444; margin: 0; text-align: center; }
+    .drop-zone .hint { font-size: 0.78rem; color: var(--muted); }
+    #folderInput { display: none; }
+
+    /* Buttons */
+    .btn-ttds {
+        width: 100%;
+        background: var(--primary); color: #fff; border: none;
+        border-radius: 999px; font-size: 0.9rem; font-weight: 600;
+        padding: 10px 28px; cursor: pointer; transition: background .2s;
+    }
+    .btn-ttds:hover { background: #163354; }
+    .btn-ttds:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    /* File / survey list */
+    .file-list-header { font-size: 0.86rem; font-weight: 700; color: var(--primary); margin-bottom: 0.5rem; }
+    .file-list-scroll { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 6px; }
+    .file-item { display: flex; align-items: center; gap: 10px; background: #f7fafc; border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 12px; }
+    .file-item i { color: var(--accent); font-size: 1.1rem; flex-shrink: 0; }
+    .file-item-name { font-size: 0.86rem; color: #333; word-break: break-all; flex: 1; }
+    .file-item-name small { display: block; color: var(--muted); font-size: 0.76rem; }
+    .file-item-size { font-size: 0.78rem; color: var(--muted); flex-shrink: 0; }
+
+    .divider { border: none; border-top: 1px dashed var(--card-border); margin: 1rem 0; }
+    #serverError {
+        background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+        color: #b91c1c; padding: 12px; font-size: 0.86rem;
+        margin-top: 1rem; display: none; white-space: pre-wrap;
+    }
+</style>
+
+<div class="page-wrapper">
+
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" role="status" aria-hidden="true" aria-live="polite">
+        <div id="loadingCard">
+            <div id="loadingTitle">Generating Reports…</div>
+            <div id="loadingMsg">Uploading files…</div>
+            <div class="progress">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <div id="progressLabel">0%</div>
+            <div id="logPanel" role="log" aria-label="Server processing log"></div>
+            <div class="small text-muted">Don't refresh or close this tab while processing.</div>
+        </div>
+    </div>
+
+    <!-- Page heading -->
+    <header class="page-heading" aria-labelledby="pageTitle">
+        <i class="bi bi-file-earmark-bar-graph icon" aria-hidden="true"></i>
+        <h1 id="pageTitle" class="fw-bold mb-0" style="font-size:1.7rem;">@ViewData["Title"]</h1>
+    </header>
+
+    <!-- Upload card -->
+    <section class="upload-card" aria-labelledby="uploadTitle">
+        <h5 id="uploadTitle">Upload Region Folder/ZIP</h5>
+
+        <input type="file" id="folderInput" webkitdirectory directory multiple aria-label="Region folder" style="display:none;" />
+        <input type="file" id="zipInput" accept=".zip" multiple aria-label="Region ZIP" style="display:none;" />
+
+        <div class="drop-zone" id="dropZone" tabindex="0">
+            <div style="display: flex; gap: 15px; justify-content: center; align-items: center; margin-bottom: 5px">
+                <i class="bi bi-folder2" aria-hidden="true"></i>
+                <p> or </p>
+                <i class="bi bi-file-zip" aria-hidden="true"></i>
+            </div>
+            <p>Drag &amp; drop your <strong>Region</strong> folder or ZIP here</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('folderInput').click()">Browse Folder</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('zipInput').click()">Browse ZIP</button>
+            </div>
+
+            <span class="hint mt-2">Should contain Region / RoadName / SurveyDate / VehicleType / SegmentAnalysis</span>
+        </div>
+
+        <div id="fileLabel" aria-live="polite" style="margin-top:0.75rem"></div>
+
+        <p id="uploadError" style="display:none; font-size:0.86rem; color:#c0392b; text-align:center; margin-top:0.5rem;">
+            <i class="bi bi-exclamation-circle me-1"></i>
+            Please select a folder/zip before continuing.
+        </p>
+
+        <div class="d-flex justify-content-center mt-4">
+            <button id="btnGenerate" class="btn-ttds" onclick="startGeneration()">
+                Generate Reports
+            </button>
+        </div>
+
+        <div id="serverError"></div>
+    </section>
+</div>
+
+<script>
+(function () {
+    let selectedFiles = []; // [{ file, relativePath }]
+
+    const dropZone     = document.getElementById('dropZone');
+    const folderInput  = document.getElementById('folderInput');
+    const zipInput     = document.getElementById('zipInput');
+    const overlay      = document.getElementById('loadingOverlay');
+    const progressBar  = document.getElementById('progressBar');
+    const progressLabel = document.getElementById('progressLabel');
+    const loadingMsg   = document.getElementById('loadingMsg');
+    const logPanel     = document.getElementById('logPanel');
+    const serverError  = document.getElementById('serverError');
+
+    let lastLogCount   = 0;
+    let pollTimer      = null;
+
+    // ── Folder selection: click-to-browse ─────────────────────────────────
+    folderInput.addEventListener('change', () => {
+        zipInput.value = "";
+        selectedFiles = Array.from(folderInput.files).map(f => ({
+            file: f, relativePath: f.webkitRelativePath || f.name
+        }));
+        renderSummary();
+    });
+
+        // ── ZIP selection: click-to-browse ────────────────────────────────────
+        zipInput.addEventListener('change', () => {
+            folderInputvalues = "";
+            selectedFiles = Array.from(zipInput.files).map(f => ({
+                file: f, relativePath: f.name // ZIPs don't have deep relative paths
+            }));
+            renderSummary();
+        });
+
+    // ── Folder selection: drag-and-drop (FileSystemEntry tree walk) ────────
+    function readEntryAsFile(entry) {
+        return new Promise(res => entry.file(f => res(f), () => res(null)));
+    }
+    function readAllEntries(reader) {
+        return new Promise(res => {
+            let all = [];
+            (function batch() {
+                reader.readEntries(entries => {
+                    if (!entries.length) { res(all); return; }
+                    all = all.concat(entries); batch();
+                }, () => res(all));
+            })();
+        });
+    }
+    async function traverseEntry(entry, path) {
+        if (entry.isFile) {
+            const f = await readEntryAsFile(entry);
+            return f ? [{ file: f, relativePath: path + entry.name }] : [];
+        }
+        if (entry.isDirectory) {
+            const children = await readAllEntries(entry.createReader());
+            const results  = await Promise.all(children.map(c => traverseEntry(c, path + entry.name + '/')));
+            return results.flat();
+        }
+        return [];
+    }
+
+    ['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+        e.preventDefault(); dropZone.classList.add('show-drag');
+    }));
+    ['dragleave','dragend'].forEach(ev => dropZone.addEventListener(ev, () =>
+        dropZone.classList.remove('show-drag')));
+
+    dropZone.addEventListener('drop', async e => {
+        e.preventDefault(); dropZone.classList.remove('show-drag');
+
+        folderInput.value = "";
+        zipInput.value = "";
+
+        const items = e.dataTransfer?.items;
+        if (items?.length && items[0].webkitGetAsEntry) {
+            const entries = Array.from(items).map(i => i.webkitGetAsEntry()).filter(Boolean);
+            const results = await Promise.all(entries.map(en => traverseEntry(en, '')));
+            selectedFiles = results.flat();
+        } else if (e.dataTransfer?.files?.length) {
+            selectedFiles = Array.from(e.dataTransfer.files).map(f => ({
+                file: f, relativePath: f.webkitRelativePath || f.name
+            }));
+        }
+        renderSummary();
+    });
+
+    // ── Client-side survey detection (mirrors FolderScannerService) ────────
+    function detectSurveys(entries) {
+        const seen = new Map();
+        entries.forEach(({ relativePath }) => {
+            const idx = relativePath.indexOf('/SegmentAnalysis');
+            if (idx === -1) return;
+            const seg = relativePath.substring(0, idx + '/SegmentAnalysis'.length);
+            if (seen.has(seg)) return;
+            const parts = seg.split('/').filter(Boolean);
+            const i = parts.lastIndexOf('SegmentAnalysis');
+            if (i >= 4) seen.set(seg, {
+                region: parts[i-4], roadName: parts[i-3],
+                surveyDate: parts[i-2], vehicleType: parts[i-1]
+            });
+        });
+        return Array.from(seen.values());
+    }
+
+    function fmtBytes(b) {
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+        return (b/1048576).toFixed(1) + ' MB';
+    }
+
+    function renderSummary() {
+        const label = document.getElementById('fileLabel');
+        const err = document.getElementById('uploadError');
+        if (!label) return;
+        if (!selectedFiles.length) { label.innerHTML = ''; return; }
+        if (err) err.style.display = 'none';
+
+        const total = selectedFiles.reduce((s, e) => s + (e.file.size || 0), 0);
+
+        const zips = selectedFiles.filter(f => f.file.name.toLowerCase().endsWith('.zip'));
+        const folders = selectedFiles.filter(f => !f.file.name.toLowerCase().endsWith('.zip'));
+        const surveys = detectSurveys(folders);
+
+        let html = `
+            <div>
+                <p class="file-list-header">
+                    <i class="bi bi-folder2-open me-1"></i>
+                    ${selectedFiles.length} file(s) selected (${fmtBytes(total)})
+                </p>`;
+
+        if (zips.length > 0) {
+            html += `<p class="file-list-header" style="color:#211d71;">
+                        <i class="bi bi-file-earmark-zip me-1"></i> ${zips.length} ZIP archive(s) added
+                     </p>`;
+        }
+
+        if (surveys.length > 0) {
+            const items = surveys.map(s => `
+                <div class="file-item">
+                    <i class="bi ${getVehicleIcon(s.vehicleType)}"></i>
+                    <span class="file-item-name">
+                        ${s.region} / ${s.roadName} / ${s.surveyDate}
+                        <small>${s.vehicleType}</small>
+                    </span>
+                </div>`).join('');
+
+            html += `<p class="file-list-header" style="color:#15803d;">
+                        <i class="bi bi-check2-circle me-1"></i> ${surveys.length} survey(s) detected in folders
+                     </p>
+                     <div class="file-list-scroll">${items}</div>`;
+        }
+        
+        else if (zips.length === 0) {
+            html += `<p style="color:#c0392b;font-size:0.86rem;text-align:center;">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        No SegmentAnalysis folders detected.
+                     </p>`;
+        }
+
+        label.innerHTML = html + `</div>`;
+    }
+
+    function getVehicleIcon(type) {
+        const t = type.toLowerCase();
+        if (t.includes('car')) return 'bi-car-front';
+        if (t.includes('bus')) return 'bi-bus-front';
+        if (t.includes('uv')) return 'bi-taxi-front';
+        return 'bi-car-front'; // Default icon
+    }
+
+    // ── Progress helpers ───────────────────────────────────────────────────
+    function setProgress(pct, msg) {
+        pct = Math.min(100, Math.max(0, Math.round(pct)));
+        progressBar.style.width = pct + '%';
+        progressLabel.textContent = pct + '%';
+        if (msg) loadingMsg.textContent = msg;
+    }
+
+    // Maps known Console.WriteLine patterns to progress milestones (30-98%).
+    // Anything the server logs in between interpolates smoothly.
+    const MILESTONES = [
+        [/Reading CSV files/i,              35],
+        [/Calculating Directional/i,        45],
+        [/Calculating Segment/i,            52],
+        [/Saved Directional Averages/i,     58],
+        [/Trip LineString created/i,        64],
+        [/Saved Survey Map/i,               72],
+        [/Generating DOCX Report/i,         80],
+        [/Saved Survey Report/i,            88],
+        [/Generating ANNEX/i,               92],
+        [/Saved Survey Annex/i,             96],
+        [/All reports bundled/i,            99],
+    ];
+
+    function logsToProgress(logs) {
+        let max = 32; // base after upload phase
+        for (const line of logs)
+            for (const [re, pct] of MILESTONES)
+                if (re.test(line)) max = Math.max(max, pct);
+        return max;
+    }
+
+    // ── Log panel rendering ────────────────────────────────────────────────
+    function lineClass(line) {
+        if (/✅/.test(line)) return 'l-success';
+        if (/⚠️|SKIPPED/i.test(line)) return 'l-warn';
+        if (/❌|fail|error/i.test(line)) return 'l-error';
+        if (/^▶/.test(line)) return 'l-section';
+        if (/^\s*(->|\[TRIP\]|\[CP\]|\[GIS\])/.test(line)) return 'l-debug';
+        return 'l-default';
+    }
+
+    function appendLogs(newLines) {
+        newLines.forEach(line => {
+            const el = document.createElement('div');
+            el.className = lineClass(line);
+            el.textContent = line;
+            logPanel.appendChild(el);
+        });
+        // Auto-scroll to bottom (mirrors Python's log_box.see(tk.END))
+        logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    // ── Phase 1: Upload via XHR (real upload progress) ────────────────────
+    function uploadFiles() {
+        return new Promise((resolve, reject) => {
+            const fd = new FormData();
+            selectedFiles.forEach(({ file, relativePath }) =>
+                fd.append('files', file, relativePath));
+
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', e => {
+                if (e.lengthComputable)
+                    setProgress(e.loaded / e.total * 28, `Uploading… ${fmtBytes(e.loaded)} / ${fmtBytes(e.total)}`);
+            });
+
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    const { jobId } = JSON.parse(xhr.responseText);
+                    resolve(jobId);
+                } else {
+                    reject(new Error(xhr.responseText || `Server error ${xhr.status}`));
+                }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Network error — is the server running?')));
+            xhr.open('POST', '/api/Report/submit');
+            xhr.send(fd);
+        });
+    }
+
+    // ── Phase 2: Poll status ───────────────────────────────────────────────
+    async function pollStatus(jobId) {
+        try {
+            const res = await fetch(`/api/Report/status/${jobId}`);
+            if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+            return await res.json();
+        } catch (e) {
+            return { state: 'Running', logs: [], error: null }; // retry next tick
+        }
+    }
+
+    function startPolling(jobId) {
+        setProgress(30, 'Processing surveys…');
+        logPanel.style.display  = 'block';
+        logPanel.innerHTML      = '';
+        lastLogCount            = 0;
+
+        pollTimer = setInterval(async () => {
+            const status = await pollStatus(jobId);
+
+            // Append only NEW log lines since last poll
+            if (status.logs.length > lastLogCount) {
+                appendLogs(status.logs.slice(lastLogCount));
+                lastLogCount = status.logs.length;
+                setProgress(logsToProgress(status.logs));
+            }
+
+            if (status.state === 'Done') {
+                clearInterval(pollTimer);
+                setProgress(100, '✅ Done — downloading ZIP…');
+                // Small delay so the 100% bar renders before navigation
+                setTimeout(() => triggerDownload(jobId), 400);
+            } else if (status.state === 'Failed') {
+                clearInterval(pollTimer);
+                setProgress(0);
+                overlay.setAttribute('aria-hidden', 'true');
+                showError(`Processing failed:\n${status.error || 'Unknown error — check server logs.'}`);
+                document.getElementById('btnGenerate').disabled = false;
+            }
+        }, 1500);
+    }
+
+    // ── Phase 3: Download ──────────────────────────────────────────────────
+    function triggerDownload(jobId) {
+        const a = document.createElement('a');
+        a.href = `/api/Report/download/${jobId}`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        setTimeout(() => {
+            overlay.setAttribute('aria-hidden', 'true');
+            document.getElementById('btnGenerate').disabled = false;
+        }, 1500);
+    }
+
+    // ── Entry point ────────────────────────────────────────────────────────
+    window.startGeneration = async function () {
+        const err = document.getElementById('uploadError');
+        const btn = document.getElementById('btnGenerate');
+
+        if (!selectedFiles.length) { if (err) err.style.display = 'block'; return; }
+        if (err) err.style.display = 'none';
+        serverError.style.display = 'none';
+
+        btn.disabled = true;
+        overlay.setAttribute('aria-hidden', 'false');
+        logPanel.style.display = 'none';
+        setProgress(0, 'Uploading files…');
+
+        try {
+            const jobId = await uploadFiles();
+            startPolling(jobId);
+        } catch (e) {
+            overlay.setAttribute('aria-hidden', 'true');
+            showError(e.message);
+            btn.disabled = false;
+        }
+    };
+
+    function showError(msg) {
+        serverError.textContent = msg;
+        serverError.style.display = 'block';
+    }
+})();
+</script>

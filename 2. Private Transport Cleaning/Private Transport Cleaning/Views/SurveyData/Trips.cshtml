@@ -1,0 +1,398 @@
+@model List<PrivateTransportCleaning.Models.TripFile>
+
+@{
+    ViewData["Title"] = "Trips (Cleaned)";
+    ViewData["Section"] = "Clean and Snap (Private)";
+}
+
+<link rel="stylesheet" href="/css/shared.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+    body.map-page,
+    body.map-page .page-content,
+    body.map-page main {
+        overflow: hidden !important;
+        height: 100vh !important;
+        min-height: unset !important;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .preview-view-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 120px);
+        max-width: 1600px;
+        margin: 0 auto;
+        width: 100%;
+        padding: 1rem 1.25rem;
+        box-sizing: border-box;
+    }
+
+    .preview-body-grid {
+        display: flex;
+        gap: 1.5rem;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .panel-left {
+        width: 350px;
+        flex-shrink: 0;
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-height: 100%;
+    }
+
+    .panel-left-header {
+        padding: 1rem 1.25rem 0.75rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: var(--color-primary);
+        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-surface);
+        flex-shrink: 0;
+    }
+
+    .selection-controls {
+        display: flex;
+        gap: 6px;
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-bg);
+        flex-shrink: 0;
+    }
+
+    .btn-sel {
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 6px;
+        padding: 4px 10px;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        color: var(--color-text-main);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .btn-sel:hover {
+            background: var(--color-border);
+        }
+
+        .btn-sel.warning {
+            color: #b45309;
+            border-color: #fcd34d;
+            background: #fffbeb;
+        }
+
+            .btn-sel.warning:hover {
+                background: #fef3c7;
+            }
+
+    .trip-list-scroll {
+        flex: 1 1 0;
+        overflow-y: auto;
+        min-height: 0;
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .trip-list-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .trip-list-scroll::-webkit-scrollbar-track {
+            background: var(--color-bg);
+        }
+
+        .trip-list-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+    .trip-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .trip-row:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .trip-row input[type="checkbox"] {
+            accent-color: var(--color-primary);
+            margin-top: 4px;
+            cursor: pointer;
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+        }
+
+    .trip-row-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--color-primary);
+        line-height: 1.2;
+        word-break: break-all;
+    }
+
+    .trip-row-meta {
+        font-size: 0.72rem;
+        color: var(--color-text-muted);
+        line-height: 1.35;
+        margin-top: 2px;
+    }
+
+    .trip-row-actions {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+
+    .btn-mini {
+        font-size: 0.7rem;
+        font-weight: 600;
+        border-radius: 999px;
+        padding: 3px 10px;
+        text-decoration: none;
+        border: 1px solid var(--color-primary);
+        color: var(--color-primary);
+        background: transparent;
+        transition: all 0.15s;
+        cursor: pointer;
+    }
+
+        .btn-mini:hover {
+            background: var(--color-primary);
+            color: #ffffff;
+        }
+
+        .btn-mini.secondary {
+            border-color: #bbbbbb;
+            color: #555555;
+        }
+
+            .btn-mini.secondary:hover {
+                background: #555555;
+                color: #ffffff;
+            }
+
+    .panel-left-actions {
+        padding: 1rem;
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
+        flex-shrink: 0;
+    }
+
+    .panel-right {
+        flex: 1;
+        min-width: 0;
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #map {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        width: 100%;
+        background-color: #e5e7eb;
+    }
+
+    .map-footer {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-shrink: 0;
+    }
+
+    form {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+</style>
+
+<div class="preview-view-wrapper">
+
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 pb-3 border-bottom flex-shrink-0"
+         style="border-color: var(--color-border) !important;">
+        <div>
+            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2"
+                style="font-size: 1.75rem; color: var(--color-text-main);">
+                <i class="bi bi-check2-circle" style="color: var(--color-accent);"></i>
+                Cleaned Trips Only
+            </h1>
+            <div class="d-flex align-items-center gap-2"
+                 style="font-size: 0.85rem; color: var(--color-text-muted);">
+                <span>@Model.Count trip@(Model.Count != 1 ? "s" : "") processed</span>
+            </div>
+        </div>
+
+        <a href="/SurveyData/Index" class="btn-action">
+            <i class="bi bi-arrow-left"></i> Back to Uploads
+        </a>
+    </div>
+
+    <div class="preview-body-grid pt-2">
+
+        <div class="panel-left">
+            <div class="panel-left-header">
+                <i class="bi bi-signpost-split-fill me-2"></i>Trips (Cleaned)
+            </div>
+
+            <div class="selection-controls">
+                <button type="button" class="btn-sel" onclick="selectAll()">
+                    <i class="bi bi-check-all me-1"></i>All
+                </button>
+                <button type="button" class="btn-sel" onclick="deselectAll()">
+                    <i class="bi bi-x me-1"></i>None
+                </button>
+                <button type="button" class="btn-sel warning ms-auto" onclick="toggleAll()">
+                    <i class="bi bi-arrow-left-right me-1"></i>Toggle
+                </button>
+            </div>
+
+            <form method="post" asp-action="DownloadSelected">
+                <div class="trip-list-scroll">
+                    @foreach (var file in Model)
+                    {
+                        <label class="trip-row">
+                            <input type="checkbox" name="files" value="@file.FileName" checked />
+                            <div style="flex:1;">
+                                <div class="trip-row-title">
+                                    @(file.FileName != null
+                                                                    ? file.FileName.Replace("_snapped.csv", "").Replace(".csv", "")
+                                                                    : "Unknown")
+                                                                            </div>
+                                                                            <div class="trip-row-meta">
+                                                                                <i class="bi bi-file-earmark me-1"></i>
+                                    @(file.FileSize > 0
+                                                                    ? (file.FileSize / 1024.0).ToString("0.00") + " KB"
+                                                                    : "Unknown size")
+                            </div>
+                            <div class="trip-row-actions">
+                                <a class="btn-mini"
+                                   href="javascript:void(0)"
+                                   data-file="@file.FileName"
+                                   onclick="loadTrip(this)">
+                                    <i class="bi bi-map me-1"></i>View Map
+                                </a>
+                                <a class="btn-mini secondary" href="@file.DownloadUrl">
+                                    <i class="bi bi-download me-1"></i>Download
+                                </a>
+                            </div>
+                        </div>
+                    </label>
+                                        }
+                </div>
+
+                <div class="panel-left-actions">
+                    <button class="btn-ttds" type="submit">
+                        <i class="bi bi-download"></i> Download CSV ZIP
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="panel-right">
+            <div id="map"></div>
+            <div class="map-footer">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill" style="color: var(--color-primary);"></i>
+                    <span>
+                        <strong style="color: #16a34a;">Green</strong> = Origin,
+                        <strong style="color: #dc2626;">Red</strong> = Destination.
+                    </span>
+                </div>
+                <a href="/SurveyData/Index" class="btn-topbar ms-auto text-decoration-none">
+                    Next: Processing <i class="bi bi-arrow-right-circle-fill ms-1"></i>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    document.body.classList.add('map-page');
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    requestAnimationFrame(() => {
+        map.invalidateSize();
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
+    setTimeout(() => { map.invalidateSize(); }, 100);
+    window.addEventListener('resize', () => map.invalidateSize());
+
+    let currentLayer = null;
+    let markers = [];
+
+    function clearMarkers() {
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+    }
+
+    function loadTrip(el) {
+        const file = el.getAttribute("data-file");
+        fetch('/SurveyData/GetTripData?file=' + encodeURIComponent(file))
+            .then(r => r.json())
+            .then(points => {
+                if (currentLayer) map.removeLayer(currentLayer);
+                clearMarkers();
+                if (!points || points.length < 2) return;
+
+                const latlngs = points.map(p => [p[0], p[1]]);
+                currentLayer = L.polyline(latlngs, { color: '#1d4470', weight: 4 }).addTo(map);
+
+                const sm = L.circleMarker(latlngs[0], {
+                    radius: 6, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1
+                }).addTo(map);
+
+                const em = L.circleMarker(latlngs[latlngs.length - 1], {
+                    radius: 6, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1
+                }).addTo(map);
+
+                markers.push(sm, em);
+                map.fitBounds(currentLayer.getBounds());
+            });
+    }
+
+    function getBoxes() {
+        return document.querySelectorAll("input[type='checkbox'][name='files']");
+    }
+
+    function selectAll()  { getBoxes().forEach(c => c.checked = true); }
+    function deselectAll(){ getBoxes().forEach(c => c.checked = false); }
+    function toggleAll()  { getBoxes().forEach(c => c.checked = !c.checked); }
+</script>

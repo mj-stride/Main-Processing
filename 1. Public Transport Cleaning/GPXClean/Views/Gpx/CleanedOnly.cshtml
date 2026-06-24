@@ -2,270 +2,386 @@
 @using System.Text.Json
 
 @{
-    ViewData["Title"] = "Cleaned Trips Only";
+    ViewData["Title"] = "Auditing Cleaned Trips";
+    ViewData["Section"] = "Clean and Snap (PUV)";
+    var tripCount = Model.Trips?.Count ?? 0;
 }
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<div class="container py-4">
-    <div class="d-flex align-items-center justify-content-between mb-2">
+<style>
+    /* 1. STRICT VIEWPORT LOCK: Outlaws outer browser scrolling */
+    html, body {
+        height: 100vh !important;
+        overflow: hidden !important;
+    }
+
+    /* 2. MASTER BOUNDING BOX: Fits exactly between Topbar and Footer */
+    .preview-view-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 110px); /* 100vh minus Topbar (~60px), Footer (~40px), and margins */
+        max-width: 1600px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    /* Main split body */
+    .preview-body-grid {
+        display: flex;
+        gap: 1.5rem;
+        flex: 1;
+        min-height: 0; /* Crucial flex lock */
+    }
+
+    /* LEFT PANEL: Bounded by calc safety net */
+    .panel-left {
+        width: 350px;
+        flex-shrink: 0;
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-left-header {
+        padding: 1rem 1.25rem 0.75rem;
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: var(--color-primary);
+        border-bottom: 1px solid var(--color-border);
+        background-color: var(--color-surface);
+    }
+
+    /* Batch Selection Utility Strip */
+    .selection-controls {
+        display: flex;
+        gap: 6px;
+        padding: 0.65rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        background: var(--color-bg);
+    }
+
+    .btn-sel {
+        font-size: 0.75rem;
+        font-weight: 600;
+        border-radius: 6px;
+        padding: 4px 10px;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        color: var(--color-text-main);
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .btn-sel:hover {
+            background: var(--color-border);
+        }
+
+        .btn-sel.warning {
+            color: #b45309;
+            border-color: #fcd34d;
+            background: #fffbeb;
+        }
+
+            .btn-sel.warning:hover {
+                background: #fef3c7;
+            }
+
+    /* Trip Row Scoped Typography */
+    .trip-list-scroll {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        min-height: 0; /* Forces internal custom scrollbar */
+        padding: 0.75rem 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+        .trip-list-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .trip-list-scroll::-webkit-scrollbar-track {
+            background: var(--color-bg);
+        }
+
+        .trip-list-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+    .trip-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .trip-row:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .trip-row input[type="checkbox"] {
+            accent-color: var(--color-primary);
+            margin-top: 4px;
+            cursor: pointer;
+        }
+
+    .trip-row-title {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--color-primary);
+        line-height: 1.2;
+    }
+
+    .trip-row-meta {
+        font-size: 0.72rem;
+        color: var(--color-text-muted);
+        line-height: 1.35;
+        margin-top: 2px;
+    }
+
+    .trip-row-zip {
+        font-size: 0.68rem;
+        color: #94a3b8;
+        margin-top: 2px;
+        word-break: break-all;
+    }
+
+    .panel-left-actions {
+        padding: 1rem;
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
+    }
+
+    /* Success button variant extending shared.css */
+    .btn-ttds-success {
+        background-color: #16a34a !important; /* Emerald */
+    }
+
+        .btn-ttds-success:hover {
+            background-color: #15803d !important;
+        }
+
+    /* RIGHT PANEL */
+    .panel-right {
+        flex: 1;
+        min-width: 0;
+        background: var(--color-surface);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    #map {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        background-color: #e5e7eb;
+    }
+
+    .map-footer {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.82rem;
+        color: var(--color-text-muted);
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
+    }
+</style>
+
+<div class="preview-view-wrapper py-3 px-2">
+
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 pb-3 border-bottom flex-shrink-0" style="border-color: var(--color-border) !important;">
         <div>
-            <h3 class="mb-0">Cleaned Trips Only</h3>
-            <div class="text-muted">Batch: @Model.BatchId | Trips: @(Model.Trips?.Count ?? 0)</div>
+            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size: 1.75rem; color: var(--color-text-main);">
+                <i class="bi bi-check2-circle" style="color: var(--color-accent);"></i> Validated Trip Trajectories
+            </h1>
+            <div class="d-flex align-items-center gap-2" style="font-size: 0.85rem; color: var(--color-text-muted);">
+                <span><strong class="text-dark">Batch:</strong> @Model.BatchId</span>
+                <span>•</span>
+                <span>@tripCount clean trip@(tripCount != 1 ? "s" : "") detected</span>
+            </div>
         </div>
 
-        <div class="d-flex gap-2">
-            <a href="/gpx/preview-map/@Model.BatchId" class="btn btn-outline-secondary">
-                Back to Map Preview
-            </a>
-        </div>
+        <a href="/gpx/preview-map/@Model.BatchId" class="btn-action">
+            <i class="bi bi-arrow-left"></i> Back to Snapped Map
+        </a>
     </div>
 
-    <div class="row g-4">
-        <!-- LEFT: Trip selection + actions -->
-        <div class="col-md-3">
-            <div class="card h-100">
-                <div class="card-body">
+    <div class="preview-body-grid pt-2">
 
-                    <h5 class="card-title mb-2">Trips (Cleaned)</h5>
+        <div class="panel-left">
+            <div class="panel-left-header">
+                <i class="bi bi-signpost-split-fill me-2"></i>Trip Directory
+            </div>
 
-                    <!-- Selection buttons -->
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        <button type="button" class="btn btn-sm btn-primary" id="selectAllBtn">Select All</button>
-                        <button type="button" class="btn btn-sm btn-secondary" id="deselectAllBtn">Deselect All</button>
-                        <button type="button" class="btn btn-sm btn-warning" id="toggleBtn">Switch Selection</button>
-                    </div>
+            <div class="selection-controls">
+                <button type="button" class="btn-sel" id="selectAllBtn"><i class="bi bi-check-all me-1"></i>All</button>
+                <button type="button" class="btn-sel" id="deselectAllBtn"><i class="bi bi-x me-1"></i>None</button>
+                <button type="button" class="btn-sel warning ms-auto" id="toggleBtn"><i class="bi bi-arrow-left-right me-1"></i>Invert</button>
+            </div>
 
-                    <form id="cleanedActionForm" method="post" class="d-flex flex-column gap-2">
-                        @Html.AntiForgeryToken()
+            <form id="cleanedActionForm" method="post" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="batchId" value="@Model.BatchId" />
+                <div id="selectedFilesContainer"></div>
 
-                        <input type="hidden" name="batchId" value="@Model.BatchId" />
-                        <div id="selectedFilesContainer"></div>
+                <div class="trip-list-scroll">
+                    @for (int i = 0; i < tripCount; i++)
+                    {
+                        var t = Model.Trips[i];
+                        var id = "trip_" + i;
 
-                        <div class="border rounded p-2" style="max-height: 60vh; overflow:auto;">
-                            @for (int i = 0; i < (Model.Trips?.Count ?? 0); i++)
-                            {
-                                var t = Model.Trips[i];
-                                var id = "trip_" + i;
-
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input trip-checkbox"
-                                           type="checkbox"
-                                           id="@id"
-                                           data-files='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(t.SourceZipFiles))'
-                                           checked />
-                                    <label class="form-check-label text-break" for="@id">
-                                        <div class="fw-semibold">
-                                            @t.VehicleCode @t.TripId (@t.Direction-@t.PartIndex)
-                                        </div>
-
-                                        <div class="small text-muted">
-                                            @(t.DetectedRegionId ?? "UNK") | @(t.DetectedRoadName ?? "UNK")
-                                            • @(t.Points?.Count ?? 0) pts
-                                        </div>
-
-                                        <div class="small text-muted">
-                                            ZIP: @t.SourceZipFileName
-                                        </div>
-                                    </label>
+                        <label class="trip-row" for="@id">
+                            <input class="trip-checkbox"
+                                   type="checkbox"
+                                   id="@id"
+                                   data-files='@Html.Raw(JsonSerializer.Serialize(t.SourceZipFiles))'
+                                   checked />
+                            <div class="trip-row-body">
+                                <div class="trip-row-title">@t.VehicleCode @t.TripId (@t.Direction-@t.PartIndex)</div>
+                                <div class="trip-row-meta">
+                                    <i class="bi bi-geo me-1"></i>@(t.DetectedRegionId ?? "UNK") |
+                                    <i class="bi bi-road ms-1 me-1"></i>@(t.DetectedRoadName ?? "UNK") | @(t.Points?.Count ?? 0) pts
                                 </div>
-                            }
-                        </div>
-
-                        <button type="submit"
-                                formaction="/gpx/process-selected"
-                                class="btn btn-success">
-                            Download CSV ZIP (Selected)
-                        </button>
-                    </form>
+                                <div class="trip-row-zip"><i class="bi bi-file-zip-fill me-1"></i>@t.SourceZipFileName</div>
+                            </div>
+                        </label>
+                    }
                 </div>
+
+                <div class="panel-left-actions mt-auto">
+                    <button type="submit" formaction="/gpx/process-selected" class="btn-ttds btn-ttds-success w-100 d-flex align-items-center justify-content-center gap-2">
+                        <i class="bi bi-file-earmark-spreadsheet-fill"></i> Download CSV Package
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="panel-right">
+            <div id="map"></div>
+            <div class="map-footer d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle-fill" style="color: var(--color-primary);"></i>
+                    <span>Click a path to inspect. <strong style="color: #16a34a;">Green</strong> = Origin, <strong style="color: #dc2626;">Red</strong> = Destination.</span>
+                </div>
+
+                <a href="https://localhost:7046/" class="btn-topbar ms-sm-auto text-decoration-none">
+                    Next: Analysis Engine <i class="bi bi-arrow-right-circle-fill ms-1"></i>
+                </a>
             </div>
         </div>
 
-        <!-- RIGHT: Map -->
-        <div class="col-md-9">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div id="map" style="height: 70vh; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
-@section Scripts {
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const vm = @Html.Raw(JsonSerializer.Serialize(Model));
-        const trips = vm.trips || vm.Trips || [];
+<script>
+    const map = L.map('map').setView([12.8797, 121.7740], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
 
-        const map = L.map('map').setView([12.8797, 121.7740], 6);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 20
-        }).addTo(map);
+    // Re-measure Leaflet canvas after Flexbox calculates stretching
+    setTimeout(() => { map.invalidateSize(); }, 250);
 
-        let layers = [];
+    const vm = @Html.Raw(JsonSerializer.Serialize(Model));
+    const trips = vm.trips || vm.Trips || [];
 
-        function clearLayers() {
-            layers.forEach(layer => map.removeLayer(layer));
-            layers = [];
-        }
+    let layers = [];
 
-        function updateMap() {
-            clearLayers();
+    function updateMap() {
+        layers.forEach(l => map.removeLayer(l));
+        layers = [];
+        const boundsList = [];
 
-            const boundsList = [];
+        trips.forEach((t, i) => {
+            const cb = document.getElementById("trip_" + i);
+            if (!cb || !cb.checked) return;
 
-            trips.forEach((t, i) => {
-                const cb = document.getElementById("trip_" + i);
-                if (!cb || !cb.checked) return;
+            const pts = t.points || t.Points || [];
+            if (!pts || pts.length < 2) return;
 
-                const pts = t.points || t.Points || [];
-                if (!pts || pts.length < 2) return;
+            const latlngs = pts.map(p => {
+                const lat = p.snappedLat ?? p.SnappedLat ?? p.lat ?? p.Lat ?? p.latitude ?? p.Latitude ?? p.item1 ?? p.Item1;
+                const lon = p.snappedLon ?? p.SnappedLon ?? p.lon ?? p.Lon ?? p.longitude ?? p.Longitude ?? p.item2 ?? p.Item2;
+                return (lat != null && lon != null) ? [lat, lon] : null;
+            }).filter(Boolean);
 
-                const latlngs = pts.map(p => {
-                    const lat =
-                        p.snappedLat ?? p.SnappedLat ??
-                        p.lat ?? p.Lat ??
-                        p.latitude ?? p.Latitude ??
-                        p.item1 ?? p.Item1;
+            if (latlngs.length < 2) return;
 
-                    const lon =
-                        p.snappedLon ?? p.SnappedLon ??
-                        p.lon ?? p.Lon ??
-                        p.longitude ?? p.Longitude ??
-                        p.item2 ?? p.Item2;
+            const line = L.polyline(latlngs, { weight: 4.5, color: '#1d4470', opacity: 0.85 }).addTo(map);
+            line.bindPopup(`
+                <div style="font-family: 'Inter', sans-serif;">
+                    <strong style="color: #1d4470; font-size: 0.9rem;">${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}</strong><br/>
+                    <span style="color: #64748b; font-size: 0.8rem;">Direction: ${(t.direction || t.Direction || "")}-${(t.partIndex || t.PartIndex || "")}</span><br/>
+                    <hr style="margin: 4px 0;"/>
+                    <small style="color: #0f172a;">${(t.detectedRegionId || t.DetectedRegionId || "UNK")} | ${(t.detectedRoadName || t.DetectedRoadName || "UNK")}</small>
+                </div>
+            `);
+            line.on("click", () => { cb.checked = !cb.checked; updateMap(); });
+            layers.push(line);
+            boundsList.push(line.getBounds());
 
-                    return (lat != null && lon != null) ? [lat, lon] : null;
-                }).filter(Boolean);
+            const s = t.start || t.Start;
+            const e = t.end || t.End;
 
-                if (latlngs.length < 2) return;
-
-                const line = L.polyline(latlngs, {
-                    weight: 4,
-                    color: "#0d6efd",
-                    opacity: 0.9
-                }).addTo(map);
-
-                line.bindPopup(`
-                    <div>
-                        <strong>${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}</strong><br/>
-                        ${(t.direction || t.Direction || "")}-${(t.partIndex || t.PartIndex || "")}<br/>
-                        ${(t.detectedRegionId || t.DetectedRegionId || "UNK")} | ${(t.detectedRoadName || t.DetectedRoadName || "UNK")}
-                    </div>
-                `);
-
-                // Click line to toggle checkbox selection
-                line.on("click", () => {
-                    cb.checked = !cb.checked;
-                    updateMap();
-                });
-
-                layers.push(line);
-                boundsList.push(line.getBounds());
-
-                const s = t.start || t.Start;
-                const e = t.end || t.End;
-
-                if ((s?.lat ?? s?.Lat) != null && (s?.lon ?? s?.Lon) != null) {
-                    const sm = L.circleMarker(
-                        [s.lat ?? s.Lat, s.lon ?? s.Lon],
-                        {
-                            radius: 6,
-                            color: "green",
-                            fillColor: "green",
-                            fillOpacity: 1
-                        }
-                    ).addTo(map);
-
-                    sm.bindPopup(`Start: ${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
-                    layers.push(sm);
-                }
-
-                if ((e?.lat ?? e?.Lat) != null && (e?.lon ?? e?.Lon) != null) {
-                    const em = L.circleMarker(
-                        [e.lat ?? e.Lat, e.lon ?? e.Lon],
-                        {
-                            radius: 6,
-                            color: "red",
-                            fillColor: "red",
-                            fillOpacity: 1
-                        }
-                    ).addTo(map);
-
-                    em.bindPopup(`End: ${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
-                    layers.push(em);
-                }
-            });
-
-            if (boundsList.length) {
-                let b = boundsList[0];
-                for (let i = 1; i < boundsList.length; i++) {
-                    b = b.extend(boundsList[i]);
-                }
-                map.fitBounds(b.pad(0.15));
-            } else {
-                map.setView([12.8797, 121.7740], 6);
+            if ((s?.lat ?? s?.Lat) != null) {
+                const sm = L.circleMarker([s.lat ?? s.Lat, s.lon ?? s.Lon], { radius: 5.5, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1 }).addTo(map);
+                sm.bindPopup(`<strong>Trip Origin</strong><br/>${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
+                layers.push(sm);
             }
+            if ((e?.lat ?? e?.Lat) != null) {
+                const em = L.circleMarker([e.lat ?? e.Lat, e.lon ?? e.Lon], { radius: 5.5, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1 }).addTo(map);
+                em.bindPopup(`<strong>Trip Destination</strong><br/>${t.vehicleCode || t.VehicleCode || ""} ${t.tripId || t.TripId || ""}`);
+                layers.push(em);
+            }
+        });
+
+        if (boundsList.length) {
+            let b = boundsList[0];
+            for (let i = 1; i < boundsList.length; i++) b = b.extend(boundsList[i]);
+            map.fitBounds(b.pad(0.15));
         }
+    }
 
-        // checkbox change -> redraw map
-        document.querySelectorAll(".trip-checkbox").forEach(cb => {
-            cb.addEventListener("change", updateMap);
+    document.querySelectorAll(".trip-checkbox").forEach(cb => cb.addEventListener("change", updateMap));
+    document.getElementById("selectAllBtn").addEventListener("click", () => { document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = true); updateMap(); });
+    document.getElementById("deselectAllBtn").addEventListener("click", () => { document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = false); updateMap(); });
+    document.getElementById("toggleBtn").addEventListener("click", () => { document.querySelectorAll(".trip-checkbox").forEach(cb => cb.checked = !cb.checked); updateMap(); });
+
+    updateMap();
+
+    const form = document.getElementById("cleanedActionForm");
+    const container = document.getElementById("selectedFilesContainer");
+    form.addEventListener("submit", function () {
+        container.innerHTML = "";
+        const allZips = new Set();
+        document.querySelectorAll(".trip-checkbox:checked").forEach(cb => {
+            try {
+                const arr = JSON.parse(cb.getAttribute("data-files") || "[]");
+                arr.forEach(z => allZips.add(z));
+            } catch (e) { console.error("Failed to parse zip payload", e); }
         });
 
-        // Select All
-        document.getElementById("selectAllBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => {
-                cb.checked = true;
-            });
-            updateMap();
+        allZips.forEach(z => {
+            const inp = document.createElement("input");
+            inp.type = "hidden";
+            inp.name = "selectedFiles";
+            inp.value = z;
+            container.appendChild(inp);
         });
-
-        // Deselect All
-        document.getElementById("deselectAllBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => {
-                cb.checked = false;
-            });
-            updateMap();
-        });
-
-        // Switch Selection
-        document.getElementById("toggleBtn").addEventListener("click", () => {
-            document.querySelectorAll(".trip-checkbox").forEach(cb => {
-                cb.checked = !cb.checked;
-            });
-            updateMap();
-        });
-
-        updateMap();
-
-        // Submit selected ZIP files to controller
-        const form = document.getElementById("cleanedActionForm");
-        const container = document.getElementById("selectedFilesContainer");
-
-        form.addEventListener("submit", function () {
-            container.innerHTML = "";
-
-            const all = new Set();
-
-            document.querySelectorAll(".trip-checkbox:checked").forEach(cb => {
-                try {
-                    const arr = JSON.parse(cb.getAttribute("data-files") || "[]");
-                    arr.forEach(z => all.add(z));
-                } catch (e) {
-                    console.error("Invalid data-files JSON:", e);
-                }
-            });
-
-            all.forEach(z => {
-                const inp = document.createElement("input");
-                inp.type = "hidden";
-                inp.name = "selectedFiles";
-                inp.value = z;
-                container.appendChild(inp);
-            });
-        });
-    </script>
-}
+    });
+</script>

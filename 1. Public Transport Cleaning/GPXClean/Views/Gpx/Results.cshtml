@@ -3,7 +3,8 @@
 @using System.Text.Json
 
 @{
-    ViewData["Title"] = "GPX Results Preview";
+    ViewData["Title"] = "GPX Telemetry Results Preview";
+    ViewData["Section"] = "Clean and Snap (PUV)";
 
     var fileGroups = Model
         .GroupBy(r => r.FilePath)
@@ -11,124 +12,223 @@
         .ToList();
 }
 
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<div class="container py-4">
-    <h1 class="mb-1">Preview of GPX Data</h1>
-    <p class="text-muted mb-4">Showing first @Model.Count rows</p>
+<style>
+    /* Bounding shell for ultra-wide screens */
+    .results-preview-wrapper {
+        max-width: 1600px;
+        margin: 0 auto;
+        width: 100%;
+    }
 
-    <!-- SPEED CHART -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <canvas id="speedChart" height="80"></canvas>
+    /* Multi-select custom scrollbar container */
+    .file-groups-scroll {
+        max-height: 420px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-right: 4px;
+    }
+
+        .file-groups-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .file-groups-scroll::-webkit-scrollbar-track {
+            background: var(--color-bg);
+        }
+
+        .file-groups-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+
+    /* File Selection Row Tokens */
+    .file-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+
+        .file-toggle-row:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .file-toggle-row input[type="checkbox"] {
+            accent-color: var(--color-primary);
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+    .file-toggle-name {
+        font-size: 0.82rem;
+        color: var(--color-text-main);
+        font-weight: 500;
+        word-break: break-all;
+        flex: 1;
+        line-height: 1.25;
+        margin-bottom: 0;
+    }
+
+    .file-toggle-pts {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        background: #e2e8f0;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    /* Success variant extending shared.css */
+    .btn-ttds-success {
+        background-color: #16a34a !important; /* Emerald */
+    }
+
+        .btn-ttds-success:hover {
+            background-color: #15803d !important;
+        }
+</style>
+
+<div class="results-preview-wrapper py-4 px-2">
+
+    <div class="mb-4 pb-3 border-bottom d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2" style="border-color: var(--color-border) !important;">
+        <div>
+            <h1 class="fw-bold mb-1 d-flex align-items-center gap-2" style="font-size: 1.85rem; color: var(--color-text-main);">
+                <i class="bi bi-speedometer me-2" style="color: var(--color-accent);"></i>GPX Telemetry Dashboard
+            </h1>
+            <p class="text-muted mb-0" style="font-size: 0.95rem;">Reviewing aggregated spatial and velocity logs</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-light text-dark border px-3 py-2 fw-medium" style="font-size: 0.85rem;">
+                <i class="bi bi-layers-fill me-1" style="color: var(--color-primary);"></i> @fileGroups.Count Source Files
+            </span>
+            <span class="badge px-3 py-2 fw-medium" style="background-color: var(--color-primary); font-size: 0.85rem;">
+                Total Records: @Model.Count
+            </span>
         </div>
     </div>
 
-    <!-- TABLE PREVIEW -->
-    <div class="card mb-4">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-striped mb-0">
-                    <thead class="table-light">
+    <div class="premium-card p-4 mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom" style="border-color: var(--color-bg) !important;">
+            <h5 class="fw-bold mb-0" style="color: var(--color-text-main); font-size: 1.1rem;">
+                <i class="bi bi-graph-up me-2" style="color: var(--color-accent);"></i>Velocity Distribution Profile (km/h)
+            </h5>
+            <span class="badge bg-light text-muted border">Chart.js Engine</span>
+        </div>
+        <div style="position: relative; height: 160px; width: 100%;">
+            <canvas id="speedChart"></canvas>
+        </div>
+    </div>
+
+    <div class="table-container mb-4">
+        <div class="p-3 border-bottom d-flex align-items-center justify-content-between" style="background-color: var(--color-surface);">
+            <h5 class="fw-bold mb-0" style="color: var(--color-text-main); font-size: 1.1rem;">
+                <i class="bi bi-table me-2" style="color: var(--color-primary);"></i>Raw Data Log (First @Model.Count Rows)
+            </h5>
+            <span class="badge bg-light text-muted border">Scrollable Grid</span>
+        </div>
+        <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th>Group</th>
+                        <th>Timestamp</th>
+                        <th>Latitude</th>
+                        <th>Longitude</th>
+                        <th>Speed (km/h)</th>
+                        <th>Source File</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model)
+                    {
                         <tr>
-                            <th>Group</th>
-                            <th>Timestamp</th>
-                            <th>Lat</th>
-                            <th>Lon</th>
-                            <th>Speed</th>
-                            <th>File</th>
+                            <td class="fw-medium">@r.Group</td>
+                            <td class="text-muted">@(r.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss"))</td>
+                            <td>@r.SnappedLat</td>
+                            <td>@r.SnappedLon</td>
+                            <td>
+                                <span class="badge bg-light text-dark border fw-semibold">@r.Speed</span>
+                            </td>
+                            <td class="text-break text-muted" style="max-width: 220px;">@r.FilePath</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var r in Model)
-                        {
-                            <tr>
-                                <td>@r.Group</td>
-                                <td>@r.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                                <td>@r.SnappedLat</td>
-                                <td>@r.SnappedLon</td>
-                                <td>@r.Speed</td>
-                                <td class="text-break">@r.FilePath</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                    }
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <!-- FILES + MAP -->
-    <div class="row g-4">
+    <div class="row g-4 mb-4">
 
-        <!-- LEFT: FILE SELECTION -->
-        <div class="col-md-3">
-            <div class="card h-100">
-                <div class="card-body">
+        <div class="col-lg-3 col-md-4">
+            <div class="premium-card p-4 h-100 d-flex flex-column mb-0">
+                <h5 class="fw-bold mb-3" style="color: var(--color-text-main); font-size: 1.1rem;">
+                    <i class="bi bi-folder-check me-2" style="color: var(--color-primary);"></i>Batch Files
+                </h5>
 
-                    <h5 class="card-title">Files</h5>
+                <form id="selectedFilesForm" method="post" class="d-flex flex-column flex-grow-1">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="batchId" value="@ViewBag.BatchId" />
+                    <div id="selectedFilesContainer"></div>
 
-                    <form id="selectedFilesForm"
-                          method="post"
-                          class="d-flex flex-column gap-2">
+                    <div class="file-groups-scroll mb-4">
+                        @foreach (var grp in fileGroups)
+                        {
+                            var chkId = "chk_" + Guid.NewGuid().ToString("N");
 
-                        @Html.AntiForgeryToken()
+                            <label class="file-toggle-row" for="@chkId">
+                                <input class="form-check-input file-checkbox"
+                                       type="checkbox"
+                                       id="@chkId"
+                                       data-file="@grp.Key"
+                                       checked />
+                                <span class="file-toggle-name">@grp.Key</span>
+                                <span class="file-toggle-pts">@grp.Count()</span>
+                            </label>
+                        }
+                    </div>
 
-                        <!-- REQUIRED -->
-                        <input type="hidden" name="batchId" value="@ViewBag.BatchId" />
-
-                        <!-- container for dynamic selectedFiles[] -->
-                        <div id="selectedFilesContainer"></div>
-
-                        <div class="border rounded p-2" style="max-height:65vh; overflow:auto;">
-                            @foreach (var grp in fileGroups)
-                            {
-                                var chkId = "chk_" + Guid.NewGuid().ToString("N");
-
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input file-checkbox"
-                                           type="checkbox"
-                                           id="@chkId"
-                                           data-file="@grp.Key"
-                                           checked />
-
-                                    <label class="form-check-label text-break" for="@chkId">
-                                        @grp.Key
-                                        <small class="text-muted">(@grp.Count() pts)</small>
-                                    </label>
-                                </div>
-                            }
-                        </div>
-
-                        <!-- ACTION BUTTONS -->
-                        <button type="submit"
-                                formaction="/gpx/cleaned-only-view"
-                                class="btn btn-primary">
-                            View Cleaned Only
+                    <div class="d-flex flex-column gap-2 mt-auto pt-3 border-top" style="border-color: var(--color-border) !important;">
+                        <button type="submit" formaction="/gpx/cleaned-only-view" class="btn-ttds">
+                            <i class="bi bi-funnel-fill me-2"></i>View Cleaned Only
                         </button>
 
-                        <button type="submit"
-                                formaction="/gpx/process-selected"
-                                class="btn btn-success">
-                            Download CSV ZIP
+                        <button type="submit" formaction="/gpx/process-selected" class="btn-ttds btn-ttds-success">
+                            <i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Download CSV ZIP
                         </button>
 
-                        <a href="/gpx/upload" class="btn btn-outline-secondary">
-                            Back
+                        <a href="/gpx/upload" class="btn-action text-center mt-1">
+                            <i class="bi bi-arrow-left me-2"></i>Back to Upload
                         </a>
-
-                    </form>
-                </div>
+                    </div>
+                </form>
             </div>
         </div>
 
-        <!-- RIGHT: MAP -->
-        <div class="col-md-9">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div id="map"
-                         style="height:65vh; border-radius:8px; border:1px solid #dee2e6;">
-                    </div>
+        <div class="col-lg-9 col-md-8">
+            <div class="premium-card p-0 h-100 d-flex flex-column overflow-hidden mb-0" style="min-height: 500px;">
+                <div class="p-3 border-bottom d-flex align-items-center justify-content-between" style="background-color: var(--color-surface);">
+                    <h5 class="fw-bold mb-0" style="color: var(--color-text-main); font-size: 1.1rem;">
+                        <i class="bi bi-map-fill me-2" style="color: var(--color-accent);"></i>Geographic Trajectory
+                    </h5>
+                    <span class="badge bg-light text-muted border">Leaflet Engine</span>
+                </div>
+                <div id="map" style="width: 100%; flex-grow: 1; min-height: 420px; background-color: #f8fafc;"></div>
+                <div class="p-2 px-3 border-top d-flex align-items-center gap-2 text-muted" style="font-size: 0.82rem; background-color: var(--color-surface);">
+                    <i class="bi bi-info-circle-fill" style="color: var(--color-primary);"></i>
+                    <span>Showing snapped GPS coordinates mapped to road geometry. Uncheck files on the left to dynamically exclude points.</span>
                 </div>
             </div>
         </div>
@@ -136,26 +236,24 @@
     </div>
 </div>
 
-<!-- =======================
-     CHART.JS
-     ======================= -->
 <script>
     (function () {
-        const labels = @Html.Raw(JsonSerializer.Serialize(
-                        Model.Select(r => r.Timestamp?.ToString("HH:mm:ss"))
-                ));
+        const labels = @Html.Raw(JsonSerializer.Serialize(Model.Select(r => r.Timestamp?.ToString("HH:mm:ss"))));
+        const speeds = @Html.Raw(JsonSerializer.Serialize(Model.Select(r => r.Speed)));
 
-        const speeds = @Html.Raw(JsonSerializer.Serialize(
-                        Model.Select(r => r.Speed)
-                ));
+        const ctx = document.getElementById('speedChart');
+        if (!ctx) return;
 
-        new Chart(document.getElementById('speedChart'), {
+        new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Speed',
+                    label: 'Speed (km/h)',
                     data: speeds,
+                    borderColor: '#1d4470', // Bound to --color-primary
+                    backgroundColor: 'rgba(29, 68, 112, 0.12)', // Subtle primary gradient fill
+                    fill: true,
                     borderWidth: 2,
                     pointRadius: 0,
                     tension: 0.25
@@ -164,21 +262,24 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
                 scales: {
-                    x: { ticks: { maxTicksLimit: 10 } },
-                    y: { beginAtZero: true }
+                    x: {
+                        grid: { display: false },
+                        ticks: { maxTicksLimit: 10, color: '#64748b', font: { family: 'Inter' } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#e2e8f0' },
+                        ticks: { color: '#64748b', font: { family: 'Inter' } }
+                    }
                 }
             }
         });
     })();
 </script>
-
-<!-- =======================
-     LEAFLET
-     ======================= -->
-<link rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
     const map = L.map('map').setView([12.8797, 121.7740], 5);
@@ -186,6 +287,9 @@
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 20
     }).addTo(map);
+
+    // Re-measure canvas after Bootstrap flexbox layout paints
+    setTimeout(() => { map.invalidateSize(); }, 250);
 
     const previewData = @Html.Raw(JsonSerializer.Serialize(Model));
 
@@ -201,26 +305,25 @@
         const markers = [];
 
         previewData
-            .filter(r => selectedFiles.includes(r.FilePath))
+            .filter(r => selectedFiles.includes(r.filePath || r.FilePath)) // Safe property check
             .forEach(r => {
-                if (r.SnappedLat && r.SnappedLon) {
+                const lat = r.snappedLat ?? r.SnappedLat ?? r.lat ?? r.Lat;
+                const lon = r.snappedLon ?? r.SnappedLon ?? r.lon ?? r.Lon;
+                if (lat != null && lon != null) {
                     const m = L.circleMarker(
-                        [r.SnappedLat, r.SnappedLon],
-                        { radius: 3 }
+                        [lat, lon],
+                        { radius: 3.5, color: '#da471f', fillColor: '#da471f', fillOpacity: 0.8, weight: 1 } // Orange Accent
                     ).addTo(map);
                     markers.push(m);
                 }
             });
 
         if (markers.length) {
-            map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+            map.fitBounds(L.featureGroup(markers).getBounds().pad(0.15));
         }
     }
 
-    document
-        .querySelectorAll('.file-checkbox')
-        .forEach(cb => cb.addEventListener('change', updateMap));
-
+    document.querySelectorAll('.file-checkbox').forEach(cb => cb.addEventListener('change', updateMap));
     updateMap();
 
     /* ============
@@ -231,15 +334,12 @@
 
     form.addEventListener("submit", function () {
         container.innerHTML = "";
-
-        document
-            .querySelectorAll(".file-checkbox:checked")
-            .forEach(cb => {
-                const inp = document.createElement("input");
-                inp.type = "hidden";
-                inp.name = "selectedFiles";
-                inp.value = cb.dataset.file;
-                container.appendChild(inp);
-            });
+        document.querySelectorAll(".file-checkbox:checked").forEach(cb => {
+            const inp = document.createElement("input");
+            inp.type = "hidden";
+            inp.name = "selectedFiles";
+            inp.value = cb.dataset.file;
+            container.appendChild(inp);
+        });
     });
 </script>

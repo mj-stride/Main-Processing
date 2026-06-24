@@ -1,0 +1,142 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Program Files\\dotnet\\sdk\\9.0.314\\Sdks\\Microsoft.NET.Sdk.StaticWebAssets\\targets\\Microsoft.NET.Sdk.StaticWebAssets.targets||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\4. report generator\\report generator\\services\\chartgeneratorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|solutionrelative:report generator\\services\\chartgeneratorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\4. report generator\\report generator\\services\\csvexportservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|solutionrelative:report generator\\services\\csvexportservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\4. report generator\\report generator\\services\\csvparserservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|solutionrelative:report generator\\services\\csvparserservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\4. report generator\\report generator\\services\\dataprocessorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|solutionrelative:report generator\\services\\dataprocessorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\4. report generator\\report generator\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|solutionrelative:report generator\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|c:\\users\\ivan obias\\documents\\github\\main-processing\\4. report generator\\report generator\\report generator.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{2076AB4F-A2C6-4FA6-B963-A195E82B5D0A}|Report Generator\\Report Generator.csproj|solutionrelative:report generator\\report generator.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 5,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "ChartGeneratorService.cs",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\ChartGeneratorService.cs",
+              "RelativeDocumentMoniker": "Report Generator\\Services\\ChartGeneratorService.cs",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\ChartGeneratorService.cs",
+              "RelativeToolTip": "Report Generator\\Services\\ChartGeneratorService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-18T06:09:44.066Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "CsvExportService.cs",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\CsvExportService.cs",
+              "RelativeDocumentMoniker": "Report Generator\\Services\\CsvExportService.cs",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\CsvExportService.cs",
+              "RelativeToolTip": "Report Generator\\Services\\CsvExportService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-18T06:09:43.319Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "CsvParserService.cs",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\CsvParserService.cs",
+              "RelativeDocumentMoniker": "Report Generator\\Services\\CsvParserService.cs",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\CsvParserService.cs",
+              "RelativeToolTip": "Report Generator\\Services\\CsvParserService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-18T06:09:42.436Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "DataProcessorService.cs",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\DataProcessorService.cs",
+              "RelativeDocumentMoniker": "Report Generator\\Services\\DataProcessorService.cs",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Services\\DataProcessorService.cs",
+              "RelativeToolTip": "Report Generator\\Services\\DataProcessorService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-18T06:09:41.391Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Microsoft.NET.Sdk.StaticWebAssets.targets",
+              "DocumentMoniker": "C:\\Program Files\\dotnet\\sdk\\9.0.314\\Sdks\\Microsoft.NET.Sdk.StaticWebAssets\\targets\\Microsoft.NET.Sdk.StaticWebAssets.targets",
+              "RelativeDocumentMoniker": "..\\..\\..\\..\\..\\..\\Program Files\\dotnet\\sdk\\9.0.314\\Sdks\\Microsoft.NET.Sdk.StaticWebAssets\\targets\\Microsoft.NET.Sdk.StaticWebAssets.targets",
+              "ToolTip": "C:\\Program Files\\dotnet\\sdk\\9.0.314\\Sdks\\Microsoft.NET.Sdk.StaticWebAssets\\targets\\Microsoft.NET.Sdk.StaticWebAssets.targets",
+              "RelativeToolTip": "..\\..\\..\\..\\..\\..\\Program Files\\dotnet\\sdk\\9.0.314\\Sdks\\Microsoft.NET.Sdk.StaticWebAssets\\targets\\Microsoft.NET.Sdk.StaticWebAssets.targets",
+              "ViewState": "AgIAAOMCAAAAAAAAAAAgwPgCAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003801|",
+              "WhenOpened": "2026-06-18T06:09:29.512Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Program.cs",
+              "RelativeDocumentMoniker": "Report Generator\\Program.cs",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Program.cs",
+              "RelativeToolTip": "Report Generator\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-06-18T06:09:07.736Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Report Generator.csproj",
+              "DocumentMoniker": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Report Generator.csproj",
+              "RelativeDocumentMoniker": "Report Generator\\Report Generator.csproj",
+              "ToolTip": "C:\\Users\\Ivan Obias\\Documents\\GitHub\\Main-Processing\\4. Report Generator\\Report Generator\\Report Generator.csproj",
+              "RelativeToolTip": "Report Generator\\Report Generator.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-06-11T07:20:29.69Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

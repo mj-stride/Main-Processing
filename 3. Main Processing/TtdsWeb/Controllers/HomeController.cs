@@ -545,10 +545,19 @@ namespace TtdsWeb.Controllers
 
         private static (double minLat, double maxLat, double minLon, double maxLon) ComputeBbox(List<TripRow> df, double bufferMeters = 500.0)
         {
-            var minLat = df.Min(r => r.SnappedLat);
-            var maxLat = df.Max(r => r.SnappedLat);
-            var minLon = df.Min(r => r.SnappedLon);
-            var maxLon = df.Max(r => r.SnappedLon);
+            var validRows = df
+                .Where(r => !double.IsNaN(r.SnappedLat) && !double.IsNaN(r.SnappedLon)
+                         && !double.IsInfinity(r.SnappedLat) && !double.IsInfinity(r.SnappedLon)
+                         && Math.Abs(r.SnappedLat) <= 90 && Math.Abs(r.SnappedLon) <= 180)
+                .ToList();
+
+            if (validRows.Count == 0)
+                return (0, 0, 0, 0);
+
+            var minLat = validRows.Min(r => r.SnappedLat);
+            var maxLat = validRows.Max(r => r.SnappedLat);
+            var minLon = validRows.Min(r => r.SnappedLon);
+            var maxLon = validRows.Max(r => r.SnappedLon);
 
             double latMid = (minLat + maxLat) / 2.0;
             double dLat = bufferMeters / 111320.0;
@@ -566,7 +575,9 @@ namespace TtdsWeb.Controllers
         private static string ComputeDatasetDirection(List<TripRow> rows)
         {
             var pts = rows
-                .Where(r => !double.IsNaN(r.SnappedLat) && !double.IsNaN(r.SnappedLon))
+                .Where(r => !double.IsNaN(r.SnappedLat) && !double.IsNaN(r.SnappedLon)
+                         && !double.IsInfinity(r.SnappedLat) && !double.IsInfinity(r.SnappedLon)
+                         && Math.Abs(r.SnappedLat) <= 90 && Math.Abs(r.SnappedLon) <= 180)
                 .Select(r => (lat: r.SnappedLat, lon: r.SnappedLon))
                 .ToList();
             if (pts.Count < 2) return "Unknown";
@@ -619,27 +630,73 @@ namespace TtdsWeb.Controllers
 
             foreach (var f in files)
             {
-                if (f == null || !f.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-                    continue;
+                if (f == null) continue;
 
-                var safeName = Path.GetFileName(f.FileName);
-                var path = Path.Combine(uploadRoot, safeName);
+                var isCsv = f.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                var isZip = f.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
 
-                await using (var fs = System.IO.File.Create(path))
-                    await f.CopyToAsync(fs);
+                if (!isCsv && !isZip) continue;
 
-                var rows = ReadTripCsv(path);
-                if (!rows.Any()) continue;
-
-                _state.Datasets.Add(new TripDataset
+                if (isCsv)
                 {
-                    FileName = f.FileName,
-                    Path = path,
-                    Rows = rows,
-                    Coords = rows.Select(r => new[] { r.SnappedLat, r.SnappedLon }).ToList()
-                });
+                    var safeName = Path.GetFileName(f.FileName);
+                    var path = Path.Combine(uploadRoot, safeName);
 
-                _state.LastTripPath = path;
+                    await using (var fs = System.IO.File.Create(path))
+                        await f.CopyToAsync(fs);
+
+                    var rows = ReadTripCsv(path);
+                    if (!rows.Any()) continue;
+
+                    _state.Datasets.Add(new TripDataset
+                    {
+                        FileName = f.FileName,
+                        Path = path,
+                        Rows = rows,
+                        Coords = rows
+                        .Where(r => !double.IsNaN(r.SnappedLat) && !double.IsNaN(r.SnappedLon)
+                                 && !double.IsInfinity(r.SnappedLat) && !double.IsInfinity(r.SnappedLon))
+                        .Select(r => new[] { r.SnappedLat, r.SnappedLon })
+                        .ToList()
+                    });
+
+                    _state.LastTripPath = path;
+                }
+                else // zip
+                {
+                    using var zipStream = new MemoryStream();
+                    await f.CopyToAsync(zipStream);
+                    zipStream.Seek(0, SeekOrigin.Begin);
+
+                    using var zip = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: false);
+
+                    var csvEntries = zip.Entries
+                        .Where(e => e.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    foreach (var entry in csvEntries)
+                    {
+                        var safeName = Path.GetFileName(entry.Name);
+                        var path = Path.Combine(uploadRoot, safeName);
+
+                        await using (var fs = System.IO.File.Create(path))
+                        using (var es = entry.Open())
+                            await es.CopyToAsync(fs);
+
+                        var rows = ReadTripCsv(path);
+                        if (!rows.Any()) continue;
+
+                        _state.Datasets.Add(new TripDataset
+                        {
+                            FileName = entry.Name,
+                            Path = path,
+                            Rows = rows,
+                            Coords = rows.Select(r => new[] { r.SnappedLat, r.SnappedLon }).ToList()
+                        });
+
+                        _state.LastTripPath = path;
+                    }
+                }
             }
 
             if (!_state.Datasets.Any())
@@ -1245,6 +1302,17 @@ namespace TtdsWeb.Controllers
                 .Cast<object>()
                 .ToList();
 
+            // 5) Populate region/road dropdowns from current state
+            var dbPath = ResolveKmDbPath();
+            if (System.IO.File.Exists(dbPath))
+            {
+                vm.RegionList = GetAllRegions(dbPath);
+                vm.RoadsByRegion = GetAllRoadsByRegion(dbPath, vm.RegionList);
+            }
+
+            vm.SelectedRegion = _state.KmRegion ?? vm.RegionList.FirstOrDefault() ?? "";
+            vm.SelectedRoad = (_state.KmRoads?.FirstOrDefault()) ?? _state.KmRoad ?? "";
+
             return View("ResultMulti", vm);
         }
 
@@ -1359,61 +1427,99 @@ namespace TtdsWeb.Controllers
             try
             {
                 if (cp_file == null || cp_file.Length == 0)
-                    return BadRequest("Please select a .csv file.");
-                if (!cp_file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-                    return BadRequest("Invalid file type. Please upload a .csv file.");
+                    return BadRequest("Please select a .csv or .zip file.");
 
                 var uploadRoot = GetUploadRoot();
-                var path = Path.Combine(uploadRoot, "uploaded_cp.csv");
 
-                await using (var fs = System.IO.File.Create(path))
-                    await cp_file.CopyToAsync(fs);
+                var isCsv = cp_file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase);
+                var isZip = cp_file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
 
-                using var reader = new StreamReader(path);
-                using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
-                var records = csv.GetRecords<dynamic>().ToList();
-                if (records.Count == 0)
-                    return BadRequest("Empty CP file.");
+                if (!isCsv && !isZip)
+                    return BadRequest("Invalid file type. Please upload a .csv or .zip file.");
 
                 _state.ControlPoints.Clear();
 
-                foreach (var r in records)
+                void ProcessRecords(IEnumerable<dynamic> records)
                 {
-                    var dict = (IDictionary<string, object>)r;
-
-                    string? Get(IDictionary<string, object> d, params string[] keys)
+                    foreach (var r in records)
                     {
-                        foreach (var k in keys)
-                            if (d.TryGetValue(k, out var v) && v != null)
-                                return Convert.ToString(v);
+                        var dict = (IDictionary<string, object>)r;
 
-                        foreach (var kv in d)
-                            if (keys.Any(k2 => string.Equals(kv.Key, k2, StringComparison.OrdinalIgnoreCase)))
-                                return Convert.ToString(kv.Value);
+                        string? Get(IDictionary<string, object> d, params string[] keys)
+                        {
+                            foreach (var k in keys)
+                                if (d.TryGetValue(k, out var v) && v != null)
+                                    return Convert.ToString(v);
 
-                        return null;
+                            foreach (var kv in d)
+                                if (keys.Any(k2 => string.Equals(kv.Key, k2, StringComparison.OrdinalIgnoreCase)))
+                                    return Convert.ToString(kv.Value);
+
+                            return null;
+                        }
+
+                        var cpName = Get(dict, "controlPoint", "cp", "name", "ControlPoint", "CP");
+                        var latStr = Get(dict, "latitude", "lat", "Latitude", "Lat");
+                        var lonStr = Get(dict, "longitude", "lon", "lng", "Longitude", "Lon", "Lng");
+
+                        if (string.IsNullOrWhiteSpace(latStr) || string.IsNullOrWhiteSpace(lonStr))
+                            continue;
+                        if (!double.TryParse(latStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat))
+                            continue;
+                        if (!double.TryParse(lonStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var lng))
+                            continue;
+
+                        if (string.IsNullOrWhiteSpace(cpName))
+                            cpName = $"CP{_state.ControlPoints.Count + 1}";
+
+                        _state.ControlPoints.Add(new ControlPoint
+                        {
+                            ControlPointId = cpName.Trim(),
+                            Lat = lat,
+                            Lng = lng
+                        });
                     }
+                }
 
-                    var cpName = Get(dict, "controlPoint", "cp", "name", "ControlPoint", "CP");
-                    var latStr = Get(dict, "latitude", "lat", "Latitude", "Lat");
-                    var lonStr = Get(dict, "longitude", "lon", "lng", "Longitude", "Lon", "Lng");
+                if (isCsv)
+                {
+                    var path = Path.Combine(uploadRoot, "uploaded_cp.csv");
+                    await using (var fs = System.IO.File.Create(path))
+                        await cp_file.CopyToAsync(fs);
 
-                    if (string.IsNullOrWhiteSpace(latStr) || string.IsNullOrWhiteSpace(lonStr))
-                        continue;
-                    if (!double.TryParse(latStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat))
-                        continue;
-                    if (!double.TryParse(lonStr, NumberStyles.Float, CultureInfo.InvariantCulture, out var lng))
-                        continue;
+                    using var reader = new StreamReader(path);
+                    using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+                    var records = csv.GetRecords<dynamic>().ToList();
+                    if (records.Count == 0)
+                        return BadRequest("Empty CP file.");
+                    ProcessRecords(records);
+                }
+                else // zip
+                {
+                    using var ms = new MemoryStream();
+                    await cp_file.CopyToAsync(ms);
+                    ms.Seek(0, SeekOrigin.Begin);
 
-                    if (string.IsNullOrWhiteSpace(cpName))
-                        cpName = $"CP{_state.ControlPoints.Count + 1}";
+                    using var zip = new ZipArchive(ms, ZipArchiveMode.Read, leaveOpen: false);
 
-                    _state.ControlPoints.Add(new ControlPoint
+                    // Only consider CSV entries whose filename (not path) starts with "GPX" (case-insensitive)
+                    var csvEntries = zip.Entries
+                        .Where(e => e.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+                                    && Path.GetFileNameWithoutExtension(e.Name).StartsWith("GPX", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (csvEntries.Count == 0)
+                        return BadRequest("ZIP contains no .csv files starting with 'GPX'.");
+
+                    foreach (var entry in csvEntries)
                     {
-                        ControlPointId = cpName.Trim(),
-                        Lat = lat,
-                        Lng = lng
-                    });
+                        using var es = entry.Open();
+                        using var reader = new StreamReader(es);
+                        using var csv = new CsvReader(reader, CultureInfo.InvariantCulture);
+                        var records = csv.GetRecords<dynamic>().ToList();
+                        if (records.Count == 0) continue;
+                        ProcessRecords(records);
+                    }
                 }
 
                 return Json(new
@@ -2889,7 +2995,51 @@ namespace TtdsWeb.Controllers
             public string FileName { get; set; } = "";
             public string DataUrl { get; set; } = "";
         }
+        private List<string> GetAllRegions(string dbPath)
+        {
+            var list = new List<string>();
+            try
+            {
+                using var con = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly;");
+                con.Open();
+                using var cmd = con.CreateCommand();
+                cmd.CommandText = "SELECT DISTINCT regionId FROM tblKilometerPost ORDER BY regionId;";
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                    if (!string.IsNullOrWhiteSpace(rdr["regionId"]?.ToString()))
+                        list.Add(rdr["regionId"]!.ToString()!);
+            }
+            catch { }
+            return list;
+        }
 
+        private Dictionary<string, List<string>> GetAllRoadsByRegion(string dbPath, List<string> regions)
+        {
+            var dict = new Dictionary<string, List<string>>();
+            try
+            {
+                using var con = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly;");
+                con.Open();
+                foreach (var region in regions)
+                {
+                    using var cmd = con.CreateCommand();
+                    cmd.CommandText = @"
+                SELECT DISTINCT roadName
+                FROM tblKilometerPost
+                WHERE regionId = @region
+                ORDER BY roadName;";
+                    cmd.Parameters.AddWithValue("@region", region);
+                    var roads = new List<string>();
+                    using var rdr = cmd.ExecuteReader();
+                    while (rdr.Read())
+                        if (!string.IsNullOrWhiteSpace(rdr["roadName"]?.ToString()))
+                            roads.Add(rdr["roadName"]!.ToString()!);
+                    dict[region] = roads;
+                }
+            }
+            catch { }
+            return dict;
+        }
         public class ExportAllWithGraphsRequest
         {
             public string? Region { get; set; }
@@ -2943,6 +3093,21 @@ namespace TtdsWeb.Controllers
                     //AddDirectionalAveragesToZip_ByDate(zip, list, $"{root}/DirectionalAverages");
                     AddSegmentAnalysisToZip(zip, list, $"{root}/SegmentAnalysis");
                     AddShapesToZip(zip, list, $"{root}/Shapes");
+
+                    // ===== EXPORT ORIGINAL SNAPPED/CLEANED CSVs =====
+                    foreach (var d in list)
+                    {
+                        if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                            continue;
+
+                        var csvFileName = Path.GetFileName(d.Path);
+                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+
+                        var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
+                        using var es = entry.Open();
+                        using var fs = System.IO.File.OpenRead(d.Path);
+                        fs.CopyTo(es);
+                    }
 
                     // ✅ OPTIONAL (but you asked): export KM/CP used in analysis (per trip) with lat/lon
                     foreach (var d in list)
@@ -3073,6 +3238,21 @@ namespace TtdsWeb.Controllers
                     //AddDirectionalAveragesToZip_ByDate(zip, list, $"{root}/DirectionalAverages");
                     AddSegmentAnalysisToZip(zip, list, $"{root}/SegmentAnalysis");
                     AddShapesToZip(zip, list, $"{root}/Shapes");
+
+                    // ===== EXPORT ORIGINAL SNAPPED/CLEANED CSVs =====
+                    foreach (var d in list)
+                    {
+                        if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                            continue;
+
+                        var csvFileName = Path.GetFileName(d.Path);
+                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+
+                        var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
+                        using var es = entry.Open();
+                        using var fs = System.IO.File.OpenRead(d.Path);
+                        fs.CopyTo(es);
+                    }
                 }
 
                 if (byDateVehicle.Count == 0)
