@@ -14,7 +14,7 @@
 <body>
     <header class="topbar">
         <span class="title">@(ViewData["Section"] ?? "Processing Pipeline")</span>
-        <a href="https://localhost:7171/" class="btn-topbar">
+        <a asp-action="GoToDashboard" class="btn-topbar">
             <i class="bi bi-grid-1x2-fill me-1"></i> Dashboard
         </a>
     </header>

@@ -23,6 +23,9 @@ builder.Services.AddScoped<ShapefileExportService>();
 // ---- Job infrastructure ----
 builder.Services.AddSingleton<ReportJobService>();
 builder.Services.AddHostedService<ReportBackgroundService>();
+builder.Services.Configure<ServiceOptions>(
+    builder.Configuration.GetSection(ServiceOptions.SectionName)
+);
 
 builder.Services.AddCors(options =>
 {
@@ -49,3 +52,4 @@ app.MapControllerRoute(
 app.MapControllers();
 
 app.Run();
+

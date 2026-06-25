@@ -1,4 +1,5 @@
 @page
+@using Processing_Integrator.Pages
 @model IndexModel
 @{
     Layout = null;
@@ -15,7 +16,6 @@
     <link rel="stylesheet" href="/css/shared.css" />
 </head>
 <body>
-
     <div class="topbar">Traffic Time and Delay Survey Processing</div>
 
     <main class="flex-grow-1 d-flex flex-column align-items-center justify-content-center py-5 px-3">
@@ -102,13 +102,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
     <script>
         function handleStep(action) {
-          const routes = {
-            puv:     'http://localhost:5050/gpx/upload',
-            private: 'https://localhost:7089/',
-            process: 'https://localhost:7046/',
-            report:  'https://localhost:7105/'
-          };
-          window.location.href = routes[action];
+            const routes = {
+                puv:     '@Model.PubClean',
+                private: '@Model.PrivClean',
+                process: '@Model.MainProc',
+                report:  '@Model.ReportGen'
+            };
+            window.location.href = routes[action];
         }
     </script>
 

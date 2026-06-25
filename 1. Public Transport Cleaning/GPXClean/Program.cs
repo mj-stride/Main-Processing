@@ -19,7 +19,9 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 1_500_000_000;
 });
-
+builder.Services.Configure<ServiceOptions>(
+    builder.Configuration.GetSection(ServiceOptions.SectionName)
+);
 var app = builder.Build();
 
 app.Lifetime.ApplicationStarted.Register(() =>
@@ -45,4 +47,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
+app.MapGet("/", () => Results.Redirect("/gpx/upload"));
+
 app.Run();
+

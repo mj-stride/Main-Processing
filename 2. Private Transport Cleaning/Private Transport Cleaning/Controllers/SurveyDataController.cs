@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -15,6 +16,7 @@ namespace PrivateTransportCleaning.Controllers
     {
         private readonly GpxProcessingService _gpxService;
         private readonly FileNamingService _fileNamingService;
+        private readonly ServiceOptions _services;
 
         private string RootDir =>
             Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
@@ -26,10 +28,22 @@ namespace PrivateTransportCleaning.Controllers
 
         public SurveyDataController(
             GpxProcessingService gpxService,
-            FileNamingService fileNamingService)
+            FileNamingService fileNamingService,
+            IOptions<ServiceOptions> options)
         {
             _gpxService = gpxService;
             _fileNamingService = fileNamingService;
+            _services = options.Value;
+        }
+
+        public IActionResult GoToDashboard()
+        {
+            return Redirect(_services.Dashboard);
+        }
+
+        public IActionResult GoToNext()
+        {
+            return Redirect(_services.MainProc);
         }
 
         private string? ExtractDate(string fileName)
