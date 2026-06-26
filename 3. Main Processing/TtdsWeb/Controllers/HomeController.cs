@@ -19,7 +19,7 @@ using TtdsWeb.Models;
 using TtdsWeb.Services;   // AppState
 using TtdsWeb.Utils;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-
+using Microsoft.Extensions.Options;
 
 namespace TtdsWeb.Controllers
 {
@@ -28,13 +28,25 @@ namespace TtdsWeb.Controllers
         private readonly AppState _state;
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _env;
+        private readonly ServiceOptions _services;
         private const double CP_DETECT_RADIUS_M = 300.0;
 
-        public HomeController(AppState state, IConfiguration config, IWebHostEnvironment env)
+        public HomeController(AppState state, IConfiguration config, IWebHostEnvironment env, IOptions<ServiceOptions> options)
         {
             _state = state;
             _config = config;
             _env = env;
+            _services = options.Value;
+        }
+
+        public IActionResult GoToDashboard()
+        {
+            return Redirect(_services.Dashboard);
+        }
+
+        public IActionResult GoToNext()
+        {
+            return Redirect(_services.ReportGen);
         }
         private List<ControlPoint> BuildKmAnchorsForRows(List<TripRow> df)
         {

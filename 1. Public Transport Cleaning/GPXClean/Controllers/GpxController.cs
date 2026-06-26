@@ -12,14 +12,30 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Travel_Time_and_Delay_Web_Application.Models;
+using Microsoft.Extensions.Options;
 
 namespace Travel_Time_and_Delay_Web_Application.Controllers
 {
     public class GpxController : Controller
     {
         private readonly ILogger<GpxController> _log;
-        public GpxController(ILogger<GpxController> log) => _log = log;
+        private readonly ServiceOptions _services;
 
+        public GpxController(ILogger<GpxController> log, IOptions<ServiceOptions> options)
+        {
+            _log = log;
+            _services = options.Value;
+        }
+
+        public IActionResult GoToDashboard()
+        {
+            return Redirect(_services.Dashboard);
+        }
+
+        public IActionResult GoToNext()
+        {
+            return Redirect(_services.MainProc);
+        }
         // ======================
         // MERGE RULES
         // ======================
@@ -268,7 +284,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         // ROUTES
         // ======================
         [HttpGet("/gpx/upload")]
-        public IActionResult Upload() => View();
+        public IActionResult Upload() => View("Index");
 
         // ✅ prevent 405 if user opens /gpx/preview-map in browser
         [HttpGet("/gpx/preview-map")]

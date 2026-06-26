@@ -19,6 +19,10 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = long.MaxValue;
 });
 
+builder.Services.Configure<ServiceOptions>(
+    builder.Configuration.GetSection(ServiceOptions.SectionName)
+);
+
 // =========================
 // MVC
 // =========================
@@ -57,3 +61,4 @@ app.MapControllerRoute(
     pattern: "{controller=SurveyData}/{action=Index}/{id?}");
 
 app.Run();
+

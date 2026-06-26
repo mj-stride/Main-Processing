@@ -350,13 +350,3 @@ body {
     .drop-zone--active i {
         transform: scale(1.08);
     }
-
-.dropdown-menu {
-    z-index: 99999 !important;
-}
-
-.table-container,
-.premium-card,
-.page-content {
-    overflow: visible !important;
-}
