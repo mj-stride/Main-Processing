@@ -44,7 +44,7 @@ namespace TtdsWeb.Controllers
             return Redirect(_services.Dashboard);
         }
 
-        public IActionResult GoToNext()
+        public IActionResult GoToReportGen()
         {
             return Redirect(_services.ReportGen);
         }
@@ -3113,7 +3113,7 @@ namespace TtdsWeb.Controllers
                             continue;
 
                         var csvFileName = Path.GetFileName(d.Path);
-                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+                        var entryPath = $"{root}/Snapped/{csvFileName}";
 
                         var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
                         using var es = entry.Open();
@@ -3258,7 +3258,7 @@ namespace TtdsWeb.Controllers
                             continue;
 
                         var csvFileName = Path.GetFileName(d.Path);
-                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+                        var entryPath = $"{root}/Snapped/{csvFileName}";
 
                         var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
                         using var es = entry.Open();

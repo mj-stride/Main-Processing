@@ -32,7 +32,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return Redirect(_services.Dashboard);
         }
 
-        public IActionResult GoToNext()
+        public IActionResult GoToMainProc()
         {
             return Redirect(_services.MainProc);
         }
