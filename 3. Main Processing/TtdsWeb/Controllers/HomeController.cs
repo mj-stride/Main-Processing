@@ -44,7 +44,7 @@ namespace TtdsWeb.Controllers
             return Redirect(_services.Dashboard);
         }
 
-        public IActionResult GoToNext()
+        public IActionResult GoToReportGen()
         {
             return Redirect(_services.ReportGen);
         }
@@ -625,13 +625,69 @@ namespace TtdsWeb.Controllers
         // ------------------------------------------------------------
         // UPLOAD MULTIPLE CSV FILES → show MapMulti with checkboxes
         // ------------------------------------------------------------
+
+        [HttpGet("/cp/infer_region_road")]
+        public IActionResult InferRegionRoadFromCp()
+        {
+            if (_state.ControlPoints.Count == 0)
+                return Json(new { region = (string?)null, road = (string?)null });
+
+            string? dbPath;
+            try { dbPath = ResolveKmDbPath(); }
+            catch { return Json(new { region = (string?)null, road = (string?)null }); }
+
+            if (!System.IO.File.Exists(dbPath))
+                return Json(new { region = (string?)null, road = (string?)null });
+
+            // Build bbox from uploaded CPs (with generous buffer)
+            var (minLat, maxLat, minLon, maxLon) = (
+                _state.ControlPoints.Min(c => c.Lat) - 0.05,
+                _state.ControlPoints.Max(c => c.Lat) + 0.05,
+                _state.ControlPoints.Min(c => c.Lng) - 0.05,
+                _state.ControlPoints.Max(c => c.Lng) + 0.05
+            );
+
+            // Find the region+road combo with the most KM posts inside the CP bbox
+            // — that's the best spatial match
+            try
+            {
+                using var con = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly;");
+                con.Open();
+
+                using var cmd = con.CreateCommand();
+                cmd.CommandText = @"
+            SELECT regionId, roadName, COUNT(*) as cnt
+            FROM tblKilometerPost
+            WHERE latitude  BETWEEN @minLat AND @maxLat
+              AND longitude BETWEEN @minLon AND @maxLon
+            GROUP BY regionId, roadName
+            ORDER BY cnt DESC
+            LIMIT 1;";
+                cmd.Parameters.AddWithValue("@minLat", minLat);
+                cmd.Parameters.AddWithValue("@maxLat", maxLat);
+                cmd.Parameters.AddWithValue("@minLon", minLon);
+                cmd.Parameters.AddWithValue("@maxLon", maxLon);
+
+                using var rdr = cmd.ExecuteReader();
+                if (rdr.Read())
+                {
+                    var region = rdr["regionId"]?.ToString();
+                    var road = rdr["roadName"]?.ToString();
+                    return Json(new { region, road });
+                }
+            }
+            catch { }
+
+            return Json(new { region = (string?)null, road = (string?)null });
+        }
+
         [HttpPost("/upload")]
         public async Task<IActionResult> Upload(List<IFormFile> files)
         {
             _state.KmRoad = Request.HasFormContentType ? Request.Form["kmRoad"].ToString() : null;
 
             _state.Datasets.Clear();
-            _state.ControlPoints.Clear();
+            //_state.ControlPoints.Clear();
             _state.ManualCpKm.Clear();
             _state.KmGeneratedPoints.Clear();
             _state.LastTripPath = null;
@@ -1305,11 +1361,23 @@ namespace TtdsWeb.Controllers
                 vm.PeakGroups.Add(g);
             }
 
-            // 4) CP data for map (use preview dataset anchors)
-            var preview = chosen.First();
-            var anchors2 = GetActiveAnchorsForTrip(preview.Rows);
+            // 4) CP data for map
+            // In CP mode: use _state.ControlPoints directly (not trip-filtered)
+            // In KM mode: derive from trip rows as before
+            List<ControlPoint> mapAnchors;
 
-            vm.CpData = anchors2
+            if ((_state.AnchorSource ?? "cp") == "cp" && _state.ControlPoints.Count > 0)
+            {
+                // Use the full uploaded CP list — not trip-filtered
+                mapAnchors = _state.ControlPoints.ToList();
+            }
+            else
+            {
+                var preview = chosen.First();
+                mapAnchors = GetActiveAnchorsForTrip(preview.Rows);
+            }
+
+            vm.CpData = mapAnchors
                 .Select(cp => new { cp_id = cp.ControlPointId, lat = cp.Lat, lon = cp.Lng })
                 .Cast<object>()
                 .ToList();
@@ -3113,7 +3181,7 @@ namespace TtdsWeb.Controllers
                             continue;
 
                         var csvFileName = Path.GetFileName(d.Path);
-                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+                        var entryPath = $"{root}/Snapped/{csvFileName}";
 
                         var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
                         using var es = entry.Open();
@@ -3258,7 +3326,7 @@ namespace TtdsWeb.Controllers
                             continue;
 
                         var csvFileName = Path.GetFileName(d.Path);
-                        var entryPath = $"{root}/Snapped-Cleaned/{csvFileName}";
+                        var entryPath = $"{root}/Snapped/{csvFileName}";
 
                         var entry = zip.CreateEntry(entryPath, CompressionLevel.Fastest);
                         using var es = entry.Open();
@@ -3338,6 +3406,8 @@ namespace TtdsWeb.Controllers
 
             return File(ms.ToArray(), "application/zip", $"GRAPHS_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
         }
+
+
 
     }
 

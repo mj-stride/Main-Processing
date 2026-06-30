@@ -266,7 +266,9 @@
                 </div>
 
                 <div class="panel-left-actions mt-auto">
-                    <button type="submit" formaction="/gpx/process-selected" class="btn-ttds btn-ttds-success w-100 d-flex align-items-center justify-content-center gap-2">
+                    <button type="submit" formaction="/gpx/process-selected" id="btnDownload"
+                            class="btn-ttds btn-ttds-success w-100 d-flex align-items-center justify-content-center gap-2"
+                            onclick="enableNext()">
                         <i class="bi bi-file-earmark-spreadsheet-fill"></i> Download CSV Package
                     </button>
                 </div>
@@ -281,8 +283,9 @@
                     <span>Click a path to inspect. <strong style="color: #16a34a;">Green</strong> = Origin, <strong style="color: #dc2626;">Red</strong> = Destination.</span>
                 </div>
 
-                <a asp-action="GoToMainProc" class="btn-topbar ms-sm-auto text-decoration-none">
-                    Next: Analysis Engine <i class="bi bi-arrow-right-circle-fill ms-1"></i>
+                <a id="btnNext" asp-action="GoToMainProc" class="btn-topbar ms-sm-auto text-decoration-none"
+                   style="opacity: 0.4; pointer-events: none; cursor: not-allowed;">
+                    Next: Processing <i class="bi bi-arrow-right-circle-fill ms-1"></i>
                 </a>
             </div>
         </div>
@@ -384,4 +387,11 @@
             container.appendChild(inp);
         });
     });
+        function enableNext() {
+        const btn = document.getElementById("btnNext");
+        if (!btn) return;
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        btn.style.cursor = "pointer";
+    }
 </script>

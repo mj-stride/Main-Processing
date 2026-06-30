@@ -2,7 +2,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -12,7 +14,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Travel_Time_and_Delay_Web_Application.Models;
-using Microsoft.Extensions.Options;
 
 namespace Travel_Time_and_Delay_Web_Application.Controllers
 {
@@ -20,6 +21,33 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
     {
         private readonly ILogger<GpxController> _log;
         private readonly ServiceOptions _services;
+
+        // =========================================================
+        // PROGRESS TRACKING
+        // =========================================================
+        private static readonly ConcurrentDictionary<string, ProgressUpdate> _progress = new();
+
+        public class ProgressUpdate
+        {
+            public int Percent { get; set; }
+            public string Title { get; set; } = "";
+            public string Message { get; set; } = "";
+            public string? Redirect { get; set; }
+            public string? Error { get; set; }
+        }
+
+        private static void SetProgress(string sessionId, int percent, string title, string message,
+            string? redirect = null, string? error = null)
+        {
+            _progress[sessionId] = new ProgressUpdate
+            {
+                Percent = percent,
+                Title = title,
+                Message = message,
+                Redirect = redirect,
+                Error = error
+            };
+        }
 
         public GpxController(ILogger<GpxController> log, IOptions<ServiceOptions> options)
         {
@@ -32,27 +60,24 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return Redirect(_services.Dashboard);
         }
 
-        public IActionResult GoToNext()
+        public IActionResult GoToMainProc()
         {
             return Redirect(_services.MainProc);
         }
+
         // ======================
         // MERGE RULES
         // ======================
-        // ✅ You want NB and SB to be separate "trip parts", so direction must match to merge.
         private const bool RequireSameDirectionForMerge = true;
-
         private const int MergeGapSeconds = 8 * 60;
         private const double MergeJumpMeters = 1200.0;
 
         // ======================
-        // CLEAN RULES (line-level only)
+        // CLEAN RULES
         // ======================
         private const double MaxStepMeters = 1500.0;
         private const double MaxKph = 180.0;
         private const double DuplicateMeters = 0.5;
-
-        // Preview decimation
         private const int PreviewStep = 10;
 
         // ======================
@@ -140,7 +165,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 if (v == null) return "";
                 if (v is DateTime dt)
                     return dt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-
                 var s = Convert.ToString(v, CultureInfo.InvariantCulture) ?? "";
                 bool q = s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r');
                 if (!q) return s;
@@ -212,18 +236,13 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             for (int i = 0; i < cleaned.Count; i += sampleEvery)
             {
                 var p = cleaned[i];
-
                 KmPostRow? best = null;
                 double bestD = double.MaxValue;
 
                 foreach (var k in kmPosts)
                 {
                     var d = HaversineMeters(p.SnappedLat, p.SnappedLon, k.Lat, k.Lon);
-                    if (d < bestD)
-                    {
-                        bestD = d;
-                        best = k;
-                    }
+                    if (d < bestD) { bestD = d; best = k; }
                 }
 
                 if (best != null && bestD <= maxMatchMeters)
@@ -234,7 +253,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             }
 
             if (votes.Count == 0) return (null, null);
-
             var top = votes.OrderByDescending(x => x.Value).First().Key;
             return (top.region, top.road);
         }
@@ -242,13 +260,10 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         private static string SafeFilePart(string? s)
         {
             if (string.IsNullOrWhiteSpace(s)) return "UNK";
-
             var cleaned = new string(
                 s.Trim()
                  .Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch)
-                 .ToArray()
-            );
-
+                 .ToArray());
             cleaned = cleaned.Replace(' ', '_');
             if (cleaned.Length > 40) cleaned = cleaned.Substring(0, 40);
             return cleaned.ToUpperInvariant();
@@ -257,94 +272,166 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         private static (string datePart, string timePart) ExtractDateTimeFromZipName(string zipFileName)
         {
             var name = Path.GetFileNameWithoutExtension(zipFileName);
-
             var m1 = Regex.Match(name, @"(20\d{6})-(\d{6})");
             if (m1.Success) return (m1.Groups[1].Value, m1.Groups[2].Value);
-
             var m2 = Regex.Match(name, @"(20\d{6})(\d{6})");
             if (m2.Success) return (m2.Groups[1].Value, m2.Groups[2].Value);
-
             return ("UNKDATE", "UNKTIME");
         }
 
         private static string ExtractDateOnlyFromZipName(string zipFileName)
         {
             var name = Path.GetFileNameWithoutExtension(zipFileName);
-
             var m1 = Regex.Match(name, @"(20\d{6})-(\d{6})");
             if (m1.Success) return m1.Groups[1].Value;
-
             var m2 = Regex.Match(name, @"(20\d{6})(\d{6})");
             if (m2.Success) return m2.Groups[1].Value;
-
             return "UNKDATE";
         }
 
         // ======================
-        // ROUTES
+        // ROUTES & ENDPOINTS
         // ======================
         [HttpGet("/gpx/upload")]
         public IActionResult Upload() => View("Index");
 
-        // ✅ prevent 405 if user opens /gpx/preview-map in browser
         [HttpGet("/gpx/preview-map")]
-        public IActionResult PreviewMapRootGet()
+        public IActionResult PreviewMapRootGet() => RedirectToAction("Upload");
+
+        // =========================================================
+        // SSE PROGRESS ENDPOINT
+        // =========================================================
+        [HttpGet("/gpx/progress/{sessionId}")]
+        public async Task ProgressStream(string sessionId)
         {
-            return RedirectToAction("Upload");
+            Response.Headers["Content-Type"] = "text/event-stream";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["X-Accel-Buffering"] = "no";
+
+            var timeout = DateTime.UtcNow.AddMinutes(10);
+
+            while (DateTime.UtcNow < timeout)
+            {
+                if (_progress.TryGetValue(sessionId, out var update))
+                {
+                    var json = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        percent = update.Percent,
+                        title = update.Title,
+                        message = update.Message,
+                        redirect = update.Redirect,
+                        error = update.Error
+                    });
+
+                    await Response.WriteAsync($"data: {json}\n\n");
+                    await Response.Body.FlushAsync();
+
+                    if (update.Redirect != null || update.Error != null)
+                    {
+                        _progress.TryRemove(sessionId, out _);
+                        break;
+                    }
+                }
+
+                await Task.Delay(300);
+            }
         }
 
         // =========================================================
-        // PREVIEW MAP (POST)
+        // PREVIEW MAP (POST) - The Heavy Worker
         // =========================================================
         [HttpPost("/gpx/preview-map")]
         [RequestSizeLimit(1_500_000_000)]
-        public async System.Threading.Tasks.Task<IActionResult> PreviewMap(List<IFormFile> files)
+        public async Task<IActionResult> PreviewMap(List<IFormFile> files, string? sessionId)
         {
             if (files == null || files.Count == 0)
                 return BadRequest("No ZIP files were uploaded.");
+
+            bool track = !string.IsNullOrWhiteSpace(sessionId);
 
             var batchId = Guid.NewGuid().ToString("N");
             var batchDir = Path.Combine(Path.GetTempPath(), "gpx_batch_" + batchId);
             Directory.CreateDirectory(batchDir);
 
+            int total = files.Count;
+            int i = 0;
+
+            // PHASE 1: DISK I/O (Maps to 0% -> 30%)
             foreach (var zipFormFile in files)
             {
                 if (!Path.GetExtension(zipFormFile.FileName).Equals(".zip", StringComparison.OrdinalIgnoreCase))
                     continue;
+
+                i++;
+                int pct = (int)(30.0 * i / total);
+                if (track) SetProgress(sessionId!, pct, $"Saving package {i} of {total}…", $"Writing {zipFormFile.FileName} to disk.");
 
                 var savedZipPath = Path.Combine(batchDir, Path.GetFileName(zipFormFile.FileName));
                 using var fs = System.IO.File.Create(savedZipPath);
                 await zipFormFile.CopyToAsync(fs);
             }
 
+            // PHASE 2: CPU NUMBER CRUNCHING (Maps to 30% -> 95%)
+            if (track) SetProgress(sessionId!, 32, "Unpacking archives…", "Locating .gpx survey logs.");
+
+            var vm = await BuildPreviewVmFromBatchAsync(batchDir, batchId, sessionId);
+
+            // PHASE 3: CACHE & HANDOFF (Maps to 95% -> 100%)
+            if (track) SetProgress(sessionId!, 96, "Caching preview…", "Serializing map vectors.");
+
+            var cachePath = Path.Combine(batchDir, "vm_cache.json");
+            await System.IO.File.WriteAllTextAsync(cachePath, System.Text.Json.JsonSerializer.Serialize(vm));
+
+            if (track)
+            {
+                SetProgress(sessionId!, 100, "Ready!", "Launching Map Viewer…", redirect: $"/gpx/preview-map/{batchId}");
+                return Ok();
+            }
+
             return Redirect($"/gpx/preview-map/{batchId}");
         }
 
         // =========================================================
-        // PREVIEW MAP (GET)
+        // PREVIEW MAP (GET) - The Renderer
         // =========================================================
         [HttpGet("/gpx/preview-map/{batchId}")]
-        public IActionResult PreviewMapGet(string batchId)
+        public async Task<IActionResult> PreviewMapGet(string batchId)
         {
             var batchDir = Path.Combine(Path.GetTempPath(), "gpx_batch_" + batchId);
-            if (!Directory.Exists(batchDir))
-                return BadRequest("Batch not found or expired.");
+            var cachePath = Path.Combine(batchDir, "vm_cache.json");
 
-            var vm = BuildPreviewVmFromBatch(batchDir, batchId);
+            if (!System.IO.File.Exists(cachePath))
+                return BadRequest("Map preview session expired or failed to generate.");
+
+            var json = await System.IO.File.ReadAllTextAsync(cachePath);
+            var vm = System.Text.Json.JsonSerializer.Deserialize<GpxPreviewVm>(json);
+
             return View("MapPreview", vm);
         }
 
-        private static GpxPreviewVm BuildPreviewVmFromBatch(string batchDir, string batchId)
+        // =========================================================
+        // ASYNC PREVIEW GENERATOR
+        // =========================================================
+        private static async Task<GpxPreviewVm> BuildPreviewVmFromBatchAsync(string batchDir, string batchId, string? sessionId)
         {
             var vm = new GpxPreviewVm { BatchId = batchId };
             XNamespace ns = "http://www.topografix.com/GPX/1/1";
 
-            foreach (var zipPath in Directory.GetFiles(batchDir, "*.zip"))
+            var zipFiles = Directory.GetFiles(batchDir, "*.zip");
+            int totalZips = zipFiles.Length;
+
+            for (int zIdx = 0; zIdx < totalZips; zIdx++)
             {
+                var zipPath = zipFiles[zIdx];
                 var fileName = Path.GetFileName(zipPath);
                 var preview = new GpxPreviewFile { FileName = fileName };
-
                 var raw = new List<(DateTime t, double lat, double lon)>();
+
+                int currentPct = 32 + (int)(60.0 * zIdx / totalZips);
+                if (sessionId != null)
+                    SetProgress(sessionId, currentPct, $"Crunching GPS data ({zIdx + 1}/{totalZips})…", $"Parsing tracks inside {fileName}");
+
+                await Task.Yield(); // Surrender thread pool to allow SSE network flush
 
                 using var zipStream = System.IO.File.OpenRead(zipPath);
                 using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
@@ -365,10 +452,8 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                             if (latAttr == null || lonAttr == null || string.IsNullOrWhiteSpace(tStr)) continue;
                             if (!double.TryParse(latAttr, NumberStyles.Any, CultureInfo.InvariantCulture, out var lat)) continue;
                             if (!double.TryParse(lonAttr, NumberStyles.Any, CultureInfo.InvariantCulture, out var lon)) continue;
-
                             if (!DateTime.TryParse(tStr, CultureInfo.InvariantCulture,
-                                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var tdt))
-                                continue;
+                                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var tdt)) continue;
 
                             raw.Add((tdt, lat, lon));
                         }
@@ -376,16 +461,9 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                     catch { }
                 }
 
-                if (raw.Count < 2)
-                {
-                    vm.Files.Add(preview);
-                    continue;
-                }
+                if (raw.Count < 2) { vm.Files.Add(preview); continue; }
 
-                // light clean just for preview visuals
                 var cleaned = QuickCleanPreview(raw, MaxStepMeters, MaxKph);
-
-                
 
                 if (cleaned.Count > 0)
                 {
@@ -393,18 +471,14 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                     preview.End = new LatLng { Lat = cleaned[^1].lat, Lon = cleaned[^1].lon };
                 }
 
-                for (int i = 0; i < cleaned.Count; i += PreviewStep)
-                    preview.Points.Add(new LatLng { Lat = cleaned[i].lat, Lon = cleaned[i].lon });
+                for (int pIdx = 0; pIdx < cleaned.Count; pIdx += PreviewStep)
+                    preview.Points.Add(new LatLng { Lat = cleaned[pIdx].lat, Lon = cleaned[pIdx].lon });
 
                 if (cleaned.Count > 0)
                 {
                     var last = cleaned[^1];
-                    if (preview.Points.Count == 0 ||
-                        preview.Points[^1].Lat != last.lat ||
-                        preview.Points[^1].Lon != last.lon)
-                    {
+                    if (preview.Points.Count == 0 || preview.Points[^1].Lat != last.lat || preview.Points[^1].Lon != last.lon)
                         preview.Points.Add(new LatLng { Lat = last.lat, Lon = last.lon });
-                    }
                 }
 
                 vm.Files.Add(preview);
@@ -433,9 +507,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             var kmDbPath = Path.Combine(Directory.GetCurrentDirectory(), "kilometer_post.db");
             var kmPosts = System.IO.File.Exists(kmDbPath) ? LoadKmPosts(kmDbPath) : new List<KmPostRow>();
 
-            // debug collectors (optional for view)
             var debugFiles = new List<DebugFileRow>();
-
             XNamespace ns = "http://www.topografix.com/GPX/1/1";
 
             var zipDatasets = LoadZipDatasets(batchDir, selectedFiles, ns, debugFiles);
@@ -467,12 +539,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                             DtToken = o.DtToken,
                             Direction = o.Direction,
                             PartIndex = o.PartIndex,
-
-                            // ✅ IMPORTANT:
-                            // This is only for display. The real list is SourceZipFiles.
                             SourceZipFileName = o.SourceZipFiles.FirstOrDefault() ?? "",
-
-                            // ✅ MUST EXIST in your VM model (add if missing):
                             SourceZipFiles = o.SourceZipFiles.ToList()
                         };
 
@@ -485,17 +552,14 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                             tripVm.Start = new LatLng { Lat = o.Cleaned[0].SnappedLat, Lon = o.Cleaned[0].SnappedLon };
                             tripVm.End = new LatLng { Lat = o.Cleaned[^1].SnappedLat, Lon = o.Cleaned[^1].SnappedLon };
 
-                            int step = 5;
-                            for (int i = 0; i < o.Cleaned.Count; i += step)
+                            for (int i = 0; i < o.Cleaned.Count; i += 5)
                                 tripVm.Points.Add(new LatLng { Lat = o.Cleaned[i].SnappedLat, Lon = o.Cleaned[i].SnappedLon });
 
                             var last = o.Cleaned[^1];
                             if (tripVm.Points.Count == 0 ||
                                 tripVm.Points[^1].Lat != last.SnappedLat ||
                                 tripVm.Points[^1].Lon != last.SnappedLon)
-                            {
                                 tripVm.Points.Add(new LatLng { Lat = last.SnappedLat, Lon = last.SnappedLon });
-                            }
                         }
 
                         return tripVm;
@@ -507,10 +571,10 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         }
 
         // =========================================================
-        // DOWNLOAD ZIP (POST) ✅ includes combined + cleaned + debug
+        // DOWNLOAD ZIP (POST)
         // =========================================================
         [HttpPost("/gpx/process-selected")]
-        public async System.Threading.Tasks.Task<IActionResult> ProcessSelected(string batchId, List<string> selectedFiles)
+        public async Task<IActionResult> ProcessSelected(string batchId, List<string> selectedFiles)
         {
             if (string.IsNullOrWhiteSpace(batchId))
                 return BadRequest("Missing batch id.");
@@ -609,16 +673,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                         cleanedCsv.Position = 0;
                         await cleanedCsv.CopyToAsync(s1);
                     }
-
-                    //var combinedCsv = WriteCsv(o.Combined, includeComputed: true);
-                    //var combinedName = cleanedName.Replace("_cleaned.csv", "_combined.csv", StringComparison.OrdinalIgnoreCase);
-
-                    //var e2 = zipOut.CreateEntry(combinedName, CompressionLevel.Fastest);
-                    //using (var s2 = e2.Open())
-                    //{
-                    //    combinedCsv.Position = 0;
-                    //    await combinedCsv.CopyToAsync(s2);
-                    //}
                 }
 
                 var manifest = zipOut.CreateEntry("MANIFEST.csv", CompressionLevel.Fastest);
@@ -628,20 +682,12 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                     foreach (var o in outputs)
                         sw.WriteLine($"{o.VehicleCode},{o.TripId},{o.DtToken},{o.Direction},{o.PartIndex},{o.DetectedRegionId},{o.DetectedRoadName},{o.Combined.Count},{o.Cleaned.Count},\"{string.Join("|", o.SourceZipFiles)}\"");
                 }
-
-                //AddDebugEntry(zipOut, "DEBUG_FILES.csv", WriteDebugCsv(debugFiles));
-                //AddDebugEntry(zipOut, "DEBUG_MERGE_LOG.csv", WriteDebugCsv(debugMerge));
-                //AddDebugEntry(zipOut, "DEBUG_CLEAN_EVENTS.csv", WriteDebugCsv(debugClean));
-                //AddDebugEntry(zipOut, "DEBUG_TRIPS.csv", WriteDebugCsv(debugTrips));
             }
 
             outZipStream.Position = 0;
-
-            // optional cleanup
             try { Directory.Delete(batchDir, true); } catch { }
 
-            var zipName = $"{zipRegionPart}_{zipRoadPart}_CLEANED_{mainDate}.zip";
-            return File(outZipStream, "application/zip", zipName);
+            return File(outZipStream, "application/zip", $"{zipRegionPart}_{zipRoadPart}_CLEANED_{mainDate}.zip");
         }
 
         private static void AddDebugEntry(ZipArchive zipOut, string entryName, MemoryStream ms)
@@ -697,19 +743,13 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                             if (!string.IsNullOrWhiteSpace(tStr) &&
                                 DateTime.TryParse(tStr, CultureInfo.InvariantCulture,
                                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var tdt))
-                            {
                                 parsedTime = tdt;
-                            }
 
                             string? Val(XElement parent, XName name) => parent.Element(name)?.Value;
-
-                            double? ToDouble(string? s)
-                                => string.IsNullOrWhiteSpace(s) ? null
-                                   : double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null;
-
-                            int? ToInt(string? s)
-                                => string.IsNullOrWhiteSpace(s) ? null
-                                   : int.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var i) ? i : null;
+                            double? ToDouble(string? s) => string.IsNullOrWhiteSpace(s) ? null
+                                : double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null;
+                            int? ToInt(string? s) => string.IsNullOrWhiteSpace(s) ? null
+                                : int.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var ii) ? ii : null;
 
                             rows.Add(new GpxRecord
                             {
@@ -717,7 +757,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                                 SnappedLat = lat,
                                 SnappedLon = lon,
                                 FilePath = fileName,
-
                                 Speed = ToDouble(Val(pt, ns + "speed")),
                                 ModeID = ToDouble(Val(pt, ns + "modeId")),
                                 CauseID = ToDouble(Val(pt, ns + "causeId")),
@@ -786,8 +825,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         {
             var outputs = new List<TripOutput>();
 
-            // ✅ PartIndex resets per device/trip group.
-            // If you want "per VehicleCode only", remove TripId from the key.
             var byVehTrip = zipDatasets
                 .GroupBy(z => new { z.VehicleCode, z.TripId })
                 .ToList();
@@ -795,7 +832,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             foreach (var g in byVehTrip)
             {
                 var ordered = g.OrderBy(x => x.StartTimeUtc).ToList();
-
                 int partIndexCounter = 1;
                 TripAccumulator? cur = null;
                 int orderIndex = 0;
@@ -804,32 +840,26 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 {
                     orderIndex++;
 
-                    bool directionMatched = (cur == null)
-                        ? true
-                        : string.Equals(cur.Direction, z.Direction, StringComparison.OrdinalIgnoreCase);
+                    bool directionMatched = cur == null ||
+                        string.Equals(cur.Direction, z.Direction, StringComparison.OrdinalIgnoreCase);
 
-                    double gapSec = 0;
-                    double jumpM = 0;
-
+                    double gapSec = 0, jumpM = 0;
                     if (cur != null)
                     {
                         gapSec = (z.StartTimeUtc - cur.EndTimeUtc).TotalSeconds;
                         jumpM = HaversineMeters(cur.EndLat, cur.EndLon, z.StartLat, z.StartLon);
                     }
 
-                    bool canMerge =
-                        cur != null &&
+                    bool canMerge = cur != null &&
                         gapSec <= MergeGapSeconds &&
                         jumpM <= MergeJumpMeters &&
                         (!RequireSameDirectionForMerge || directionMatched);
 
                     if (cur == null || !canMerge)
                     {
-                        if (cur != null)
-                            outputs.Add(FinalizeTrip(cur, cleanDebug));
+                        if (cur != null) outputs.Add(FinalizeTrip(cur, cleanDebug));
 
                         var dirKey = string.IsNullOrWhiteSpace(z.Direction) ? "UNK" : z.Direction.Trim().ToUpperInvariant();
-
                         cur = new TripAccumulator
                         {
                             VehicleCode = z.VehicleCode,
@@ -839,7 +869,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                             PartIndex = partIndexCounter++,
                             Rows = new List<GpxRecord>(),
                             SourceZipFiles = new List<string>(),
-
                             StartTimeUtc = z.StartTimeUtc,
                             StartLat = z.StartLat,
                             StartLon = z.StartLon,
@@ -872,14 +901,12 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
 
                     cur!.Rows.AddRange(z.RawRows);
                     cur.SourceZipFiles.Add(z.FileName);
-
                     cur.EndTimeUtc = z.EndTimeUtc;
                     cur.EndLat = z.EndLat;
                     cur.EndLon = z.EndLon;
                 }
 
-                if (cur != null)
-                    outputs.Add(FinalizeTrip(cur, cleanDebug));
+                if (cur != null) outputs.Add(FinalizeTrip(cur, cleanDebug));
             }
 
             return outputs;
@@ -892,9 +919,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 .OrderBy(r => r.Timestamp!.Value)
                 .ToList();
 
-            var combined = ComputeDiffsKeepAll(all);
-            var cleaned = CleanKeepGoing(all, acc, cleanDebug);
-
             return new TripOutput
             {
                 VehicleCode = acc.VehicleCode,
@@ -902,27 +926,25 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 DtToken = acc.DtToken,
                 Direction = acc.Direction,
                 PartIndex = acc.PartIndex,
-                Combined = combined,
-                Cleaned = cleaned,
+                Combined = ComputeDiffsKeepAll(all),
+                Cleaned = CleanKeepGoing(all, acc, cleanDebug),
                 SourceZipFiles = acc.SourceZipFiles.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
             };
         }
+
         private static List<GpxRecord> CleanKeepGoing(
-    List<GpxRecord> ordered,
-    TripAccumulator acc,
-    List<DebugCleanEventRow> cleanDebug)
+            List<GpxRecord> ordered,
+            TripAccumulator acc,
+            List<DebugCleanEventRow> cleanDebug)
         {
             var kept = new List<GpxRecord>();
             if (ordered.Count == 0) return kept;
 
-            // first row always kept
             var first = CloneWithoutComputed(ordered[0]);
             first.SecDiff = null;
             first.DistanceDiff = null;
-
             kept.Add(first);
 
-            // only inspect first 2 computed rows
             int firstRowsChecked = 0;
 
             for (int i = 1; i < ordered.Count; i++)
@@ -930,112 +952,34 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 var prev = kept[^1];
                 var cur = CloneWithoutComputed(ordered[i]);
 
-                if (!prev.Timestamp.HasValue || !cur.Timestamp.HasValue)
-                    continue;
+                if (!prev.Timestamp.HasValue || !cur.Timestamp.HasValue) continue;
 
                 var dt = (cur.Timestamp.Value - prev.Timestamp.Value).TotalSeconds;
+                var dist = HaversineMeters(prev.SnappedLat, prev.SnappedLon, cur.SnappedLat, cur.SnappedLon);
 
-                var dist = HaversineMeters(
-                    prev.SnappedLat,
-                    prev.SnappedLon,
-                    cur.SnappedLat,
-                    cur.SnappedLon);
-
-                // duplicate
-                if (dist < DuplicateMeters)
-                {
-                    cleanDebug.Add(MkCleanDebug(
-                        acc,
-                        "DUPLICATE",
-                        prev,
-                        cur,
-                        dt,
-                        dist,
-                        0));
-
-                    continue;
-                }
-
-                // invalid time
-                if (dt <= 0)
-                {
-                    cleanDebug.Add(MkCleanDebug(
-                        acc,
-                        "TIME_RESET",
-                        prev,
-                        cur,
-                        dt,
-                        dist,
-                        0));
-
-                    continue;
-                }
+                if (dist < DuplicateMeters) { cleanDebug.Add(MkCleanDebug(acc, "DUPLICATE", prev, cur, dt, dist, 0)); continue; }
+                if (dt <= 0) { cleanDebug.Add(MkCleanDebug(acc, "TIME_RESET", prev, cur, dt, dist, 0)); continue; }
 
                 var kph = (dist / dt) * 3.6;
 
-                // big jump
-                if (dist > MaxStepMeters)
-                {
-                    cleanDebug.Add(MkCleanDebug(
-                        acc,
-                        "BIG_JUMP",
-                        prev,
-                        cur,
-                        dt,
-                        dist,
-                        kph));
+                if (dist > MaxStepMeters) { cleanDebug.Add(MkCleanDebug(acc, "BIG_JUMP", prev, cur, dt, dist, kph)); continue; }
+                if (kph > MaxKph) { cleanDebug.Add(MkCleanDebug(acc, "HIGH_KPH", prev, cur, dt, dist, kph)); continue; }
 
-                    continue;
-                }
+                var secDiff = (int)Math.Round(dt, MidpointRounding.AwayFromZero);
 
-                // unrealistic speed
-                if (kph > MaxKph)
-                {
-                    cleanDebug.Add(MkCleanDebug(
-                        acc,
-                        "HIGH_KPH",
-                        prev,
-                        cur,
-                        dt,
-                        dist,
-                        kph));
-
-                    continue;
-                }
-
-                var secDiff = (int)Math.Round(
-                    dt,
-                    MidpointRounding.AwayFromZero);
-
-                // ==========================================
-                // REMOVE ONLY FIRST 2 OUTLIER ROWS
-                // ==========================================
                 if (firstRowsChecked < 2)
                 {
                     firstRowsChecked++;
-
                     if (secDiff > 500)
                     {
-                        cleanDebug.Add(MkCleanDebug(
-                            acc,
-                            "FIRST_ROWS_OVER_500_REMOVED",
-                            prev,
-                            cur,
-                            dt,
-                            dist,
-                            kph));
-
-                        // IMPORTANT:
-                        // replace baseline row
+                        cleanDebug.Add(MkCleanDebug(acc, "FIRST_ROWS_OVER_500_REMOVED", prev, cur, dt, dist, kph));
                         kept[0] = cur;
-
                         continue;
                     }
                 }
 
                 cur.SecDiff = secDiff;
                 cur.DistanceDiff = dist;
-
                 kept.Add(cur);
             }
 
@@ -1043,13 +987,9 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         }
 
         private static DebugCleanEventRow MkCleanDebug(
-            TripAccumulator acc,
-            string reason,
-            GpxRecord prev,
-            GpxRecord cur,
-            double dt,
-            double dist,
-            double kph)
+            TripAccumulator acc, string reason,
+            GpxRecord prev, GpxRecord cur,
+            double dt, double dist, double kph)
         {
             return new DebugCleanEventRow
             {
@@ -1109,25 +1049,22 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return outList;
         }
 
-        private static GpxRecord CloneWithoutComputed(GpxRecord r)
+        private static GpxRecord CloneWithoutComputed(GpxRecord r) => new GpxRecord
         {
-            return new GpxRecord
-            {
-                Group = r.Group,
-                Timestamp = r.Timestamp,
-                SnappedLat = r.SnappedLat,
-                SnappedLon = r.SnappedLon,
-                Speed = r.Speed,
-                ModeID = r.ModeID,
-                CauseID = r.CauseID,
-                Boarding = r.Boarding,
-                Alighting = r.Alighting,
-                OnBoard = r.OnBoard,
-                KilometerPostID = r.KilometerPostID,
-                FilePath = r.FilePath,
-                DistrictID = r.DistrictID
-            };
-        }
+            Group = r.Group,
+            Timestamp = r.Timestamp,
+            SnappedLat = r.SnappedLat,
+            SnappedLon = r.SnappedLon,
+            Speed = r.Speed,
+            ModeID = r.ModeID,
+            CauseID = r.CauseID,
+            Boarding = r.Boarding,
+            Alighting = r.Alighting,
+            OnBoard = r.OnBoard,
+            KilometerPostID = r.KilometerPostID,
+            FilePath = r.FilePath,
+            DistrictID = r.DistrictID
+        };
 
         // =========================================================
         // ZIP NAME PARSER
@@ -1142,18 +1079,15 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
 
             var dtToken = baseName.Substring(us + 1).Replace(".zip", "", StringComparison.OrdinalIgnoreCase).Trim();
             var left = baseName.Substring(0, us);
-
             var parts = left.Split('_', StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 3) return null;
 
             var vehicleCode = parts[1].Trim();
-
             var third = parts[2];
             var dash = third.Split('-', StringSplitOptions.RemoveEmptyEntries);
             if (dash.Length < 2) return null;
 
-            var tripId = $"{dash[0]}-{dash[1]}";
-            return (vehicleCode, tripId, dtToken);
+            return (vehicleCode, $"{dash[0]}-{dash[1]}", dtToken);
         }
 
         // =========================================================
@@ -1180,19 +1114,11 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             }
 
             int nb = 0, sb = 0, eb = 0, wb = 0;
-
             for (int i = 0; i < sampled.Count - 1; i++)
             {
-                var a = sampled[i];
-                var b = sampled[i + 1];
-
-                if (Math.Abs(a.lat - b.lat) < 1e-9 && Math.Abs(a.lon - b.lon) < 1e-9)
-                    continue;
-
-                var brng = Bearing(a.lat, a.lon, b.lat, b.lon);
-                var dir = BearingToCardinal(brng);
-
-                switch (dir)
+                var a = sampled[i]; var b = sampled[i + 1];
+                if (Math.Abs(a.lat - b.lat) < 1e-9 && Math.Abs(a.lon - b.lon) < 1e-9) continue;
+                switch (BearingToCardinal(Bearing(a.lat, a.lon, b.lat, b.lon)))
                 {
                     case "NB": nb++; break;
                     case "SB": sb++; break;
@@ -1203,7 +1129,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
 
             int total = nb + sb + eb + wb;
             if (total == 0) return "UNK";
-
             if (nb >= sb && nb >= eb && nb >= wb) return "NB";
             if (sb >= nb && sb >= eb && sb >= wb) return "SB";
             if (eb >= nb && eb >= sb && eb >= wb) return "EB";
@@ -1225,16 +1150,11 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         {
             const double R = 6371000.0;
             static double DegToRad(double d) => d * Math.PI / 180.0;
-
-            double phi1 = DegToRad(lat1);
-            double phi2 = DegToRad(lat2);
-            double dphi = DegToRad(lat2 - lat1);
-            double dlambda = DegToRad(lon2 - lon1);
-
+            double phi1 = DegToRad(lat1), phi2 = DegToRad(lat2);
+            double dphi = DegToRad(lat2 - lat1), dlambda = DegToRad(lon2 - lon1);
             double a = Math.Sin(dphi / 2) * Math.Sin(dphi / 2) +
                        Math.Cos(phi1) * Math.Cos(phi2) *
                        Math.Sin(dlambda / 2) * Math.Sin(dlambda / 2);
-
             return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
         }
 
@@ -1242,17 +1162,12 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         {
             static double ToRad(double d) => d * Math.PI / 180.0;
             static double ToDeg(double r) => r * 180.0 / Math.PI;
-
-            var phi1 = ToRad(lat1);
-            var phi2 = ToRad(lat2);
-            var dLam = ToRad(lon2 - lon1);
-
+            double phi1 = ToRad(lat1);
+            double phi2 = ToRad(lat2);
+            double dLam = ToRad(lon2 - lon1);
             var y = Math.Sin(dLam) * Math.Cos(phi2);
-            var x = Math.Cos(phi1) * Math.Sin(phi2) -
-                    Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(dLam);
-
-            var theta = Math.Atan2(y, x);
-            return (ToDeg(theta) + 360.0) % 360.0;
+            var x = Math.Cos(phi1) * Math.Sin(phi2) - Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(dLam);
+            return (ToDeg(Math.Atan2(y, x)) + 360.0) % 360.0;
         }
 
         // =========================================================
@@ -1270,15 +1185,13 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 "KilometerPostID","FilePath","DistrictID"
             };
             if (includeComputed) headers.AddRange(new[] { "secDiff", "distanceDiff" });
-
             sw.WriteLine(string.Join(",", headers));
 
             static string CsvSafe(string? s)
             {
                 if (string.IsNullOrEmpty(s)) return "";
                 bool needsQuotes = s.Contains(',') || s.Contains('"') || s.Contains('\n') || s.Contains('\r');
-                if (needsQuotes) return $"\"{s.Replace("\"", "\"\"")}\"";
-                return s;
+                return needsQuotes ? $"\"{s.Replace("\"", "\"\"")}\"" : s;
             }
 
             foreach (var r in rows)
@@ -1292,12 +1205,12 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                     ts,
                     r.SnappedLat.ToString(CultureInfo.InvariantCulture),
                     r.SnappedLon.ToString(CultureInfo.InvariantCulture),
-                    r.Speed?.ToString(CultureInfo.InvariantCulture) ?? "",
-                    r.ModeID?.ToString(CultureInfo.InvariantCulture) ?? "",
-                    r.CauseID?.ToString(CultureInfo.InvariantCulture) ?? "",
+                    r.Speed?.ToString(CultureInfo.InvariantCulture)    ?? "",
+                    r.ModeID?.ToString(CultureInfo.InvariantCulture)   ?? "",
+                    r.CauseID?.ToString(CultureInfo.InvariantCulture)  ?? "",
                     r.Boarding?.ToString(CultureInfo.InvariantCulture) ?? "",
                     r.Alighting?.ToString(CultureInfo.InvariantCulture) ?? "",
-                    r.OnBoard?.ToString(CultureInfo.InvariantCulture) ?? "",
+                    r.OnBoard?.ToString(CultureInfo.InvariantCulture)  ?? "",
                     CsvSafe(r.KilometerPostID),
                     CsvSafe(r.FilePath),
                     CsvSafe(r.DistrictID)
@@ -1332,16 +1245,11 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             {
                 var prev = kept[^1];
                 var cur = ordered[i];
-
                 var dt = (cur.t - prev.t).TotalSeconds;
                 if (dt <= 0) continue;
-
                 var dist = HaversineMeters(prev.lat, prev.lon, cur.lat, cur.lon);
                 var kph = (dist / dt) * 3.6;
-
-                if (dist > maxStepMeters) continue;
-                if (kph > maxKph) continue;
-
+                if (dist > maxStepMeters || kph > maxKph) continue;
                 kept.Add(cur);
             }
 
@@ -1359,7 +1267,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             public string DtToken { get; set; } = "";
             public string Direction { get; set; } = "UNK";
             public List<GpxRecord> RawRows { get; set; } = new();
-
             public DateTime StartTimeUtc { get; set; }
             public DateTime EndTimeUtc { get; set; }
             public double StartLat { get; set; }
@@ -1377,7 +1284,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             public int PartIndex { get; set; }
             public List<GpxRecord> Rows { get; set; } = new();
             public List<string> SourceZipFiles { get; set; } = new();
-
             public DateTime StartTimeUtc { get; set; }
             public DateTime EndTimeUtc { get; set; }
             public double StartLat { get; set; }
@@ -1393,11 +1299,9 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             public string DtToken { get; set; } = "";
             public string Direction { get; set; } = "UNK";
             public int PartIndex { get; set; }
-
             public string? DetectedRegionId { get; set; }
             public string? DetectedRoadName { get; set; }
             public string? EntryName { get; set; }
-
             public List<GpxRecord> Combined { get; set; } = new();
             public List<GpxRecord> Cleaned { get; set; } = new();
             public List<string> SourceZipFiles { get; set; } = new();

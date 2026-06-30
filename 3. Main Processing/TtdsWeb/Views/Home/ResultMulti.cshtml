@@ -428,6 +428,18 @@
             </select>
         </div>
         <div class="muted mt-2">These values will be used for the ZIP folder naming.</div>
+        <div id="inferHint" class="mt-1" style="
+                display: none;
+                font-size: 0.78rem;
+                color: var(--color-accent);
+                background: var(--color-bg);
+                border: 1px solid var(--color-border);
+                border-radius: 6px;
+                padding: 4px 10px;
+            ">
+            <i class="bi bi-geo-alt-fill me-1"></i>
+            <span></span>
+        </div>
     </div>
 
     <div class="row g-3 mb-3">
@@ -893,10 +905,13 @@
 
 </div><!-- /content wrapper -->
 <div class="action-bar">
-    <button type="button" id="btnDownloadAllWithGraphsBar" class="btn-ttds w-auto px-4">
+    <button type="button" id="btnDownloadAllWithGraphsBar" class="btn-ttds w-auto px-4"
+            onclick="enableNextReport()">
         <i class="bi bi-download"></i> Download ALL (Tables + Shapes + Graphs)
     </button>
-    <a asp-action="GoToReportGen" class="btn-ttds w-auto px-4" style="background: var(--color-accent); text-decoration: none;">
+
+    <a id="btnNextReport" asp-action="GoToReportGen" class="btn-ttds w-auto px-4"
+       style="background: var(--color-accent); text-decoration: none; opacity: 0.4; pointer-events: none; cursor: not-allowed;">
         Next: Generate Report <i class="bi bi-arrow-right ms-1"></i>
     </a>
 </div>
@@ -964,6 +979,60 @@
         wireForm('shapesZipForm', 'shapesZipRegion', 'shapesZipRoad');
         wireForm('allZipForm',    'allZipRegion',    'allZipRoad');
 
+        async function inferAndSetRegionRoad() {
+            try {
+                const res = await fetch('/cp/infer_region_road');
+                if (!res.ok) return;
+                const { region, road } = await res.json();
+
+                const regionSel = document.getElementById('regionSelect');
+                const roadSel   = document.getElementById('roadSelect');
+                if (!regionSel || !roadSel) return;
+
+                // Set region if found
+                if (region) {
+                    const regionOpt = Array.from(regionSel.options)
+                        .find(o => o.value === region);
+                    if (regionOpt) {
+                        regionSel.value = region;
+
+                        // Rebuild road dropdown for this region
+                        const roads = roadsByRegionJs[region] || [];
+                        roadSel.innerHTML = '';
+                        roads.forEach(rd => {
+                            const opt = document.createElement('option');
+                            opt.value = rd;
+                            opt.textContent = rd;
+                            roadSel.appendChild(opt);
+                        });
+                    }
+                }
+
+                // Set road if found
+                if (road) {
+                    const roadOpt = Array.from(roadSel.options)
+                        .find(o => o.value === road);
+                    if (roadOpt) roadSel.value = road;
+                }
+
+                // Visual feedback
+                if (region || road) {
+                    const hint = document.getElementById('inferHint');
+                    if (hint) {
+                        hint.querySelector('span').textContent =
+                            `Auto-detected from CP coordinates: ${region ?? '—'} / ${road ?? '—'}`;
+                        hint.style.display = 'block';
+                    }
+                }
+
+            } catch (e) {
+                console.warn('Could not infer region/road from CPs:', e);
+            }
+        }
+
+        // Run on page load — CPs are already in server state
+        inferAndSetRegionRoad();
+
         // ── Region → Road cascade ──
         document.getElementById('regionSelect')?.addEventListener('change', function () {
             const roads   = roadsByRegionJs[this.value] || [];
@@ -983,8 +1052,20 @@
 
         (cpData || []).forEach(cp => {
             if (cp?.lat == null || cp?.lon == null) return;
-            const m = L.circleMarker([cp.lat, cp.lon], { radius: 1, fillColor: 'gray', fillOpacity: 1 }).addTo(map);
-            m.bindTooltip(`CP: ${cp.cp_id}`, { permanent: true, direction: 'right', offset: [8, 0], className: 'cp-label' });
+            const m = L.circleMarker([cp.lat, cp.lon], {
+                radius: 7,
+                color: '#1a56db',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.9,
+                weight: 2
+            }).addTo(map);
+            m.bindPopup(`<b>Control Point</b><br>${cp.cp_id}`);
+            m.bindTooltip(`CP: ${cp.cp_id}`, {
+                permanent: true,
+                direction: 'right',
+                offset: [10, 0],
+                className: 'cp-label'
+            });
             bounds.extend([cp.lat, cp.lon]);
         });
 
@@ -1219,10 +1300,17 @@
             }));
         }
 
-        // ── Download ALL ──
+        function enableNextReport() {
+            const btn = document.getElementById("btnNextReport");
+            if (!btn) return;
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+            btn.style.cursor = "pointer";
+        }
+
         async function doDownloadAll() {
             const { reg, road } = getFilters();
-            const selectedIds   = Array.from(document.querySelectorAll('input[name="selected_files"]')).map(x => x.value);
+            const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]')).map(x => x.value);
 
             try {
                 const res = await fetch('/export_all_with_graphs_zip', {
@@ -1238,6 +1326,9 @@
                 a.href = url; a.download = `${safePart(reg)}_${safePart(road)}.zip`;
                 document.body.appendChild(a); a.click(); a.remove();
                 URL.revokeObjectURL(url);
+
+                enableNextReport(); // ← unlock Next button after successful download
+
             } catch (err) {
                 alert('Download error: ' + err.message);
             }
@@ -1264,5 +1355,6 @@
                 alert('Graphs error: ' + err.message);
             }
         });
+
     </script>
 }

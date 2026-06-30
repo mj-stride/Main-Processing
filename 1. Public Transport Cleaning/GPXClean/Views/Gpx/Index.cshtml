@@ -6,6 +6,17 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 
 <style>
+    /* Root fallbacks in case master layout misses them */
+    :root {
+        --color-surface-default: #ffffff;
+        --color-border-default: #e2e8f0;
+        --color-text-main-default: #0f172a;
+        --color-text-muted-default: #64748b;
+        --color-primary-default: #2563eb;
+        --color-accent-default: #0284c7;
+        --color-bg-default: #f8fafc;
+    }
+
     .upload-view-wrapper {
         max-width: 860px;
         margin: 0 auto;
@@ -15,8 +26,8 @@
     #loadingOverlay {
         position: fixed;
         inset: 0;
-        background: rgba(15, 23, 42, 0.7);
-        backdrop-filter: blur(3px);
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(4px);
         display: none;
         align-items: center;
         justify-content: center;
@@ -25,24 +36,41 @@
 
     #loadingCard {
         width: min(520px, 92vw);
-        background: var(--color-surface);
+        background: var(--color-surface, var(--color-surface-default));
         border-radius: 16px;
-        padding: 28px 24px;
-        box-shadow: var(--shadow-lg);
-        border: 1px solid var(--color-border);
+        padding: 32px 24px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--color-border, var(--color-border-default));
         text-align: center;
+    }
+
+    /* Guaranteed Native CSS Spinner Fallback */
+    .custom-spinner {
+        width: 2.5rem;
+        height: 2.5rem;
+        border: 0.3rem solid #e2e8f0;
+        border-top-color: var(--color-primary, var(--color-primary-default));
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 1.25rem auto;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
     }
 
     #loadingTitle {
         font-weight: 700;
         margin-bottom: 8px;
-        font-size: 1.2rem;
-        color: var(--color-text-main);
+        font-size: 1.25rem;
+        color: var(--color-text-main, var(--color-text-main-default));
     }
 
     #loadingMsg {
         font-size: 0.92rem;
-        color: var(--color-text-muted);
+        color: var(--color-text-muted, var(--color-text-muted-default));
         margin-bottom: 20px;
     }
 
@@ -50,21 +78,22 @@
         height: 10px;
         border-radius: 999px;
         overflow: hidden;
-        background: var(--color-border);
+        background: var(--color-border, var(--color-border-default));
         margin-bottom: 12px;
+        width: 100%;
     }
 
     .progress-bar {
         height: 100%;
         width: 0%;
-        background: linear-gradient(90deg, var(--color-primary), #3b82f6);
+        background: linear-gradient(90deg, var(--color-primary, var(--color-primary-default)), #3b82f6);
         transition: width 0.35s ease;
     }
 
     .drop-zone {
         border: 2px dashed #94a3b8;
         border-radius: 12px;
-        background: var(--color-bg);
+        background: var(--color-bg, var(--color-bg-default));
         padding: 3rem 1.5rem;
         display: flex;
         flex-direction: column;
@@ -77,12 +106,12 @@
 
         .drop-zone:hover {
             background: #f1f5f9;
-            border-color: var(--color-primary);
+            border-color: var(--color-primary, var(--color-primary-default));
         }
 
         .drop-zone i {
             font-size: 3.4rem;
-            color: var(--color-accent);
+            color: var(--color-accent, var(--color-accent-default));
             line-height: 1;
             transition: transform 0.2s ease;
         }
@@ -93,7 +122,7 @@
 
         .drop-zone p {
             font-size: 0.95rem;
-            color: var(--color-text-main);
+            color: var(--color-text-main, var(--color-text-main-default));
             font-weight: 600;
             margin: 0;
             text-align: center;
@@ -101,7 +130,7 @@
 
         .drop-zone .drop-zone-subtext {
             font-size: 0.82rem;
-            color: var(--color-text-muted);
+            color: var(--color-text-muted, var(--color-text-muted-default));
             text-align: center;
         }
 
@@ -112,7 +141,7 @@
     .file-list-header {
         font-size: 0.85rem;
         font-weight: 700;
-        color: var(--color-primary);
+        color: var(--color-primary, var(--color-primary-default));
         margin-bottom: 0.6rem;
     }
 
@@ -125,105 +154,73 @@
         padding-right: 4px;
     }
 
-        .file-list-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .file-list-scroll::-webkit-scrollbar-track {
-            background: var(--color-bg);
-            border-radius: 999px;
-        }
-
-        .file-list-scroll::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 999px;
-        }
-
     .file-item {
         display: flex;
         align-items: center;
         gap: 12px;
-        background: var(--color-bg);
-        border: 1px solid var(--color-border);
+        background: var(--color-bg, var(--color-bg-default));
+        border: 1px solid var(--color-border, var(--color-border-default));
         border-radius: 8px;
         padding: 10px 14px;
-        transition: border-color 0.15s ease;
     }
 
-        .file-item:hover {
-            border-color: #cbd5e1;
-        }
-
         .file-item i {
-            color: var(--color-accent);
+            color: var(--color-accent, var(--color-accent-default));
             font-size: 1.2rem;
-            flex-shrink: 0;
         }
 
     .file-item-name {
         font-size: 0.85rem;
-        color: var(--color-text-main);
+        color: var(--color-text-main, var(--color-text-main-default));
         font-weight: 500;
         word-break: break-all;
         flex: 1;
+        text-align: left;
     }
 
     .file-item-size {
         font-size: 0.75rem;
-        color: var(--color-text-muted);
+        color: var(--color-text-muted, var(--color-text-muted-default));
         background: #e2e8f0;
         padding: 2px 8px;
         border-radius: 999px;
         font-weight: 600;
-        flex-shrink: 0;
     }
 </style>
 
 <div id="loadingOverlay">
     <div id="loadingCard">
-        <div class="spinner-border mb-3" role="status" style="color: var(--color-primary); width: 2.2rem; height: 2.2rem;">
-            <span class="visually-hidden">Loading...</span>
-        </div>
+        <div class="custom-spinner" role="status"></div>
         <div id="loadingTitle">Preparing preview…</div>
         <div id="loadingMsg">Uploading ZIP(s) and extracting GPX points. Please wait.</div>
+        <div id="progressPercent" style="font-size: 0.85rem; font-weight: 700; color: var(--color-primary, #2563eb); margin-bottom: 6px; transition: all 0.3s ease;">0%</div>
         <div class="progress">
             <div id="progressBar" class="progress-bar"></div>
         </div>
-        <div class="small mt-2" style="color: var(--color-text-muted);">Don't refresh or go back while processing.</div>
+        <div class="small mt-2" style="color: var(--color-text-muted, #64748b);">Don't refresh or go back while processing.</div>
     </div>
 </div>
 
 <div class="upload-view-wrapper py-4 px-2">
-
-    <div class="mb-4 d-flex align-items-center gap-3 pb-3 border-bottom" style="border-color: var(--color-border) !important;">
-        <div class="p-2 rounded-3 d-flex align-items-center justify-content-center" style="background-color: var(--color-accent); color: #ffffff;">
+    <div class="mb-4 d-flex align-items-center gap-3 pb-3 border-bottom" style="border-color: var(--color-border, #e2e8f0) !important;">
+        <div class="p-2 rounded-3 d-flex align-items-center justify-content-center" style="background-color: var(--color-accent, #0284c7); color: #ffffff;">
             <i class="bi bi-bus-front-fill" style="font-size: 2.2rem; line-height: 1;"></i>
         </div>
         <div>
-            <h1 class="fw-bold mb-1" style="font-size: 1.85rem; color: var(--color-text-main);">GPX Clean</h1>
-            <p class="mb-0" style="color: var(--color-text-muted); font-size: 0.95rem;">Public Utility Vehicle Data Processor</p>
+            <h1 class="fw-bold mb-1" style="font-size: 1.85rem; color: var(--color-text-main, #0f172a);">GPX Clean</h1>
+            <p class="mb-0" style="color: var(--color-text-muted, #64748b); font-size: 0.95rem;">Public Utility Vehicle Data Processor</p>
         </div>
     </div>
 
     <div class="premium-card p-4 p-md-5">
-        <h5 class="fw-bold mb-4" style="color: var(--color-text-main); font-size: 1.1rem;">
-            <i class="bi bi-cloud-upload me-2" style="color: var(--color-accent);"></i>Upload Survey Packages
+        <h5 class="fw-bold mb-4" style="color: var(--color-text-main, #0f172a); font-size: 1.1rem;">
+            <i class="bi bi-cloud-upload me-2" style="color: var(--color-accent, #0284c7);"></i>Upload Survey Packages
         </h5>
 
-        <form id="uploadForm"
-              method="post"
-              action="/gpx/preview-map"
-              enctype="multipart/form-data"
-              onsubmit="return startUpload();">
-
+        <form id="uploadForm" method="post" enctype="multipart/form-data" onsubmit="handleAsyncUpload(event)">
             @Html.AntiForgeryToken()
 
-            <input type="file"
-                   name="files"
-                   id="zipFiles"
-                   multiple
-                   accept=".zip"
-                   onchange="updateFileLabel(this)" />
+            <input type="file" name="files" id="zipFiles" multiple accept=".zip" onchange="updateFileLabel(this)" />
 
             <div class="drop-zone" onclick="document.getElementById('zipFiles').click()">
                 <i class="bi bi-file-earmark-zip-fill mb-1"></i>
@@ -242,98 +239,138 @@
                     <i class="bi bi-map-fill"></i> Preview on Map
                 </button>
             </div>
-
         </form>
     </div>
 </div>
 
 <script>
-    let fakeProgressTimer = null;
+    let eventSource = null;
 
     function updateFileLabel(input) {
         const label = document.getElementById('fileLabel');
+        const err = document.getElementById('uploadError');
         if (!label) return;
 
         if (input.files && input.files.length > 0) {
-            const err = document.getElementById('uploadError');
             if (err) err.style.display = 'none';
             const files = Array.from(input.files);
-            const items = files.map(f => {
-                const kb = (f.size / 1024).toFixed(1);
-                return `
-                    <div class="file-item">
-                        <i class="bi bi-file-earmark-zip-fill"></i>
-                        <span class="file-item-name">${f.name}</span>
-                        <span class="file-item-size">${kb} KB</span>
-                    </div>
-                `;
-            }).join('');
+
+            const items = files.map(f => `
+                <div class="file-item">
+                    <i class="bi bi-file-earmark-zip-fill"></i>
+                    <span class="file-item-name">${f.name}</span>
+                    <span class="file-item-size">${(f.size / 1024).toFixed(1)} KB</span>
+                </div>`).join('');
 
             label.innerHTML = `
                 <div style="margin-top: 1.5rem;">
-                    <p class="file-list-header">
-                        <i class="bi bi-folder2-open me-1"></i>
-                        ${files.length} package${files.length > 1 ? 's' : ''} ready for processing
-                    </p>
+                    <p class="file-list-header"><i class="bi bi-folder2-open me-1"></i>${files.length} package${files.length > 1 ? 's' : ''} ready</p>
                     <div class="file-list-scroll">${items}</div>
-                </div>
-            `;
+                </div>`;
         } else {
             label.innerHTML = '';
         }
     }
 
-    function startFakeProgress() {
+    function setProgress(pct, title, msg) {
         const bar = document.getElementById("progressBar");
-        if (!bar) return;
-        bar.style.width = "0%";
-        let progress = 0;
-        if (fakeProgressTimer) clearInterval(fakeProgressTimer);
-        fakeProgressTimer = setInterval(() => {
-            if (progress < 60)      progress += (Math.random() * 10) + 6;
-            else if (progress < 85) progress += (Math.random() * 6) + 2;
-            else if (progress < 95) progress += (Math.random() * 2) + 0.5;
-            else                    progress = 95;
-            bar.style.width = Math.min(progress, 95).toFixed(0) + "%";
-        }, 350);
+        const t = document.getElementById("loadingTitle");
+        const m = document.getElementById("loadingMsg");
+        const percent = document.getElementById("progressPercent");
+
+        if (bar) bar.style.width = pct + "%";
+        if (t && title) t.textContent = title;
+        if (m && msg) m.textContent = msg;
+        if (percent) percent.textContent = pct + "%";
     }
 
-    function startUpload() {
-        const overlay   = document.getElementById("loadingOverlay");
+    async function handleAsyncUpload(event) {
+        event.preventDefault(); // CRITICAL: Stops synchronous browser POST
+
+        const overlay = document.getElementById("loadingOverlay");
         const fileInput = document.getElementById("zipFiles");
-        const btn       = document.getElementById("btnPreview");
-        const err       = document.getElementById("uploadError");
+        const btn = document.getElementById("btnPreview");
+        const err = document.getElementById("uploadError");
+        const form = document.getElementById("uploadForm");
 
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
             if (err) err.style.display = 'block';
-            return false;
+            return;
         }
 
         if (err) err.style.display = 'none';
         overlay.style.display = "flex";
         if (btn) btn.disabled = true;
-        startFakeProgress();
-        return true;
+
+        const sessionId = crypto.randomUUID();
+        const targetUrl = `/gpx/preview-map?sessionId=${sessionId}`;
+
+        setProgress(5, "Connecting…", "Establishing secure stream with server.");
+
+        // 1. Open SSE stream first
+        eventSource = new EventSource(`/gpx/progress/${sessionId}`);
+
+        eventSource.onmessage = (e) => {
+            const data = JSON.parse(e.data);
+            setProgress(data.percent, data.title, data.message);
+
+            if (data.redirect) {
+                eventSource.close();
+                window.location.href = data.redirect;
+            }
+
+            if (data.error) {
+                eventSource.close();
+                overlay.style.display = 'none';
+                if (btn) btn.disabled = false;
+                alert("Processing Error: " + data.error);
+            }
+        };
+
+        eventSource.onerror = () => {
+            eventSource.close();
+        };
+
+        // 2. Dispatch payload asynchronously in background
+        try {
+            const formData = new FormData(form);
+            const response = await fetch(targetUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server returned HTTP ${response.status}`);
+            }
+        } catch (error) {
+            if (eventSource) eventSource.close();
+            overlay.style.display = 'none';
+            if (btn) btn.disabled = false;
+            alert("Upload Failed: " + error.message);
+        }
     }
 
+    // Drag and Drop Initialization
     document.addEventListener('DOMContentLoaded', () => {
-        const zone  = document.querySelector('.drop-zone');
+        const zone = document.querySelector('.drop-zone');
         const input = document.getElementById('zipFiles');
         if (!zone || !input) return;
 
         zone.addEventListener('dragover', e => {
             e.preventDefault();
-            zone.style.borderColor = 'var(--color-primary)';
-            zone.style.background = '#e2e8f0';
+            zone.style.borderColor = 'var(--color-primary, #2563eb)';
+            zone.style.background = '#f1f5f9';
         });
+
         zone.addEventListener('dragleave', () => {
             zone.style.borderColor = '#94a3b8';
-            zone.style.background = 'var(--color-bg)';
+            zone.style.background = 'var(--color-bg, #f8fafc)';
         });
+
         zone.addEventListener('drop', e => {
             e.preventDefault();
             zone.style.borderColor = '#94a3b8';
-            zone.style.background = 'var(--color-bg)';
+            zone.style.background = 'var(--color-bg, #f8fafc)';
             input.files = e.dataTransfer.files;
             updateFileLabel(input);
         });
