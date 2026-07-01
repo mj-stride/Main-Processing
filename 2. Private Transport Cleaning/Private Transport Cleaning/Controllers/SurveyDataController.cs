@@ -41,7 +41,7 @@ namespace PrivateTransportCleaning.Controllers
             return Redirect(_services.Dashboard);
         }
 
-        public IActionResult GoToNext()
+        public IActionResult GoToMainProc()
         {
             return Redirect(_services.MainProc);
         }

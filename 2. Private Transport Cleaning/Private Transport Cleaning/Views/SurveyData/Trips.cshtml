@@ -283,7 +283,7 @@
                 </button>
             </div>
 
-            <form method="post" asp-action="DownloadSelected">
+            <form id="downloadForm" method="post" asp-action="DownloadSelected">
                 <div class="trip-list-scroll">
                     @foreach (var file in Model)
                     {
@@ -335,8 +335,12 @@
                         <strong style="color: #dc2626;">Red</strong> = Destination.
                     </span>
                 </div>
-                <a asp-action="GoToMainProc" class="btn-topbar ms-auto text-decoration-none">
-                    Next: Processing <i class="bi bi-arrow-right-circle-fill ms-1"></i>
+                <a id="btnNext"
+                   asp-action="GoToMainProc"
+                   class="btn-topbar ms-auto px-4"
+                   style="text-decoration:none; opacity:.4; pointer-events:none; cursor:not-allowed;">
+                    Next: Processing
+                    <i class="bi bi-arrow-right-circle-fill ms-1"></i>
                 </a>
             </div>
         </div>
@@ -346,12 +350,21 @@
 
 <script>
     document.body.classList.add('map-page');
+
     const map = L.map('map').setView([12.8797, 121.7740], 6);
+
     requestAnimationFrame(() => {
         map.invalidateSize();
     });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
-    setTimeout(() => { map.invalidateSize(); }, 100);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 20
+    }).addTo(map);
+
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 100);
+
     window.addEventListener('resize', () => map.invalidateSize());
 
     let currentLayer = null;
@@ -364,25 +377,42 @@
 
     function loadTrip(el) {
         const file = el.getAttribute("data-file");
+
         fetch('/SurveyData/GetTripData?file=' + encodeURIComponent(file))
             .then(r => r.json())
             .then(points => {
-                if (currentLayer) map.removeLayer(currentLayer);
+
+                if (currentLayer) {
+                    map.removeLayer(currentLayer);
+                }
+
                 clearMarkers();
+
                 if (!points || points.length < 2) return;
 
                 const latlngs = points.map(p => [p[0], p[1]]);
-                currentLayer = L.polyline(latlngs, { color: '#1d4470', weight: 4 }).addTo(map);
 
-                const sm = L.circleMarker(latlngs[0], {
-                    radius: 6, color: '#16a34a', fillColor: '#16a34a', fillOpacity: 1
+                currentLayer = L.polyline(latlngs, {
+                    color: '#1d4470',
+                    weight: 4
                 }).addTo(map);
 
-                const em = L.circleMarker(latlngs[latlngs.length - 1], {
-                    radius: 6, color: '#dc2626', fillColor: '#dc2626', fillOpacity: 1
+                const startMarker = L.circleMarker(latlngs[0], {
+                    radius: 6,
+                    color: '#16a34a',
+                    fillColor: '#16a34a',
+                    fillOpacity: 1
                 }).addTo(map);
 
-                markers.push(sm, em);
+                const endMarker = L.circleMarker(latlngs[latlngs.length - 1], {
+                    radius: 6,
+                    color: '#dc2626',
+                    fillColor: '#dc2626',
+                    fillOpacity: 1
+                }).addTo(map);
+
+                markers.push(startMarker, endMarker);
+
                 map.fitBounds(currentLayer.getBounds());
             });
     }
@@ -391,7 +421,35 @@
         return document.querySelectorAll("input[type='checkbox'][name='files']");
     }
 
-    function selectAll()  { getBoxes().forEach(c => c.checked = true); }
-    function deselectAll(){ getBoxes().forEach(c => c.checked = false); }
-    function toggleAll()  { getBoxes().forEach(c => c.checked = !c.checked); }
+    function selectAll() {
+        getBoxes().forEach(c => c.checked = true);
+    }
+
+    function deselectAll() {
+        getBoxes().forEach(c => c.checked = false);
+    }
+
+    function toggleAll() {
+        getBoxes().forEach(c => c.checked = !c.checked);
+    }
+
+    function enableNext() {
+        const btn = document.getElementById("btnNext");
+        if (!btn) return;
+
+        btn.style.opacity = "1";
+        btn.style.pointerEvents = "auto";
+        btn.style.cursor = "pointer";
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.getElementById("downloadForm");
+
+        if (form) {
+            form.addEventListener("submit", function () {
+                // Enable the Next button after clicking Download CSV ZIP.
+                enableNext();
+            });
+        }
+    });
 </script>
