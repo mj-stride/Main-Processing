@@ -60,7 +60,11 @@ namespace Report_Generator.Services
                 string f = NormCp(seg.From);
                 string t = NormCp(seg.To);
                 if (f.Length > 0 && t.Length > 0)
+                {
+                    // Store both directions just in case SegmentAverages flipped them
                     lookup[(f, t)] = seg.TravelSpeedKph;
+                    lookup[(t, f)] = seg.TravelSpeedKph;
+                }
             }
             return lookup;
         }
@@ -119,9 +123,32 @@ namespace Report_Generator.Services
                 string fromCp = NormCp(a.Name);
                 string toCp = NormCp(b.Name);
 
-                double? speed = speedLookup.TryGetValue((fromCp, toCp), out var s1) ? s1
-                              : speedLookup.TryGetValue((toCp, fromCp), out var s2) ? s2
-                              : null;
+                // FIX 2: The Fallback Logic
+                double? speed = null;
+
+                // 1. Try exact match
+                if (speedLookup.TryGetValue((fromCp, toCp), out var exactSpeed))
+                {
+                    speed = exactSpeed;
+                }
+                else
+                {
+                    // 2. Fallback: If CPs swapped or skipped, find any segment starting with FromCP
+                    var fallbackFrom = speedLookup.FirstOrDefault(k => k.Key.Item1 == fromCp);
+                    if (fallbackFrom.Key.Item1 != null)
+                    {
+                        speed = fallbackFrom.Value;
+                    }
+                    else
+                    {
+                        // 3. Fallback: Find any segment ending with ToCP
+                        var fallbackTo = speedLookup.FirstOrDefault(k => k.Key.Item2 == toCp);
+                        if (fallbackTo.Key.Item2 != null)
+                        {
+                            speed = fallbackTo.Value;
+                        }
+                    }
+                }
 
                 var (cat, color) = SpeedBinColor(speed);
                 float lw = SpeedWidth(speed);
