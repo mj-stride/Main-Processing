@@ -492,7 +492,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         // =========================================================
         [HttpPost("/gpx/cleaned-only-view")]
         [RequestSizeLimit(1_500_000_000)]
-        public IActionResult CleanedOnlyView(string batchId, List<string> selectedFiles)
+        public IActionResult CleanedOnlyView(string batchId, List<string> selectedFiles, List<string>? mergeKeys)
         {
             if (string.IsNullOrWhiteSpace(batchId))
                 return BadRequest("Missing batch id.");
@@ -522,6 +522,10 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             var outputs = BuildTripOutputs(zipDatasets, mergeDebug, cleanDebug);
             if (outputs.Count == 0)
                 return BadRequest("No grouped trips produced.");
+
+            // NEW: apply any user-requested forced merges before building the view model
+            if (mergeKeys != null && mergeKeys.Count >= 2)
+                outputs = ApplyForcedMerge(outputs, mergeKeys);
 
             var vm = new GpxCleanedOnlyVm
             {
@@ -911,7 +915,81 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
 
             return outputs;
         }
+        // =========================================================
+        // FORCED TRIP MERGE (manual, user-selected — bypasses the
+        // automatic gap/jump/direction thresholds in BuildTripOutputs)
+        // =========================================================
+        private static string TripKey(TripOutput o) =>
+            $"{o.VehicleCode}|{o.TripId}|{o.DtToken}|{o.Direction}|{o.PartIndex}";
 
+        private static List<TripOutput> ApplyForcedMerge(List<TripOutput> outputs, List<string> mergeKeys)
+        {
+            var keySet = new HashSet<string>(
+                mergeKeys.Where(k => !string.IsNullOrWhiteSpace(k)),
+                StringComparer.OrdinalIgnoreCase);
+
+            if (keySet.Count < 2) return outputs;
+
+            var toMerge = outputs.Where(o => keySet.Contains(TripKey(o))).ToList();
+            if (toMerge.Count < 2) return outputs; // nothing matched, or only one did — no-op
+
+            var remaining = outputs.Where(o => !keySet.Contains(TripKey(o))).ToList();
+
+            // Combined already holds every point (unlike Cleaned, which drops outliers),
+            // so it's the correct source of truth to re-merge and re-clean from scratch.
+            var allPoints = toMerge
+                .SelectMany(o => o.Combined)
+                .Where(r => r.Timestamp.HasValue)
+                .OrderBy(r => r.Timestamp!.Value)
+                .ToList();
+
+            if (allPoints.Count == 0) return outputs;
+
+            var anchor = toMerge
+                .OrderBy(o => o.Combined
+                    .Where(r => r.Timestamp.HasValue)
+                    .Select(r => r.Timestamp!.Value)
+                    .DefaultIfEmpty(DateTime.MaxValue)
+                    .Min())
+                .First();
+
+            var distinctDirections = toMerge
+                .Select(o => o.Direction)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var mergedAcc = new TripAccumulator
+            {
+                VehicleCode = anchor.VehicleCode,
+                TripId = anchor.TripId,
+                DtToken = anchor.DtToken,
+                Direction = distinctDirections.Count == 1 ? distinctDirections[0] : "MRG",
+                PartIndex = toMerge.Min(o => o.PartIndex),
+            };
+
+            var throwawayCleanDebug = new List<DebugCleanEventRow>();
+
+            var merged = new TripOutput
+            {
+                VehicleCode = mergedAcc.VehicleCode,
+                TripId = mergedAcc.TripId,
+                DtToken = mergedAcc.DtToken,
+                Direction = mergedAcc.Direction,
+                PartIndex = mergedAcc.PartIndex,
+                // ComputeDiffsKeepAll / CleanKeepGoing both clone each record internally
+                // via CloneWithoutComputed, so stale secDiff/distanceDiff from the
+                // pre-merge trips is discarded and recalculated across the new join point.
+                Combined = ComputeDiffsKeepAll(allPoints),
+                Cleaned = CleanKeepGoing(allPoints, mergedAcc, throwawayCleanDebug),
+                SourceZipFiles = toMerge
+                    .SelectMany(o => o.SourceZipFiles)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+            };
+
+            remaining.Add(merged);
+            return remaining;
+        }
         private static TripOutput FinalizeTrip(TripAccumulator acc, List<DebugCleanEventRow> cleanDebug)
         {
             var all = acc.Rows

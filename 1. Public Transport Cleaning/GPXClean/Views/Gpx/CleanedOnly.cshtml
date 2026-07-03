@@ -11,31 +11,27 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
-    /* 1. STRICT VIEWPORT LOCK: Outlaws outer browser scrolling */
     html, body {
         height: 100vh !important;
         overflow: hidden !important;
     }
 
-    /* 2. MASTER BOUNDING BOX: Fits exactly between Topbar and Footer */
     .preview-view-wrapper {
         display: flex;
         flex-direction: column;
-        height: calc(100vh - 110px); /* 100vh minus Topbar (~60px), Footer (~40px), and margins */
+        height: calc(100vh - 110px);
         max-width: 1600px;
         margin: 0 auto;
         width: 100%;
     }
 
-    /* Main split body */
     .preview-body-grid {
         display: flex;
         gap: 1.5rem;
         flex: 1;
-        min-height: 0; /* Crucial flex lock */
+        min-height: 0;
     }
 
-    /* LEFT PANEL: Bounded by calc safety net */
     .panel-left {
         width: 350px;
         flex-shrink: 0;
@@ -57,7 +53,6 @@
         background-color: var(--color-surface);
     }
 
-    /* Batch Selection Utility Strip */
     .selection-controls {
         display: flex;
         gap: 6px;
@@ -92,11 +87,38 @@
                 background: #fef3c7;
             }
 
-    /* Trip Row Scoped Typography */
+    /* --- NEW: merge action bar --- */
+    #mergeBar {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        background: #eff6ff;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #1d4ed8;
+    }
+
+        #mergeBar .btn-sel {
+            font-size: 0.72rem;
+        }
+
+    .btn-merge-go {
+        background-color: #1d4ed8 !important;
+        color: #fff !important;
+        border-color: #1d4ed8 !important;
+    }
+
+        .btn-merge-go:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
     .trip-list-scroll {
         flex: 1 1 auto;
         overflow-y: auto;
-        min-height: 0; /* Forces internal custom scrollbar */
+        min-height: 0;
         padding: 0.75rem 1rem;
         display: flex;
         flex-direction: column;
@@ -124,7 +146,6 @@
         border: 1px solid var(--color-border);
         border-radius: 8px;
         padding: 6px 10px;
-        cursor: pointer;
         transition: all 0.15s ease;
     }
 
@@ -138,6 +159,18 @@
             margin-top: 4px;
             cursor: pointer;
         }
+
+        /* --- NEW: row is now picked-state aware --- */
+        .trip-row.row-picked {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+
+    .trip-row-body {
+        flex: 1;
+        min-width: 0;
+        cursor: pointer;
+    }
 
     .trip-row-title {
         font-size: 0.8rem;
@@ -160,22 +193,63 @@
         word-break: break-all;
     }
 
+    /* --- NEW: merged-source badge --- */
+    .badge-merged {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        color: #7c3aed;
+        background: #f3e8ff;
+        border-radius: 4px;
+        padding: 1px 6px;
+        margin-left: 4px;
+    }
+
+    /* --- NEW: merge-pick toggle button --- */
+    .btn-merge-pick {
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-size: 0.85rem;
+        margin-top: 1px;
+    }
+
+        .btn-merge-pick:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+
+        .btn-merge-pick.active {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #fff;
+        }
+
     .panel-left-actions {
         padding: 1rem;
         border-top: 1px solid var(--color-border);
         background: var(--color-surface);
     }
 
-    /* Success button variant extending shared.css */
     .btn-ttds-success {
-        background-color: #16a34a !important; /* Emerald */
+        background-color: #16a34a !important;
     }
 
         .btn-ttds-success:hover {
             background-color: #15803d !important;
         }
 
-    /* RIGHT PANEL */
     .panel-right {
         flex: 1;
         min-width: 0;
@@ -236,6 +310,16 @@
                 <button type="button" class="btn-sel warning ms-auto" id="toggleBtn"><i class="bi bi-arrow-left-right me-1"></i>Invert</button>
             </div>
 
+            <!-- NEW: merge action bar -->
+            <div id="mergeBar">
+                <i class="bi bi-link-45deg"></i>
+                <span><span id="mergeCount">0</span> selected to merge</span>
+                <button type="button" class="btn-sel btn-merge-go ms-auto" id="btnMergeGo" disabled>
+                    <i class="bi bi-magic me-1"></i>Merge into One Trip
+                </button>
+                <button type="button" class="btn-sel" id="btnMergeClear">Clear</button>
+            </div>
+
             <form id="cleanedActionForm" method="post" class="d-flex flex-column flex-grow-1" style="min-height: 0;">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="batchId" value="@Model.BatchId" />
@@ -246,22 +330,32 @@
                     {
                         var t = Model.Trips[i];
                         var id = "trip_" + i;
+                        var tripKey = $"{t.VehicleCode}|{t.TripId}|{t.DtToken}|{t.Direction}|{t.PartIndex}";
 
-                        <label class="trip-row" for="@id">
+                        <div class="trip-row" data-tripkey="@tripKey">
                             <input class="trip-checkbox"
                                    type="checkbox"
                                    id="@id"
                                    data-files='@Html.Raw(JsonSerializer.Serialize(t.SourceZipFiles))'
                                    checked />
-                            <div class="trip-row-body">
-                                <div class="trip-row-title">@t.VehicleCode @t.TripId (@t.Direction-@t.PartIndex)</div>
+                            <label class="trip-row-body" for="@id">
+                                <div class="trip-row-title">
+                                    @t.VehicleCode @t.TripId (@t.Direction-@t.PartIndex)
+                                    @if ((t.SourceZipFiles?.Count ?? 0) > 1)
+                                    {
+                                        <span class="badge-merged"><i class="bi bi-link-45deg"></i>@t.SourceZipFiles.Count files</span>
+                                    }
+                                </div>
                                 <div class="trip-row-meta">
                                     <i class="bi bi-geo me-1"></i>@(t.DetectedRegionId ?? "UNK") |
                                     <i class="bi bi-road ms-1 me-1"></i>@(t.DetectedRoadName ?? "UNK") | @(t.Points?.Count ?? 0) pts
                                 </div>
                                 <div class="trip-row-zip"><i class="bi bi-file-zip-fill me-1"></i>@t.SourceZipFileName</div>
-                            </div>
-                        </label>
+                            </label>
+                            <button type="button" class="btn-merge-pick" data-tripkey="@tripKey" title="Select this trip to merge with another">
+                                <i class="bi bi-link-45deg"></i>
+                            </button>
+                        </div>
                     }
                 </div>
 
@@ -272,6 +366,13 @@
                         <i class="bi bi-file-earmark-spreadsheet-fill"></i> Download CSV Package
                     </button>
                 </div>
+            </form>
+
+            <!-- NEW: hidden form used only to submit forced merges back to CleanedOnlyView -->
+            <form id="mergeForm" method="post" action="/gpx/cleaned-only-view" style="display:none;">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="batchId" value="@Model.BatchId" />
+                <div id="mergeHiddenInputs"></div>
             </form>
         </div>
 
@@ -297,7 +398,6 @@
     const map = L.map('map').setView([12.8797, 121.7740], 6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 20 }).addTo(map);
 
-    // Re-measure Leaflet canvas after Flexbox calculates stretching
     setTimeout(() => { map.invalidateSize(); }, 250);
 
     const vm = @Html.Raw(JsonSerializer.Serialize(Model));
@@ -387,11 +487,104 @@
             container.appendChild(inp);
         });
     });
-        function enableNext() {
+
+    function enableNext() {
         const btn = document.getElementById("btnNext");
         if (!btn) return;
         btn.style.opacity = "1";
         btn.style.pointerEvents = "auto";
         btn.style.cursor = "pointer";
     }
+
+    /* =========================================================
+       NEW: MERGE TWO (OR MORE) TRIPS INTO ONE
+       ========================================================= */
+    (function () {
+        const mergeState = new Set();
+        const mergeBar = document.getElementById("mergeBar");
+        const mergeCountEl = document.getElementById("mergeCount");
+        const btnMergeGo = document.getElementById("btnMergeGo");
+        const btnMergeClear = document.getElementById("btnMergeClear");
+
+        function refreshMergeBar() {
+            const n = mergeState.size;
+            mergeBar.style.display = n > 0 ? "flex" : "none";
+            mergeCountEl.textContent = n;
+            btnMergeGo.disabled = n < 2;
+        }
+
+        document.querySelectorAll(".btn-merge-pick").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const key = btn.dataset.tripkey;
+                const row = btn.closest(".trip-row");
+                if (mergeState.has(key)) {
+                    mergeState.delete(key);
+                    btn.classList.remove("active");
+                    row.classList.remove("row-picked");
+                } else {
+                    mergeState.add(key);
+                    btn.classList.add("active");
+                    row.classList.add("row-picked");
+                }
+                refreshMergeBar();
+            });
+        });
+
+        btnMergeClear.addEventListener("click", () => {
+            mergeState.clear();
+            document.querySelectorAll(".btn-merge-pick.active").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".trip-row.row-picked").forEach(r => r.classList.remove("row-picked"));
+            refreshMergeBar();
+        });
+
+        btnMergeGo.addEventListener("click", () => {
+            if (mergeState.size < 2) return;
+
+            const titles = Array.from(mergeState).map(key => {
+                const row = document.querySelector(`.trip-row[data-tripkey="${CSS.escape(key)}"]`);
+                return row ? row.querySelector(".trip-row-title").textContent.trim() : key;
+            });
+
+            const ok = confirm(
+                "Merge these " + mergeState.size + " trips into a single continuous trip?\n\n" +
+                titles.map(t => "• " + t).join("\n") +
+                "\n\nPoints will be re-sorted by timestamp and re-cleaned as one trip. " +
+                "This isn't reversible from this page — you'd need to re-select the original files to undo it."
+            );
+            if (!ok) return;
+
+            const mergeForm = document.getElementById("mergeForm");
+            const mergeContainer = document.getElementById("mergeHiddenInputs");
+            mergeContainer.innerHTML = "";
+
+            // Keep the FULL working set of files loaded — merging shouldn't drop
+            // any trip that wasn't explicitly picked.
+            const allZips = new Set();
+            document.querySelectorAll(".trip-checkbox").forEach(cb => {
+                try {
+                    const arr = JSON.parse(cb.getAttribute("data-files") || "[]");
+                    arr.forEach(z => allZips.add(z));
+                } catch (e) { console.error("Failed to parse zip payload", e); }
+            });
+            allZips.forEach(z => {
+                const inp = document.createElement("input");
+                inp.type = "hidden";
+                inp.name = "selectedFiles";
+                inp.value = z;
+                mergeContainer.appendChild(inp);
+            });
+
+            mergeState.forEach(key => {
+                const inp = document.createElement("input");
+                inp.type = "hidden";
+                inp.name = "mergeKeys";
+                inp.value = key;
+                mergeContainer.appendChild(inp);
+            });
+
+            mergeForm.submit();
+        });
+    })();
 </script>
