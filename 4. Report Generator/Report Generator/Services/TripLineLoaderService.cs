@@ -112,8 +112,13 @@ namespace Report_Generator.Services
 
             var headers = lines[0].Split(',').Select(h => h.Trim(HeaderTrimChars)).ToArray();
 
-            string? latCol = headers.FirstOrDefault(h => h.Equals("SnappedLat", StringComparison.OrdinalIgnoreCase));
-            string? lonCol = headers.FirstOrDefault(h => h.Equals("SnappedLon", StringComparison.OrdinalIgnoreCase));
+            string? latCol = headers.FirstOrDefault(h => h.Equals("SnappedLat", StringComparison.OrdinalIgnoreCase))
+                          ?? headers.FirstOrDefault(h => h.Equals("Latitude", StringComparison.OrdinalIgnoreCase))
+                          ?? headers.FirstOrDefault(h => h.Equals("Lat", StringComparison.OrdinalIgnoreCase));
+
+            string? lonCol = headers.FirstOrDefault(h => h.Equals("SnappedLon", StringComparison.OrdinalIgnoreCase))
+                          ?? headers.FirstOrDefault(h => h.Equals("Longitude", StringComparison.OrdinalIgnoreCase))
+                          ?? headers.FirstOrDefault(h => h.Equals("Lon", StringComparison.OrdinalIgnoreCase));
 
             if (latCol == null || lonCol == null)
             {
