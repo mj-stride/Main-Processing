@@ -3,6 +3,9 @@
 @{
     ViewData["Title"] = "Trips (Cleaned)";
     ViewData["Section"] = "Clean and Snap (Private)";
+
+    // All routes render in the same color, matching the reference design.
+    const string mapLineColor = "#1d4470";
 }
 
 <link rel="stylesheet" href="/css/shared.css" />
@@ -97,6 +100,35 @@
                 background: #fef3c7;
             }
 
+    /* --- merge action bar --- */
+    #mergeBar {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid var(--color-border);
+        background: #eff6ff;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #1d4ed8;
+        flex-shrink: 0;
+    }
+
+        #mergeBar .btn-sel {
+            font-size: 0.72rem;
+        }
+
+    .btn-merge-go {
+        background-color: #1d4ed8 !important;
+        color: #fff !important;
+        border-color: #1d4ed8 !important;
+    }
+
+        .btn-merge-go:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
     .trip-list-scroll {
         flex: 1 1 0;
         overflow-y: auto;
@@ -128,7 +160,6 @@
         border: 1px solid var(--color-border);
         border-radius: 8px;
         padding: 8px 10px;
-        cursor: pointer;
         transition: all 0.15s ease;
     }
 
@@ -145,6 +176,18 @@
             height: 15px;
             flex-shrink: 0;
         }
+
+        /* row is picked-for-merge state aware */
+        .trip-row.row-picked {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+
+    .trip-row-body {
+        flex: 1;
+        min-width: 0;
+        cursor: pointer;
+    }
 
     .trip-row-title {
         font-size: 0.8rem;
@@ -196,12 +239,65 @@
                 color: #ffffff;
             }
 
+    /* --- MERGED-SOURCE BADGE --- */
+    .badge-merged {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        color: #7c3aed;
+        background: #f3e8ff;
+        border-radius: 4px;
+        padding: 1px 6px;
+        margin-left: 6px;
+        vertical-align: middle;
+    }
+
+    /* merge-pick toggle button */
+    .btn-merge-pick {
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
+        color: #94a3b8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        font-size: 0.85rem;
+        margin-top: 1px;
+    }
+
+        .btn-merge-pick:hover {
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+        }
+
+        .btn-merge-pick.active {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+            color: #fff;
+        }
+
     .panel-left-actions {
         padding: 1rem;
         border-top: 1px solid var(--color-border);
         background: var(--color-surface);
         flex-shrink: 0;
     }
+
+    .btn-ttds-success {
+        background-color: #16a34a !important;
+        border-color: #16a34a !important;
+    }
+
+        .btn-ttds-success:hover {
+            background-color: #15803d !important;
+        }
 
     .panel-right {
         flex: 1;
@@ -272,54 +368,91 @@
             </div>
 
             <div class="selection-controls">
-                <button type="button" class="btn-sel" onclick="selectAll()">
+                <button type="button" class="btn-sel" id="selectAllBtn">
                     <i class="bi bi-check-all me-1"></i>All
                 </button>
-                <button type="button" class="btn-sel" onclick="deselectAll()">
+                <button type="button" class="btn-sel" id="deselectAllBtn">
                     <i class="bi bi-x me-1"></i>None
                 </button>
-                <button type="button" class="btn-sel warning ms-auto" onclick="toggleAll()">
+                <button type="button" class="btn-sel warning ms-auto" id="toggleBtn">
                     <i class="bi bi-arrow-left-right me-1"></i>Toggle
                 </button>
             </div>
 
+            <div id="mergeBar">
+                <i class="bi bi-link-45deg"></i>
+                <span><span id="mergeCount">0</span> selected to merge</span>
+                <button type="button" class="btn-sel btn-merge-go ms-auto" id="btnMergeGo" disabled>
+                    <i class="bi bi-magic me-1"></i>Merge into One Trip
+                </button>
+                <button type="button" class="btn-sel" id="btnMergeClear">Clear</button>
+            </div>
+
             <form id="downloadForm" method="post" asp-action="DownloadSelected">
                 <div class="trip-list-scroll">
+                    @{
+                        int __idx = 0;
+                    }
                     @foreach (var file in Model)
                     {
-                        <label class="trip-row">
-                            <input type="checkbox" name="files" value="@file.FileName" checked />
-                            <div style="flex:1;">
+                        var __id = "chk_" + __idx;
+                        var __title = file.FileName != null
+                            ? file.FileName.Replace("_snapped.csv", "").Replace(".csv", "")
+                            : "Unknown";
+                        var __isMerged = file.FileName != null &&
+                            file.FileName.ToUpperInvariant().Contains("MERGED");
+                        var __sizeStr = file.FileSize > 0
+                            ? (file.FileSize / 1024.0).ToString("0.00") + " KB"
+                            : "Unknown size";
+                        __idx++;
+
+                        <div class="trip-row" data-tripkey="@file.FileName">
+                            <input class="trip-checkbox"
+                                   type="checkbox"
+                                   id="@__id"
+                                   name="files"
+                                   value="@file.FileName"
+                                   data-title="@__title"
+                                   checked
+                                   onchange="toggleTripOnMap(this)" />
+
+                            <label class="trip-row-body" for="@__id">
                                 <div class="trip-row-title">
-                                    @(file.FileName != null
-                                                                    ? file.FileName.Replace("_snapped.csv", "").Replace(".csv", "")
-                                                                    : "Unknown")
-                                                                            </div>
-                                                                            <div class="trip-row-meta">
-                                                                                <i class="bi bi-file-earmark me-1"></i>
-                                    @(file.FileSize > 0
-                                                                    ? (file.FileSize / 1024.0).ToString("0.00") + " KB"
-                                                                    : "Unknown size")
-                            </div>
-                            <div class="trip-row-actions">
-                                <a class="btn-mini"
-                                   href="javascript:void(0)"
-                                   data-file="@file.FileName"
-                                   onclick="loadTrip(this)">
-                                    <i class="bi bi-map me-1"></i>View Map
-                                </a>
-                                <a class="btn-mini secondary" href="@file.DownloadUrl">
-                                    <i class="bi bi-download me-1"></i>Download
-                                </a>
-                            </div>
+                                    @__title
+                                    @if (__isMerged)
+                                    {
+                                        <span class="badge-merged"><i class="bi bi-link-45deg"></i>Merged Files</span>
+                                    }
+                                </div>
+                                <div class="trip-row-meta">
+                                    <i class="bi bi-file-earmark me-1"></i> @__sizeStr
+                                </div>
+                                <div class="trip-row-actions">
+                                    <a class="btn-mini"
+                                       href="javascript:void(0)"
+                                       data-file="@file.FileName"
+                                       onclick="focusTrip(this); event.stopPropagation();">
+                                        <i class="bi bi-map me-1"></i>View Map
+                                    </a>
+                                    <a class="btn-mini secondary" href="@file.DownloadUrl"
+                                       onclick="event.stopPropagation();">
+                                        <i class="bi bi-download me-1"></i>Download
+                                    </a>
+                                </div>
+                            </label>
+
+                            <button type="button" class="btn-merge-pick" data-tripkey="@file.FileName"
+                                    title="Pick this trip to merge with another">
+                                <i class="bi bi-link-45deg"></i>
+                            </button>
                         </div>
-                    </label>
-                                        }
+                    }
                 </div>
 
                 <div class="panel-left-actions">
-                    <button class="btn-ttds" type="submit">
-                        <i class="bi bi-download"></i>  Download CSV ZIP
+                    <button class="btn-ttds btn-ttds-success w-100 d-flex align-items-center justify-content-center gap-2"
+                            type="submit">
+                        <i class="bi bi-download"></i> Download CSV ZIP
                     </button>
                 </div>
             </form>
@@ -331,7 +464,7 @@
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-info-circle-fill" style="color: var(--color-primary);"></i>
                     <span>
-                        <strong style="color: #16a34a;">Green</strong> = Origin,
+                        Click a path to hide it. <strong style="color: #16a34a;">Green</strong> = Origin,
                         <strong style="color: #dc2626;">Red</strong> = Destination.
                     </span>
                 </div>
@@ -367,70 +500,116 @@
 
     window.addEventListener('resize', () => map.invalidateSize());
 
-    let currentLayer = null;
-    let markers = [];
+    // All routes render in this single color, matching the reference design.
+    const TRIP_COLOR = '#1d4470';
 
-    function clearMarkers() {
-        markers.forEach(m => map.removeLayer(m));
-        markers = [];
+    // file name -> { layer, startMarker, endMarker }
+    const loadedTrips = {};
+
+    function getBoxes() {
+        return document.querySelectorAll(".trip-checkbox");
     }
 
-    function loadTrip(el) {
-        const file = el.getAttribute("data-file");
+    function fitToLoadedTrips() {
+        const layers = Object.values(loadedTrips).map(t => t.layer);
+        if (layers.length === 0) return;
+
+        const group = L.featureGroup(layers);
+        map.fitBounds(group.getBounds(), { padding: [20, 20] });
+    }
+
+    function loadAndAddTrip(file, color, title) {
+        if (loadedTrips[file]) return;
 
         fetch('/SurveyData/GetTripData?file=' + encodeURIComponent(file))
             .then(r => r.json())
             .then(points => {
-
-                if (currentLayer) {
-                    map.removeLayer(currentLayer);
-                }
-
-                clearMarkers();
-
                 if (!points || points.length < 2) return;
 
                 const latlngs = points.map(p => [p[0], p[1]]);
 
-                currentLayer = L.polyline(latlngs, {
-                    color: '#1d4470',
-                    weight: 4
+                const layer = L.polyline(latlngs, {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.85
                 }).addTo(map);
+
+                layer.bindPopup(`<strong style="color:${color};">${title}</strong>`);
+
+                // Clicking a path hides that trip without touching any others.
+                layer.on("click", () => {
+                    const cb = document.querySelector(`.trip-checkbox[value="${CSS.escape(file)}"]`);
+                    if (cb) {
+                        cb.checked = false;
+                        toggleTripOnMap(cb);
+                    }
+                });
 
                 const startMarker = L.circleMarker(latlngs[0], {
                     radius: 6,
                     color: '#16a34a',
                     fillColor: '#16a34a',
                     fillOpacity: 1
-                }).addTo(map);
+                }).addTo(map).bindPopup(`<strong>Origin</strong><br/>${title}`);
 
                 const endMarker = L.circleMarker(latlngs[latlngs.length - 1], {
                     radius: 6,
                     color: '#dc2626',
                     fillColor: '#dc2626',
                     fillOpacity: 1
-                }).addTo(map);
+                }).addTo(map).bindPopup(`<strong>Destination</strong><br/>${title}`);
 
-                markers.push(startMarker, endMarker);
+                loadedTrips[file] = { layer, startMarker, endMarker };
 
-                map.fitBounds(currentLayer.getBounds());
+                fitToLoadedTrips();
             });
     }
 
-    function getBoxes() {
-        return document.querySelectorAll("input[type='checkbox'][name='files']");
+    function removeTrip(file) {
+        const entry = loadedTrips[file];
+        if (!entry) return;
+
+        map.removeLayer(entry.layer);
+        map.removeLayer(entry.startMarker);
+        map.removeLayer(entry.endMarker);
+
+        delete loadedTrips[file];
+
+        fitToLoadedTrips();
     }
 
-    function selectAll() {
-        getBoxes().forEach(c => c.checked = true);
+    function toggleTripOnMap(checkbox) {
+        const file = checkbox.value;
+        const title = checkbox.getAttribute('data-title') || file;
+
+        if (checkbox.checked) {
+            loadAndAddTrip(file, TRIP_COLOR, title);
+        } else {
+            removeTrip(file);
+        }
     }
 
-    function deselectAll() {
-        getBoxes().forEach(c => c.checked = false);
-    }
+    function focusTrip(el) {
+        const file = el.getAttribute("data-file");
+        const checkbox = document.querySelector(`.trip-checkbox[value="${CSS.escape(file)}"]`);
 
-    function toggleAll() {
-        getBoxes().forEach(c => c.checked = !c.checked);
+        if (checkbox && !checkbox.checked) {
+            checkbox.checked = true;
+            toggleTripOnMap(checkbox);
+        }
+
+        const tryFocus = () => {
+            const entry = loadedTrips[file];
+            if (entry) {
+                map.fitBounds(entry.layer.getBounds(), { padding: [20, 20] });
+                return true;
+            }
+            return false;
+        };
+
+        if (!tryFocus()) {
+            setTimeout(tryFocus, 400);
+        }
     }
 
     function enableNext() {
@@ -442,14 +621,120 @@
         btn.style.cursor = "pointer";
     }
 
+    document.getElementById("selectAllBtn").addEventListener("click", () => {
+        getBoxes().forEach(c => { if (!c.checked) { c.checked = true; toggleTripOnMap(c); } });
+    });
+
+    document.getElementById("deselectAllBtn").addEventListener("click", () => {
+        getBoxes().forEach(c => { if (c.checked) { c.checked = false; toggleTripOnMap(c); } });
+    });
+
+    document.getElementById("toggleBtn").addEventListener("click", () => {
+        getBoxes().forEach(c => { c.checked = !c.checked; toggleTripOnMap(c); });
+    });
+
+    /* =========================================================
+       MERGE PICKER — independent of the map/download checkboxes.
+       Pick two or more trips, then merge them into one new CSV.
+       ========================================================= */
+    (function () {
+        const mergeState = new Set();
+        const mergeBar = document.getElementById("mergeBar");
+        const mergeCountEl = document.getElementById("mergeCount");
+        const btnMergeGo = document.getElementById("btnMergeGo");
+        const btnMergeClear = document.getElementById("btnMergeClear");
+
+        function refreshMergeBar() {
+            const n = mergeState.size;
+            mergeBar.style.display = n > 0 ? "flex" : "none";
+            mergeCountEl.textContent = n;
+            btnMergeGo.disabled = n < 2;
+        }
+
+        document.querySelectorAll(".btn-merge-pick").forEach(btn => {
+            btn.addEventListener("click", () => {
+                const key = btn.dataset.tripkey;
+                const row = btn.closest(".trip-row");
+
+                if (mergeState.has(key)) {
+                    mergeState.delete(key);
+                    btn.classList.remove("active");
+                    row.classList.remove("row-picked");
+                } else {
+                    mergeState.add(key);
+                    btn.classList.add("active");
+                    row.classList.add("row-picked");
+                }
+
+                refreshMergeBar();
+            });
+        });
+
+        btnMergeClear.addEventListener("click", () => {
+            mergeState.clear();
+            document.querySelectorAll(".btn-merge-pick.active").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".trip-row.row-picked").forEach(r => r.classList.remove("row-picked"));
+            refreshMergeBar();
+        });
+
+        btnMergeGo.addEventListener("click", () => {
+            if (mergeState.size < 2) return;
+
+            const titles = Array.from(mergeState).map(key => {
+                const row = document.querySelector(`.trip-row[data-tripkey="${CSS.escape(key)}"]`);
+                return row ? row.querySelector(".trip-row-title").textContent.trim() : key;
+            });
+
+            // UPDATED CONFIRMATION TEXT TO STATE FILES WILL BE DELETED
+            const ok = confirm(
+                "Merge these " + mergeState.size + " trips into a single continuous trip?\n\n" +
+                titles.map(t => "\u2022 " + t).join("\n") +
+                "\n\nPoints will be combined and re-sorted by timestamp. " +
+                "This creates a new merged CSV and deletes the separate original files."
+            );
+            if (!ok) return;
+
+            const originalHtml = btnMergeGo.innerHTML;
+            btnMergeGo.disabled = true;
+            btnMergeGo.innerHTML = '<i class="bi bi-hourglass-split"></i> Merging...';
+
+            const formData = new FormData();
+            mergeState.forEach(f => formData.append("files", f));
+
+            fetch('/SurveyData/MergeSelected', {
+                method: 'POST',
+                body: formData
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirect;
+                    } else {
+                        alert(data.message || "Merge failed.");
+                        btnMergeGo.disabled = mergeState.size < 2;
+                        btnMergeGo.innerHTML = originalHtml;
+                    }
+                })
+                .catch(() => {
+                    alert("Merge request failed.");
+                    btnMergeGo.disabled = mergeState.size < 2;
+                    btnMergeGo.innerHTML = originalHtml;
+                });
+        });
+    })();
+
     document.addEventListener("DOMContentLoaded", function () {
         const form = document.getElementById("downloadForm");
 
         if (form) {
             form.addEventListener("submit", function () {
-                // Enable the Next button after clicking Download CSV ZIP.
                 enableNext();
             });
         }
+
+        // Trips start checked by default, so draw all of them on load.
+        getBoxes().forEach(c => {
+            if (c.checked) toggleTripOnMap(c);
+        });
     });
 </script>
