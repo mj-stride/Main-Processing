@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
+using Ttds.Shared;  
 
 namespace Processing_Integrator.Pages
 {

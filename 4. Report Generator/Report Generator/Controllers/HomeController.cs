@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Ttds.Shared;
 
 namespace Report_Generator.Controllers
 {
