@@ -29,7 +29,9 @@
         </div>
         <div>
             <h1 class="h3 fw-bold mb-0" style="color: var(--color-text-main);">@ViewData["Title"]</h1>
-            <p class="text-muted mb-0" style="font-size: 0.95rem;">Upload Geotab telemetry packages for parsing</p>
+            <p class="text-muted mb-0" style="font-size: 0.95rem;">
+                Upload Geotab telemetry CSV and ZIP packages for parsing
+            </p>
         </div>
     </header>
 
@@ -39,19 +41,28 @@
         <form id="uploadForm" asp-action="Upload" asp-controller="Home"
               method="post" enctype="multipart/form-data" autocomplete="off" onsubmit="return startUpload();">
 
-            <input type="file" name="files" id="csvFiles" multiple accept=".csv" class="d-none" />
+            <input type="file"
+                   name="files"
+                   id="csvFiles"
+                   multiple
+                   accept=".csv,.zip,application/zip"
+                   class="d-none" />
 
             <div id="dropZone" role="button" tabindex="0" aria-controls="csvFiles"
-                 title="Click or drop CSV files here" class="drop-zone mb-3">
-                <i class="bi bi-filetype-csv"></i>
-                <p>Drag &amp; drop or click to browse <b>.csv</b> files</p>
+                 title="Click or drop CSV or ZIP files here" class="drop-zone mb-3">
+                <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
+                    <i class="bi bi-filetype-csv"></i>
+                    <i class="bi bi-file-zip-fill"></i>
+                </div>
+
+                <p>Drag &amp; drop or click to browse <b>.csv</b> and <b>.zip</b> files</p>
                 <span class="drop-zone-subtext">Supports multiple files</span>
             </div>
 
             <div id="fileLabel" aria-live="polite"></div>
 
             <div id="uploadError" class="alert alert-danger mt-3 py-2 text-center small fw-semibold" style="display: none;">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i> Please select at least one .csv file.
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> Please select at least one .csv or .zip file.
             </div>
 
             <div class="d-flex justify-content-center mt-4">
@@ -95,20 +106,29 @@
                     if (err) err.style.display = 'none';
 
                     const files = Array.from(input.files);
-                    const items = files.map(f => {
-                        const kb = (f.size / 1024).toFixed(1);
-                        return `
-                            <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-2 mb-1 border"
-                                 style="background-color: var(--color-surface); border-color: var(--color-border) !important;">
-                                <div class="d-flex align-items-center gap-2 text-truncate me-3">
-                                    <i class="bi bi-filetype-csv" style="color: var(--color-accent);"></i>
-                                    <span class="small fw-medium text-dark text-truncate">${f.name}</span>
+                        const items = files.map(f => {
+                            const kb = (f.size / 1024).toFixed(1);
+
+                            const extension = f.name.split('.').pop().toLowerCase();
+
+                            let icon = "bi-file-earmark";
+                            if (extension === "csv")
+                                icon = "bi-filetype-csv";
+                            else if (extension === "zip")
+                                icon = "bi-file-zip-fill";
+
+                            return `
+                                <div class="d-flex align-items-center justify-content-between p-2 px-3 rounded-2 mb-1 border"
+                                        style="background-color: var(--color-surface); border-color: var(--color-border) !important;">
+                                    <div class="d-flex align-items-center gap-2 text-truncate me-3">
+                                        <i class="bi ${icon}" style="color: var(--color-accent);"></i>
+                                        <span class="small fw-medium text-dark text-truncate">${f.name}</span>
+                                    </div>
+                                    <span class="badge text-secondary border flex-shrink-0"
+                                            style="background-color: var(--color-bg); font-weight: 600;">${kb} KB</span>
                                 </div>
-                                <span class="badge text-secondary border flex-shrink-0"
-                                      style="background-color: var(--color-bg); font-weight: 600;">${kb} KB</span>
-                            </div>
-                        `;
-                    }).join('');
+                            `;
+                        }).join('');
 
                     label.innerHTML = `
                         <div class="mt-3">
