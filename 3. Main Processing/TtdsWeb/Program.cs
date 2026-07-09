@@ -4,17 +4,27 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-
-// ✅ This must be Singleton so datasets persist across requests.
-builder.Services.AddSingleton<AppState>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<AppStateStore>();
+builder.Services.AddScoped<IAppStateAccessor, AppStateAccessor>();
+builder.Services.AddHostedService<AppStateCleanupService>();
 
 builder.Services.Configure<ServiceOptions>(
     builder.Configuration.GetSection(ServiceOptions.SectionName)
 );
 
+builder.Services.AddDistributedMemoryCache(); // required by AddSession
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromHours(4);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+
 var app = builder.Build();
 
 app.UseStaticFiles();
+app.UseSession();
 app.UseRouting();
 app.MapControllerRoute(
     name: "default",

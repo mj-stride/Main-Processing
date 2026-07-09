@@ -31,9 +31,9 @@ namespace TtdsWeb.Controllers
         private readonly ServiceOptions _services;
         private const double CP_DETECT_RADIUS_M = 300.0;
 
-        public HomeController(AppState state, IConfiguration config, IWebHostEnvironment env, IOptions<ServiceOptions> options)
+        public HomeController(IAppStateAccessor appState, IConfiguration config, IWebHostEnvironment env, IOptions<ServiceOptions> options)
         {
-            _state = state;
+            _state = appState.Current;
             _config = config;
             _env = env;
             _services = options.Value;
