@@ -27,4 +27,8 @@
     <Folder Include="Views\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Ttds.Shared\Ttds.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

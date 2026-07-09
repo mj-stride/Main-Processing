@@ -14,6 +14,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Travel_Time_and_Delay_Web_Application.Models;
+using Ttds.Shared;
 
 namespace Travel_Time_and_Delay_Web_Application.Controllers
 {
@@ -22,9 +23,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         private readonly ILogger<GpxController> _log;
         private readonly ServiceOptions _services;
 
-        // =========================================================
-        // PROGRESS TRACKING
-        // =========================================================
         private static readonly ConcurrentDictionary<string, ProgressUpdate> _progress = new();
 
         public class ProgressUpdate
@@ -65,24 +63,15 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return Redirect(_services.MainProc);
         }
 
-        // ======================
-        // MERGE RULES
-        // ======================
         private const bool RequireSameDirectionForMerge = true;
         private const int MergeGapSeconds = 8 * 60;
         private const double MergeJumpMeters = 1200.0;
 
-        // ======================
-        // CLEAN RULES
-        // ======================
         private const double MaxStepMeters = 1500.0;
         private const double MaxKph = 180.0;
         private const double DuplicateMeters = 0.5;
         private const int PreviewStep = 10;
 
-        // ======================
-        // DEBUG ROWS
-        // ======================
         private sealed class DebugFileRow
         {
             public string ZipFile { get; set; } = "";
@@ -182,9 +171,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return ms;
         }
 
-        // ======================
-        // KM POST HELPERS
-        // ======================
         private sealed class KmPostRow
         {
             public string KilometerPost { get; set; } = "";
@@ -289,18 +275,11 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return "UNKDATE";
         }
 
-        // ======================
-        // ROUTES & ENDPOINTS
-        // ======================
         [HttpGet("/gpx/upload")]
         public IActionResult Upload() => View("Index");
 
         [HttpGet("/gpx/preview-map")]
         public IActionResult PreviewMapRootGet() => RedirectToAction("Upload");
-
-        // =========================================================
-        // SSE PROGRESS ENDPOINT
-        // =========================================================
         [HttpGet("/gpx/progress/{sessionId}")]
         public async Task ProgressStream(string sessionId)
         {
@@ -337,9 +316,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             }
         }
 
-        // =========================================================
-        // PREVIEW MAP (POST) - The Heavy Worker
-        // =========================================================
         [HttpPost("/gpx/preview-map")]
         [RequestSizeLimit(1_500_000_000)]
         public async Task<IActionResult> PreviewMap(List<IFormFile> files, string? sessionId)
@@ -391,9 +367,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return Redirect($"/gpx/preview-map/{batchId}");
         }
 
-        // =========================================================
-        // PREVIEW MAP (GET) - The Renderer
-        // =========================================================
         [HttpGet("/gpx/preview-map/{batchId}")]
         public async Task<IActionResult> PreviewMapGet(string batchId)
         {
@@ -409,9 +382,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return View("MapPreview", vm);
         }
 
-        // =========================================================
-        // ASYNC PREVIEW GENERATOR
-        // =========================================================
         private static async Task<GpxPreviewVm> BuildPreviewVmFromBatchAsync(string batchDir, string batchId, string? sessionId)
         {
             var vm = new GpxPreviewVm { BatchId = batchId };
@@ -487,9 +457,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return vm;
         }
 
-        // =========================================================
-        // CLEANED ONLY VIEW (POST)
-        // =========================================================
         [HttpPost("/gpx/cleaned-only-view")]
         [RequestSizeLimit(1_500_000_000)]
         public IActionResult CleanedOnlyView(string batchId, List<string> selectedFiles, List<string>? mergeKeys)
@@ -523,7 +490,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             if (outputs.Count == 0)
                 return BadRequest("No grouped trips produced.");
 
-            // NEW: apply any user-requested forced merges before building the view model
             if (mergeKeys != null && mergeKeys.Count >= 2)
                 outputs = ApplyForcedMerge(outputs, mergeKeys);
 
@@ -574,9 +540,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return View("CleanedOnly", vm);
         }
 
-        // =========================================================
-        // DOWNLOAD ZIP (POST)
-        // =========================================================
         [HttpPost("/gpx/process-selected")]
         public async Task<IActionResult> ProcessSelected(string batchId, List<string> selectedFiles)
         {
@@ -1213,44 +1176,15 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return "WB";
         }
 
-        private static string BearingToCardinal(double b)
-        {
-            if (b < 45 || b > 315) return "NB";
-            if (b < 135) return "EB";
-            if (b < 225) return "SB";
-            return "WB";
-        }
-
-        // =========================================================
-        // HAVERSINE + BEARING
-        // =========================================================
         private static double HaversineMeters(double lat1, double lon1, double lat2, double lon2)
-        {
-            const double R = 6371000.0;
-            static double DegToRad(double d) => d * Math.PI / 180.0;
-            double phi1 = DegToRad(lat1), phi2 = DegToRad(lat2);
-            double dphi = DegToRad(lat2 - lat1), dlambda = DegToRad(lon2 - lon1);
-            double a = Math.Sin(dphi / 2) * Math.Sin(dphi / 2) +
-                       Math.Cos(phi1) * Math.Cos(phi2) *
-                       Math.Sin(dlambda / 2) * Math.Sin(dlambda / 2);
-            return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
-        }
+            => GeoUtils.HaversineMeters(lat1, lon1, lat2, lon2);
 
         private static double Bearing(double lat1, double lon1, double lat2, double lon2)
-        {
-            static double ToRad(double d) => d * Math.PI / 180.0;
-            static double ToDeg(double r) => r * 180.0 / Math.PI;
-            double phi1 = ToRad(lat1);
-            double phi2 = ToRad(lat2);
-            double dLam = ToRad(lon2 - lon1);
-            var y = Math.Sin(dLam) * Math.Cos(phi2);
-            var x = Math.Cos(phi1) * Math.Sin(phi2) - Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(dLam);
-            return (ToDeg(Math.Atan2(y, x)) + 360.0) % 360.0;
-        }
+            => GeoUtils.BearingDegrees(lat1, lon1, lat2, lon2);
 
-        // =========================================================
-        // CSV WRITER
-        // =========================================================
+        private static string BearingToCardinal(double b)
+            => GeoUtils.BearingToCardinal(b);
+
         private static MemoryStream WriteCsv(List<GpxRecord> rows, bool includeComputed)
         {
             var ms = new MemoryStream();
@@ -1308,9 +1242,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return ms;
         }
 
-        // =========================================================
-        // PREVIEW CLEANER (light)
-        // =========================================================
         private static List<(DateTime t, double lat, double lon)> QuickCleanPreview(
             List<(DateTime t, double lat, double lon)> raw,
             double maxStepMeters,
@@ -1334,9 +1265,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             return kept;
         }
 
-        // =========================================================
-        // INTERNAL CLASSES
-        // =========================================================
         private sealed class ZipDataset
         {
             public string FileName { get; set; } = "";

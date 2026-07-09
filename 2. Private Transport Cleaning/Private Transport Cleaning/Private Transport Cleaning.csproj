@@ -17,5 +17,8 @@
     <None Remove="Uploads\**" />
     <None Remove="Output\**" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Ttds.Shared\Ttds.Shared.csproj" />
+  </ItemGroup>
 
 </Project>

@@ -22,6 +22,8 @@ builder.Services.AddScoped<ShapefileExportService>();
 
 // ---- Job infrastructure ----
 builder.Services.AddSingleton<ReportJobService>();
+builder.Services.AddSingleton<ILoggerProvider>(sp =>
+    new JobLogLoggerProvider(sp.GetRequiredService<ReportJobService>()));
 builder.Services.AddHostedService<ReportBackgroundService>();
 builder.Services.Configure<ServiceOptions>(
     builder.Configuration.GetSection(ServiceOptions.SectionName)
