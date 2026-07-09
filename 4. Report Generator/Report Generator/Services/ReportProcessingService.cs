@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using Report_Generator.Models;
 using Report_Generator.Services;
 
@@ -19,6 +20,7 @@ namespace Report_Generator.Services
         private readonly SpeedMapRenderer _mapRenderer;
         private readonly ShapefileExportService _shapefileExport;
         private readonly ZipExtractService _zipExtract;
+        private readonly ILogger<ReportProcessingService> _logger;
 
         public ReportProcessingService(
             FolderScannerService folderScanner,
@@ -30,7 +32,8 @@ namespace Report_Generator.Services
             SpeedSegmentService speedSegmentService,
             SpeedMapRenderer mapRenderer,
             ShapefileExportService shapefileExport,
-            ZipExtractService zipExtract)
+            ZipExtractService zipExtract,
+            ILogger<ReportProcessingService> logger)
         {
             _folderScanner = folderScanner;
             _csvParser = csvParser;
@@ -42,6 +45,7 @@ namespace Report_Generator.Services
             _mapRenderer = mapRenderer;
             _shapefileExport = shapefileExport;
             _zipExtract = zipExtract;
+            _logger = logger;
         }
 
         public async Task<(byte[] ZipBytes, string ZipFilename)> ProcessAsync(
@@ -63,7 +67,7 @@ namespace Report_Generator.Services
             using var memory = new MemoryStream();
             using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, true))
             {
-                Console.WriteLine(" -> Copying uploaded files to output ZIP...");
+                _logger.LogInformation(" -> Copying uploaded files to output ZIP...");
                 var addedEntries = new HashSet<string>();
                 string prefixToStrip = "";
 
@@ -117,8 +121,9 @@ namespace Report_Generator.Services
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    Console.WriteLine($"\n▶ Processing: {survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}");
-                    Console.WriteLine(" -> Reading CSV files...");
+                    _logger.LogInformation("\n▶ Processing: {Region}/{RoadName}/{SurveyDate}/{VehicleType}",
+                        survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType);
+                    _logger.LogInformation(" -> Reading CSV files...");
 
                     string vtPath = survey.SegmentAnalysisPath[
                         ..(survey.SegmentAnalysisPath.Length - "SegmentAnalysis".Length)];
@@ -141,7 +146,8 @@ namespace Report_Generator.Services
                         var (data, missing) = _csvParser.ReadTripCsv(stream);
                         if (missing.Any())
                         {
-                            Console.WriteLine($"⚠️ SKIPPED {file.FileName} — missing columns: {string.Join(", ", missing)}");
+                            _logger.LogWarning("⚠️ SKIPPED {FileName} — missing columns: {Missing}",
+                                file.FileName, string.Join(", ", missing));
                             continue;
                         }
 
@@ -180,14 +186,14 @@ namespace Report_Generator.Services
 
                     if (!surveyTripData.Any())
                     {
-                        Console.WriteLine($"  ⚠️ No valid survey data found for {survey.VehicleType}.");
+                        _logger.LogWarning("  ⚠️ No valid survey data found for {VehicleType}.", survey.VehicleType);
                         continue;
                     }
 
-                    Console.WriteLine(" -> Calculating Directional Averages...");
+                    _logger.LogInformation(" -> Calculating Directional Averages...");
                     var directionalAverages = dataProcessor.CalculateDirectionalAverages(surveyTripTotals);
 
-                    Console.WriteLine(" -> Calculating Segment Averages...");
+                    _logger.LogInformation(" -> Calculating Segment Averages...");
                     var segmentAverages = dataProcessor.CalculateSegmentAverages(surveyTripData);
 
                     string[] periods = { "AM", "MID", "PM" };
@@ -205,7 +211,7 @@ namespace Report_Generator.Services
                         using (var sw = new StreamWriter(es))
                             sw.Write(DirAvg);
 
-                        Console.WriteLine($"  ✅ Saved Directional Averages: {period}_DirectionalAverages.csv");
+                        _logger.LogInformation("  ✅ Saved Directional Averages: {Period}_DirectionalAverages.csv", period);
 
                         int chartsGenerated = 0;
                         foreach (var direction in directions)
@@ -243,8 +249,6 @@ namespace Report_Generator.Services
                                 if (mapSegments.Any())
                                 {
                                     // ---- Shapefiles (written before PNG, matching Python output order) ----
-                                    // Port of: nb_seg_gdf_3857.to_crs(epsg=4326).to_file(nb_shp)
-                                    //      and: gpd.GeoDataFrame([{..., "geometry": nb_trip}]).to_file(nb_trip_shp)
                                     string shpFolder = $"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/Shapes/shp/{period}";
                                     string cpShpBase = $"{period}_{direction}_CP2CP_Speed";
                                     string tripShpBase = $"{period}_{direction}_TripLine";
@@ -257,7 +261,7 @@ namespace Report_Generator.Services
                                         ses.Write(content, 0, content.Length);
                                     }
                                     if (cpShpFiles.Any(f => f.FileName.EndsWith(".shp")))
-                                        Console.WriteLine($"  ✅ Saved CP2CP shapefile: Shapes/shp/{period}/{cpShpBase}.shp");
+                                        _logger.LogInformation("  ✅ Saved CP2CP shapefile: Shapes/shp/{Period}/{CpShpBase}.shp", period, cpShpBase);
 
                                     var tripShpFiles = _shapefileExport.WriteTripLineShapefile(tripLine, period, direction, tripShpBase);
                                     foreach (var (fname, content) in tripShpFiles)
@@ -267,7 +271,7 @@ namespace Report_Generator.Services
                                         ses.Write(content, 0, content.Length);
                                     }
                                     if (tripShpFiles.Any(f => f.FileName.EndsWith(".shp")))
-                                        Console.WriteLine($"  ✅ Saved TripLine shapefile: Shapes/shp/{period}/{tripShpBase}.shp");
+                                        _logger.LogInformation("  ✅ Saved TripLine shapefile: Shapes/shp/{Period}/{TripShpBase}.shp", period, tripShpBase);
 
                                     // ---- PNG map ----
                                     string mapTitle = $"{period} {directionFull} Trip Speed Map";
@@ -280,26 +284,26 @@ namespace Report_Generator.Services
                                         var me = zip.CreateEntry(mapEntry, CompressionLevel.Fastest);
                                         using var mes = me.Open();
                                         mes.Write(mapBytes, 0, mapBytes.Length);
-                                        Console.WriteLine($"  ✅ Saved Survey Map: Graphs/Maps/{period}_{direction}_TripSpeedMap.png");
+                                        _logger.LogInformation("  ✅ Saved Survey Map: Graphs/Maps/{Period}_{Direction}_TripSpeedMap.png", period, direction);
                                     }
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"  ⚠️ Could not build trip-following CP segments for {period} {direction}.");
+                                    _logger.LogWarning("  ⚠️ Could not build trip-following CP segments for {Period} {Direction}.", period, direction);
                                 }
                             }
                             else
                             {
-                                Console.WriteLine($"  ⚠️ Missing snapped trip line or control points for {period} {direction}.");
+                                _logger.LogWarning("  ⚠️ Missing snapped trip line or control points for {Period} {Direction}.", period, direction);
                             }
                         }
 
                         if (chartsGenerated > 0)
-                            Console.WriteLine($"  -> Generated {chartsGenerated} speed charts for {period}.");
+                            _logger.LogInformation("  -> Generated {ChartsGenerated} speed charts for {Period}.", chartsGenerated, period);
                     }
 
                     // ---- DOCX Report ----
-                    Console.WriteLine("  -> Generating DOCX Report...");
+                    _logger.LogInformation("  -> Generating DOCX Report...");
                     byte[] reportBytes = _wordExport.GenerateSurveyReport(
                         survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType,
                         directionalAverages, segmentAverages, reportImages);
@@ -307,25 +311,25 @@ namespace Report_Generator.Services
                     string reportFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", "")}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Report.docx";
                     var re = zip.CreateEntry($"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{reportFilename}", CompressionLevel.Fastest);
                     using (var res = re.Open()) res.Write(reportBytes, 0, reportBytes.Length);
-                    Console.WriteLine($"  ✅ Saved Survey Report: {reportFilename}");
+                    _logger.LogInformation("  ✅ Saved Survey Report: {ReportFilename}", reportFilename);
 
                     // ---- DOCX Annex ----
-                    Console.WriteLine("  -> Generating ANNEX File...");
+                    _logger.LogInformation("  -> Generating ANNEX File...");
                     byte[] annexBytes = _wordExport.GenerateSurveyAnnex(
                         survey.Region, survey.RoadName, survey.SurveyDate, survey.VehicleType, surveyTripData);
 
                     string annexFilename = $"{survey.Region}_{survey.RoadName.Replace(" ", "")}_{survey.SurveyDate}_{survey.VehicleType}_Survey_Annex.docx";
                     var ae = zip.CreateEntry($"{survey.Region}/{survey.RoadName}/{survey.SurveyDate}/{survey.VehicleType}/{annexFilename}", CompressionLevel.Fastest);
                     using (var aes = ae.Open()) aes.Write(annexBytes, 0, annexBytes.Length);
-                    Console.WriteLine($"  ✅ Saved Survey Annex: {annexFilename}");
+                    _logger.LogInformation("  ✅ Saved Survey Annex: {AnnexFilename}", annexFilename);
 
-                    Console.WriteLine($"   ✔ Processing completed for {survey.VehicleType}");
+                    _logger.LogInformation("   ✔ Processing completed for {VehicleType}", survey.VehicleType);
                 }
             }
 
             memory.Position = 0;
             string zipName = $"Survey_Reports.zip";
-            Console.WriteLine("\n✅ All reports bundled successfully into ZIP.");
+            _logger.LogInformation("\n✅ All reports bundled successfully into ZIP.");
             return (memory.ToArray(), zipName);
         }
     }

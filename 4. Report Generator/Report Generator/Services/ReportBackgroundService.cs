@@ -24,9 +24,7 @@ namespace Report_Generator.Services
 
             await foreach (var job in _jobRegistry.JobQueue.ReadAllAsync(stoppingToken))
             {
-                var originalOut = Console.Out;
-                var jobWriter = new JobLogWriter(job.Id, _jobRegistry, originalOut);
-                Console.SetOut(jobWriter);
+                using var _ = JobLogScope.Push(job.Id);   // was: Console.SetOut(new JobLogWriter(...))
                 _jobRegistry.MarkRunning(job.Id);
 
                 try
@@ -47,14 +45,7 @@ namespace Report_Generator.Services
                 {
                     _logger.LogError(ex, "Job {JobId} failed.", job.Id);
                     _jobRegistry.MarkFailed(job.Id, ex.Message);
-
-                    // Write the exception message to the job log so the UI shows it
-                    Console.WriteLine($"❌ Fatal error: {ex.Message}");
-                }
-                finally
-                {
-                    Console.SetOut(originalOut);
-                    jobWriter.Dispose();
+                    _logger.LogError("❌ Fatal error: {Message}", ex.Message); // still shows in the job's own log panel
                 }
             }
 
