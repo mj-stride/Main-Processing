@@ -32,3 +32,9 @@ C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Pr
 C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\obj\Debug\net8.0\Processing Integrator.pdb
 C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\obj\Debug\net8.0\Processing Integrator.genruntimeconfig.cache
 C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\obj\Debug\net8.0\ref\Processing Integrator.dll
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\obj\Debug\net8.0\Processing Integrator.csproj.AssemblyReference.cache
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\bin\Debug\net8.0\Ttds.Shared.dll
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\bin\Debug\net8.0\Ttds.Shared.pdb
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\obj\Debug\net8.0\Processi.A8505F72.Up2Date
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\bin\Debug\net8.0\Ttds.Shared.staticwebassets.runtime.json
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\0. Processing Integrator\Processing Integrator\bin\Debug\net8.0\Ttds.Shared.staticwebassets.endpoints.json
