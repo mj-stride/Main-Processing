@@ -51,4 +51,3 @@ app.MapControllerRoute(
 app.MapGet("/", () => Results.Redirect("/gpx/upload"));
 
 app.Run();
-

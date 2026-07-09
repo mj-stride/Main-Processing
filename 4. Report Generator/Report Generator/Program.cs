@@ -1,3 +1,4 @@
+using Ttds.Shared;
 using Report_Generator.Services;
 using System.Text;
 Console.OutputEncoding = Encoding.UTF8;
