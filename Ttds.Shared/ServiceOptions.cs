@@ -9,4 +9,5 @@ public class ServiceOptions
     public string PrivClean { get; set; } = string.Empty;
     public string MainProc { get; set; } = string.Empty;
     public string ReportGen { get; set; } = string.Empty;
+    public string BatchStorageRoot { get; set; } = string.Empty;
 }

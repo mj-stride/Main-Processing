@@ -9,6 +9,7 @@ namespace TtdsWeb.Services
     {
         // Manual CPs for CP mode
         public List<ControlPoint> ManualCpPoints { get; } = new();
+        public string? BatchId { get; set; }  // optional batch ID for the current session
 
         // Manual CPs for KM mode (separate!)
         public List<ControlPoint> ManualKmPoints { get; } = new();
