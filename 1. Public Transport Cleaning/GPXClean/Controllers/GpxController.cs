@@ -316,6 +316,52 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             }
         }
 
+        [HttpPost("/gpx/continue-to-processing")]
+        public async Task<IActionResult> ContinueToProcessing(string batchId, List<string> selectedFiles)
+        {
+            if (string.IsNullOrWhiteSpace(batchId)) return BadRequest("Missing batch id.");
+            var batchDir = Path.Combine(Path.GetTempPath(), "gpx_batch_" + batchId);
+            if (!Directory.Exists(batchDir)) return BadRequest("Batch not found or expired.");
+            if (selectedFiles == null || selectedFiles.Count == 0) return BadRequest("Select at least one file.");
+
+            var kmDbPath = Path.Combine(Directory.GetCurrentDirectory(), "kilometer_post.db");
+            var kmPosts = System.IO.File.Exists(kmDbPath) ? LoadKmPosts(kmDbPath) : new List<KmPostRow>();
+            var debugFiles = new List<DebugFileRow>();
+            XNamespace ns = "http://www.topografix.com/GPX/1/1";
+
+            var zipDatasets = LoadZipDatasets(batchDir, selectedFiles, ns, debugFiles);
+            if (zipDatasets.Count == 0) return BadRequest("No GPX points extracted from selected files.");
+            HydrateStartsEnds(zipDatasets);
+
+            var outputs = BuildTripOutputs(zipDatasets, new List<DebugMergeRow>(), new List<DebugCleanEventRow>());
+            if (outputs.Count == 0) return BadRequest("No grouped trips produced.");
+
+            foreach (var o in outputs)
+            {
+                var (reg, road) = DetectRegionRoad(o.Cleaned, kmPosts, 10, 80);
+                o.DetectedRegionId = reg;
+                o.DetectedRoadName = road;
+                var originalZipName = o.Cleaned.FirstOrDefault()?.FilePath ?? o.SourceZipFiles.FirstOrDefault() ?? "";
+                var (datePart, timePart) = ExtractDateTimeFromZipName(originalZipName);
+                o.EntryName = $"GPX_{o.VehicleCode}_{o.TripId}-{o.DtToken}-{o.Direction}-{o.PartIndex}_{datePart}-{timePart}_cleaned.csv";
+            }
+
+            var shareDir = Path.Combine(_services.BatchStorageRoot, batchId, "gpxclean");
+            Directory.CreateDirectory(shareDir);
+
+            foreach (var o in outputs)
+            {
+                var cleanedCsv = WriteCsv(o.Cleaned, includeComputed: true);
+                var destPath = Path.Combine(shareDir, o.EntryName ?? $"{o.VehicleCode}_{o.TripId}_{o.PartIndex}_cleaned.csv");
+                using var fileStream = System.IO.File.Create(destPath);
+                cleanedCsv.Position = 0;
+                await cleanedCsv.CopyToAsync(fileStream);
+            }
+
+            try { Directory.Delete(batchDir, true); } catch { }
+            return Redirect($"{_services.MainProc}/import/{batchId}");
+        }
+
         [HttpPost("/gpx/preview-map")]
         [RequestSizeLimit(1_500_000_000)]
         public async Task<IActionResult> PreviewMap(List<IFormFile> files, string? sessionId)

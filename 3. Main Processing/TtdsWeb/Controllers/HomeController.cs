@@ -3,8 +3,11 @@ using CsvHelper;
 using DocumentFormat.OpenXml.Bibliography;
 using DocumentFormat.OpenXml.Drawing.Charts;
 using DocumentFormat.OpenXml.Drawing.Diagrams;
+using DocumentFormat.OpenXml.Vml;
+using DocumentFormat.OpenXml.Vml.Office;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Options;
 using NetTopologySuite;
 using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
@@ -15,12 +18,11 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using Ttds.Shared;
 using TtdsWeb.Models;
 using TtdsWeb.Services;   // AppState
 using TtdsWeb.Utils;
-using Ttds.Shared;
 using static System.Runtime.InteropServices.JavaScript.JSType;
-using Microsoft.Extensions.Options;
 
 namespace TtdsWeb.Controllers
 {
@@ -47,6 +49,8 @@ namespace TtdsWeb.Controllers
 
         public IActionResult GoToReportGen()
         {
+            if (!string.IsNullOrWhiteSpace(_state.BatchId))
+                return Redirect($"{_services.ReportGen}/import/{_state.BatchId}");
             return Redirect(_services.ReportGen);
         }
         private List<ControlPoint> BuildKmAnchorsForRows(List<TripRow> df)
@@ -132,6 +136,7 @@ namespace TtdsWeb.Controllers
             _state.KmGeneratedPoints.Clear();
 
             _state.LastTripPath = null;
+            _state.BatchId = null;
             _state.AnchorSource = "cp";
             _state.KmRegion = null;
             _state.KmRoad = null;
@@ -692,8 +697,6 @@ namespace TtdsWeb.Controllers
             _state.ManualCpKm.Clear();
             _state.KmGeneratedPoints.Clear();
             _state.LastTripPath = null;
-            _state.KmRoad = Request.HasFormContentType ? Request.Form["kmRoad"].ToString() : null;
-            _state.Datasets.Clear();
 
             var uploadRoot = UploadRoot;
 
@@ -1505,12 +1508,10 @@ namespace TtdsWeb.Controllers
         public IActionResult ImportBatch(string batchId)
         {
             var srcDir = Path.Combine(_services.BatchStorageRoot, batchId, "gpxclean");
-            if (!Directory.Exists(srcDir))
-                return NotFound($"Batch {batchId} not found or expired.");
+            if (!Directory.Exists(srcDir)) return NotFound($"Batch {batchId} not found or expired.");
 
             _state.Datasets.Clear();
             _state.LastTripPath = null;
-
             var uploadRoot = UploadRoot;
 
             foreach (var csvPath in Directory.GetFiles(srcDir, "*.csv"))
@@ -1531,34 +1532,13 @@ namespace TtdsWeb.Controllers
                         .Select(r => new[] { r.SnappedLat, r.SnappedLon })
                         .ToList()
                 });
-
                 _state.LastTripPath = destPath;
             }
 
-            if (!_state.Datasets.Any())
-                return BadRequest("No valid CSV files found in batch.");
+            if (!_state.Datasets.Any()) return BadRequest("No valid CSV files found in batch.");
 
-
-            _state.BatchId = batchId; 
-
-            var vm = new MultiMapViewModel
-            {
-                Items = _state.Datasets.Select(d =>
-                {
-                    var peak = ComputeDatasetPeak(d.Rows);
-                    return new MultiMapViewModel.Item
-                    {
-                        Id = d.Id,
-                        Name = d.FileName,
-                        Coords = d.Coords,
-                        Direction = ComputeDatasetDirection(d.Rows),
-                        PeakCode = peak.ToString(),
-                        PeakLabel = PeakLabel(peak)
-                    };
-                }).ToList()
-            };
-
-            return View("MapMulti", vm);
+            _state.BatchId = batchId;
+            return RenderMapMulti();
         }
 
         [IgnoreAntiforgeryToken]
@@ -3324,10 +3304,27 @@ namespace TtdsWeb.Controllers
                     var msg = Encoding.UTF8.GetBytes("No datasets matched and no graphs received.\n");
                     es.Write(msg, 0, msg.Length);
                 }
-            }
 
-            return File(ms.ToArray(), "application/zip",
-                $"{regionSafe}_{roadSafe}_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
+                var batchId = _state.BatchId ?? Guid.NewGuid().ToString("N");
+                var shareDir = Path.Combine(_services.BatchStorageRoot, batchId, "ttdsweb");
+                Directory.CreateDirectory(shareDir);
+
+                ms.Position = 0;
+                using (var readArchive = new ZipArchive(ms, ZipArchiveMode.Read, leaveOpen: true))
+                {
+                    foreach (var entry in readArchive.Entries)
+                    {
+                        if (string.IsNullOrEmpty(entry.Name)) continue; // folder entry
+                        var destPath = Path.Combine(shareDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                        entry.ExtractToFile(destPath, overwrite: true);
+                    }
+                }
+
+                ms.Position = 0;
+                return File(ms.ToArray(), "application/zip",
+                    $"{regionSafe}_{roadSafe}_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
+            }
         }
 
         [HttpPost("/export_all_zip")]
