@@ -655,6 +655,22 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             try { Directory.Delete(batchDir, true); } catch { }
 
             return File(outZipStream, "application/zip", $"{zipRegionPart}_{zipRoadPart}_CLEANED_{mainDate}.zip");
+
+            var shareDir = Path.Combine(_services.BatchStorageRoot, batchId, "gpxclean");
+            Directory.CreateDirectory(shareDir);
+
+            foreach (var o in outputs)
+            {
+                var cleanedCsv = WriteCsv(o.Cleaned, includeComputed: true);
+                var cleanedName = o.EntryName ?? $"{o.VehicleCode}_{o.TripId}_{o.PartIndex}_cleaned.csv";
+                var destPath = Path.Combine(shareDir, cleanedName);
+
+                using var fileStream = System.IO.File.Create(destPath);
+                cleanedCsv.Position = 0;
+                await cleanedCsv.CopyToAsync(fileStream);
+            }
+
+            return Redirect($"{_services.MainProc}/import/{batchId}");
         }
 
         private static void AddDebugEntry(ZipArchive zipOut, string entryName, MemoryStream ms)

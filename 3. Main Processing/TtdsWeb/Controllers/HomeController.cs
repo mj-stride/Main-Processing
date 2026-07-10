@@ -1501,6 +1501,66 @@ namespace TtdsWeb.Controllers
             return Json(list.Select(cp => new { id = cp.ControlPointId, lat = cp.Lat, lng = cp.Lng }));
         }
 
+        [HttpGet("/import/{batchId}")]
+        public IActionResult ImportBatch(string batchId)
+        {
+            var srcDir = Path.Combine(_services.BatchStorageRoot, batchId, "gpxclean");
+            if (!Directory.Exists(srcDir))
+                return NotFound($"Batch {batchId} not found or expired.");
+
+            _state.Datasets.Clear();
+            _state.LastTripPath = null;
+
+            var uploadRoot = UploadRoot;
+
+            foreach (var csvPath in Directory.GetFiles(srcDir, "*.csv"))
+            {
+                var destPath = Path.Combine(uploadRoot, Path.GetFileName(csvPath));
+                System.IO.File.Copy(csvPath, destPath, overwrite: true);
+
+                var rows = ReadTripCsv(destPath);
+                if (!rows.Any()) continue;
+
+                _state.Datasets.Add(new TripDataset
+                {
+                    FileName = Path.GetFileName(csvPath),
+                    Path = destPath,
+                    Rows = rows,
+                    Coords = rows
+                        .Where(r => !double.IsNaN(r.SnappedLat) && !double.IsNaN(r.SnappedLon))
+                        .Select(r => new[] { r.SnappedLat, r.SnappedLon })
+                        .ToList()
+                });
+
+                _state.LastTripPath = destPath;
+            }
+
+            if (!_state.Datasets.Any())
+                return BadRequest("No valid CSV files found in batch.");
+
+
+            _state.BatchId = batchId; 
+
+            var vm = new MultiMapViewModel
+            {
+                Items = _state.Datasets.Select(d =>
+                {
+                    var peak = ComputeDatasetPeak(d.Rows);
+                    return new MultiMapViewModel.Item
+                    {
+                        Id = d.Id,
+                        Name = d.FileName,
+                        Coords = d.Coords,
+                        Direction = ComputeDatasetDirection(d.Rows),
+                        PeakCode = peak.ToString(),
+                        PeakLabel = PeakLabel(peak)
+                    };
+                }).ToList()
+            };
+
+            return View("MapMulti", vm);
+        }
+
         [IgnoreAntiforgeryToken]
         [HttpPost("/upload_cp")]
         public async Task<IActionResult> UploadCp(IFormFile cp_file)
