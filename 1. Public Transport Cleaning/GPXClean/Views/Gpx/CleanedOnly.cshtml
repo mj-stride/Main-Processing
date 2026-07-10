@@ -5,6 +5,10 @@
     ViewData["Title"] = "Auditing Cleaned Trips";
     ViewData["Section"] = "Clean and Snap (PUV)";
     var tripCount = Model.Trips?.Count ?? 0;
+    var existingMergeGroups = Model.Trips
+        .Where(t => (t.SourceZipFiles?.Count ?? 0) > 1)
+        .Select(t => System.Text.Json.JsonSerializer.Serialize(t.SourceZipFiles))
+        .ToList();
 }
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -324,6 +328,13 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="batchId" value="@Model.BatchId" />
                 <div id="selectedFilesContainer"></div>
+                <div id="existingMergeGroupsContainer">
+                    @foreach (var g in existingMergeGroups)
+                    {
+                        <input type="hidden" name="mergeGroupsJson" value="@g" />
+                    }
+
+                </div>
 
                 <div class="trip-list-scroll">
                     @for (int i = 0; i < tripCount; i++)
@@ -365,7 +376,7 @@
                             onclick="enableNext()">
                         <i class="bi bi-file-earmark-spreadsheet-fill"></i> Download CSV Package
                     </button>
-                    <button type="submit" formaction="/gpx/continue-to-processing/@Model.BatchId"
+                    <button type="submit" formaction="/gpx/continue-to-processing"
                             class="btn-ttds w-100 d-flex align-items-center justify-content-center gap-2 mt-2">
                         <i class="bi bi-arrow-right-circle-fill"></i> Continue to Processing
                     </button>
@@ -554,10 +565,24 @@
             const ok = confirm(
                 "Merge these " + mergeState.size + " trips into a single continuous trip?\n\n" +
                 titles.map(t => "• " + t).join("\n") +
-                "\n\nPoints will be re-sorted by timestamp and re-cleaned as one trip. " +
-                "This isn't reversible from this page — you'd need to re-select the original files to undo it."
+                "\n\nPoints will be re-sorted by timestamp and re-cleaned as one trip."
             );
             if (!ok) return;
+
+                            // Build the new merge group from the zip files behind the picked rows.
+                const newGroupFiles = new Set();
+                mergeState.forEach(key => {
+                    const row = document.querySelector(`.trip-row[data-tripkey="${CSS.escape(key)}"]`);
+                    const cb = row ? row.querySelector(".trip-checkbox") : null;
+                    if (!cb) return;
+                    try {
+                        JSON.parse(cb.getAttribute("data-files") || "[]").forEach(z => newGroupFiles.add(z));
+                    } catch (e) { console.error("Failed to parse zip payload", e); }
+                });
+                if (newGroupFiles.size < 2) {
+                    alert("Could not resolve source files for the selected trips.");
+                    return;
+                }
 
             const mergeForm = document.getElementById("mergeForm");
             const mergeContainer = document.getElementById("mergeHiddenInputs");
@@ -580,13 +605,22 @@
                 mergeContainer.appendChild(inp);
             });
 
-            mergeState.forEach(key => {
-                const inp = document.createElement("input");
-                inp.type = "hidden";
-                inp.name = "mergeKeys";
-                inp.value = key;
-                mergeContainer.appendChild(inp);
-            });
+                // Carry forward merges already baked into the current trip list...
+                document.querySelectorAll("#existingMergeGroupsContainer input[name='mergeGroupsJson']")
+                    .forEach(inp => {
+                        const carry = document.createElement("input");
+                        carry.type = "hidden";
+                        carry.name = "mergeGroupsJson";
+                        carry.value = inp.value;
+                        mergeContainer.appendChild(carry);
+                    });
+
+                // ...plus the new group just picked.
+                const newGroupInput = document.createElement("input");
+                newGroupInput.type = "hidden";
+                newGroupInput.name = "mergeGroupsJson";
+                newGroupInput.value = JSON.stringify(Array.from(newGroupFiles));
+                mergeContainer.appendChild(newGroupInput);
 
             mergeForm.submit();
         });

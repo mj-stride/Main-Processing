@@ -317,7 +317,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         }
 
         [HttpPost("/gpx/continue-to-processing")]
-        public async Task<IActionResult> ContinueToProcessing(string batchId, List<string> selectedFiles)
+        public async Task<IActionResult> ContinueToProcessing(string batchId, List<string> selectedFiles, List<string>? mergeGroupsJson)
         {
             if (string.IsNullOrWhiteSpace(batchId)) return BadRequest("Missing batch id.");
             var batchDir = Path.Combine(Path.GetTempPath(), "gpx_batch_" + batchId);
@@ -335,6 +335,10 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
 
             var outputs = BuildTripOutputs(zipDatasets, new List<DebugMergeRow>(), new List<DebugCleanEventRow>());
             if (outputs.Count == 0) return BadRequest("No grouped trips produced.");
+
+            var mergeGroups = ParseMergeGroups(mergeGroupsJson);
+            if (mergeGroups.Count > 0)
+                outputs = ApplyForcedMergeByFiles(outputs, mergeGroups);
 
             foreach (var o in outputs)
             {
@@ -505,7 +509,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
 
         [HttpPost("/gpx/cleaned-only-view")]
         [RequestSizeLimit(1_500_000_000)]
-        public IActionResult CleanedOnlyView(string batchId, List<string> selectedFiles, List<string>? mergeKeys)
+        public IActionResult CleanedOnlyView(string batchId, List<string> selectedFiles, List<string>? mergeGroupsJson)
         {
             if (string.IsNullOrWhiteSpace(batchId))
                 return BadRequest("Missing batch id.");
@@ -536,8 +540,9 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             if (outputs.Count == 0)
                 return BadRequest("No grouped trips produced.");
 
-            if (mergeKeys != null && mergeKeys.Count >= 2)
-                outputs = ApplyForcedMerge(outputs, mergeKeys);
+            var mergeGroups = ParseMergeGroups(mergeGroupsJson);
+            if (mergeGroups.Count > 0)
+                outputs = ApplyForcedMergeByFiles(outputs, mergeGroups);
 
             var vm = new GpxCleanedOnlyVm
             {
@@ -587,7 +592,7 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         }
 
         [HttpPost("/gpx/process-selected")]
-        public async Task<IActionResult> ProcessSelected(string batchId, List<string> selectedFiles)
+        public async Task<IActionResult> ProcessSelected(string batchId, List<string> selectedFiles, List<string>? mergeGroupsJson)
         {
             if (string.IsNullOrWhiteSpace(batchId))
                 return BadRequest("Missing batch id.");
@@ -618,6 +623,10 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
             var outputs = BuildTripOutputs(zipDatasets, debugMerge, debugClean);
             if (outputs.Count == 0)
                 return BadRequest("No grouped trips produced.");
+
+            var mergeGroups = ParseMergeGroups(mergeGroupsJson);
+            if (mergeGroups.Count > 0)
+                outputs = ApplyForcedMergeByFiles(outputs, mergeGroups);
 
             foreach (var o in outputs)
             {
@@ -944,77 +953,6 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
         // FORCED TRIP MERGE (manual, user-selected — bypasses the
         // automatic gap/jump/direction thresholds in BuildTripOutputs)
         // =========================================================
-        private static string TripKey(TripOutput o) =>
-            $"{o.VehicleCode}|{o.TripId}|{o.DtToken}|{o.Direction}|{o.PartIndex}";
-
-        private static List<TripOutput> ApplyForcedMerge(List<TripOutput> outputs, List<string> mergeKeys)
-        {
-            var keySet = new HashSet<string>(
-                mergeKeys.Where(k => !string.IsNullOrWhiteSpace(k)),
-                StringComparer.OrdinalIgnoreCase);
-
-            if (keySet.Count < 2) return outputs;
-
-            var toMerge = outputs.Where(o => keySet.Contains(TripKey(o))).ToList();
-            if (toMerge.Count < 2) return outputs; // nothing matched, or only one did — no-op
-
-            var remaining = outputs.Where(o => !keySet.Contains(TripKey(o))).ToList();
-
-            // Combined already holds every point (unlike Cleaned, which drops outliers),
-            // so it's the correct source of truth to re-merge and re-clean from scratch.
-            var allPoints = toMerge
-                .SelectMany(o => o.Combined)
-                .Where(r => r.Timestamp.HasValue)
-                .OrderBy(r => r.Timestamp!.Value)
-                .ToList();
-
-            if (allPoints.Count == 0) return outputs;
-
-            var anchor = toMerge
-                .OrderBy(o => o.Combined
-                    .Where(r => r.Timestamp.HasValue)
-                    .Select(r => r.Timestamp!.Value)
-                    .DefaultIfEmpty(DateTime.MaxValue)
-                    .Min())
-                .First();
-
-            var distinctDirections = toMerge
-                .Select(o => o.Direction)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var mergedAcc = new TripAccumulator
-            {
-                VehicleCode = anchor.VehicleCode,
-                TripId = anchor.TripId,
-                DtToken = anchor.DtToken,
-                Direction = distinctDirections.Count == 1 ? distinctDirections[0] : "MRG",
-                PartIndex = toMerge.Min(o => o.PartIndex),
-            };
-
-            var throwawayCleanDebug = new List<DebugCleanEventRow>();
-
-            var merged = new TripOutput
-            {
-                VehicleCode = mergedAcc.VehicleCode,
-                TripId = mergedAcc.TripId,
-                DtToken = mergedAcc.DtToken,
-                Direction = mergedAcc.Direction,
-                PartIndex = mergedAcc.PartIndex,
-                // ComputeDiffsKeepAll / CleanKeepGoing both clone each record internally
-                // via CloneWithoutComputed, so stale secDiff/distanceDiff from the
-                // pre-merge trips is discarded and recalculated across the new join point.
-                Combined = ComputeDiffsKeepAll(allPoints),
-                Cleaned = CleanKeepGoing(allPoints, mergedAcc, throwawayCleanDebug),
-                SourceZipFiles = toMerge
-                    .SelectMany(o => o.SourceZipFiles)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-            };
-
-            remaining.Add(merged);
-            return remaining;
-        }
         private static TripOutput FinalizeTrip(TripAccumulator acc, List<DebugCleanEventRow> cleanDebug)
         {
             var all = acc.Rows
@@ -1114,7 +1052,98 @@ namespace Travel_Time_and_Delay_Web_Application.Controllers
                 SourceZip = cur.FilePath ?? ""
             };
         }
+        private static List<List<string>> ParseMergeGroups(List<string>? mergeGroupsJson)
+        {
+            var result = new List<List<string>>();
+            if (mergeGroupsJson == null) return result;
 
+            foreach (var json in mergeGroupsJson)
+            {
+                if (string.IsNullOrWhiteSpace(json)) continue;
+                try
+                {
+                    var group = System.Text.Json.JsonSerializer.Deserialize<List<string>>(json);
+                    if (group != null && group.Count >= 2)
+                        result.Add(group);
+                }
+                catch { /* ignore malformed group */ }
+            }
+
+            return result;
+        }
+
+        // Merges are now keyed by the actual zip filenames behind each trip (stable across
+        // requests), instead of a computed trip identity string (only valid for one response).
+        private static List<TripOutput> ApplyForcedMergeByFiles(List<TripOutput> outputs, List<List<string>> mergeGroups)
+        {
+            if (mergeGroups == null || mergeGroups.Count == 0) return outputs;
+
+            foreach (var rawGroup in mergeGroups)
+            {
+                var group = new HashSet<string>(
+                    (rawGroup ?? new List<string>()).Where(f => !string.IsNullOrWhiteSpace(f)),
+                    StringComparer.OrdinalIgnoreCase);
+
+                if (group.Count < 2) continue;
+
+                var toMerge = outputs.Where(o => o.SourceZipFiles.Any(f => group.Contains(f))).ToList();
+                if (toMerge.Count < 2) continue; // already merged this pass, or nothing matched
+
+                var remaining = outputs.Except(toMerge).ToList();
+
+                var allPoints = toMerge
+                    .SelectMany(o => o.Combined)
+                    .Where(r => r.Timestamp.HasValue)
+                    .OrderBy(r => r.Timestamp!.Value)
+                    .ToList();
+
+                if (allPoints.Count == 0) { outputs = remaining; continue; }
+
+                var anchor = toMerge
+                    .OrderBy(o => o.Combined
+                        .Where(r => r.Timestamp.HasValue)
+                        .Select(r => r.Timestamp!.Value)
+                        .DefaultIfEmpty(DateTime.MaxValue)
+                        .Min())
+                    .First();
+
+                var distinctDirections = toMerge
+                    .Select(o => o.Direction)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var mergedAcc = new TripAccumulator
+                {
+                    VehicleCode = anchor.VehicleCode,
+                    TripId = anchor.TripId,
+                    DtToken = anchor.DtToken,
+                    Direction = distinctDirections.Count == 1 ? distinctDirections[0] : "MRG",
+                    PartIndex = toMerge.Min(o => o.PartIndex),
+                };
+
+                var throwawayCleanDebug = new List<DebugCleanEventRow>();
+
+                var merged = new TripOutput
+                {
+                    VehicleCode = mergedAcc.VehicleCode,
+                    TripId = mergedAcc.TripId,
+                    DtToken = mergedAcc.DtToken,
+                    Direction = mergedAcc.Direction,
+                    PartIndex = mergedAcc.PartIndex,
+                    Combined = ComputeDiffsKeepAll(allPoints),
+                    Cleaned = CleanKeepGoing(allPoints, mergedAcc, throwawayCleanDebug),
+                    SourceZipFiles = toMerge
+                        .SelectMany(o => o.SourceZipFiles)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                };
+
+                remaining.Add(merged);
+                outputs = remaining;
+            }
+
+            return outputs;
+        }
         private static List<GpxRecord> ComputeDiffsKeepAll(List<GpxRecord> list)
         {
             if (list.Count == 0) return list;
