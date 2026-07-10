@@ -114,6 +114,7 @@ namespace PrivateTransportCleaning.Controllers
                 System.IO.File.Delete(f);
 
             var runId = Guid.NewGuid().ToString("N");
+            var producedFiles = new List<string>();
 
             // ================= 1. PARSE CSV FIRST =================
             var csvPath = Path.Combine(UploadPath, runId + "_" + csvFile.FileName);
@@ -218,12 +219,19 @@ namespace PrivateTransportCleaning.Controllers
                 }
 
                 Console.WriteLine("OUTPUT FILE CREATED: " + outputFile);
+                producedFiles.Add(outputFile);
             }
+
+            var shareDir = Path.Combine(_services.BatchStorageRoot, runId, "gpxclean");
+            Directory.CreateDirectory(shareDir);
+            foreach (var f in producedFiles)
+                System.IO.File.Copy(f, Path.Combine(shareDir, Path.GetFileName(f)), overwrite: true);
 
             return Json(new
             {
                 success = true,
-                redirect = "/SurveyData/Trips"
+                //redirect = "/SurveyData/Trips",
+                redirect = $"{_services.MainProc}/import/{runId}"
             });
         }
 

@@ -23,6 +23,8 @@ using TtdsWeb.Models;
 using TtdsWeb.Services;   // AppState
 using TtdsWeb.Utils;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.IO;
+using Path = System.IO.Path;
 
 namespace TtdsWeb.Controllers
 {
@@ -233,7 +235,7 @@ namespace TtdsWeb.Controllers
                   }}
                 }}");
 
-                        var geojson = $@"
+            var geojson = $@"
             {{
               ""type"": ""FeatureCollection"",
               ""features"": [
@@ -241,31 +243,31 @@ namespace TtdsWeb.Controllers
               ]
             }}";
 
-                        return Encoding.UTF8.GetBytes(geojson);
-                    }
+            return Encoding.UTF8.GetBytes(geojson);
+        }
 
 
         private void AddDirectionalAveragesToZip_ByDate(
             ZipArchive zip,
             List<TripDataset> datasets,
             string zipBaseFolder)
-                {
-                    var peaks = new[] { "AM", "MID", "PM" };
+        {
+            var peaks = new[] { "AM", "MID", "PM" };
 
-                    foreach (var pk in peaks)
-                    {
-                        var bytes = BuildDirectionalTableCsvForPeak(datasets, pk);
-                        if (bytes.Length == 0) continue;
+            foreach (var pk in peaks)
+            {
+                var bytes = BuildDirectionalTableCsvForPeak(datasets, pk);
+                if (bytes.Length == 0) continue;
 
-                        var entry = zip.CreateEntry(
-                            $"{zipBaseFolder}/{pk}.csv",
-                            CompressionLevel.Fastest
-                        );
+                var entry = zip.CreateEntry(
+                    $"{zipBaseFolder}/{pk}.csv",
+                    CompressionLevel.Fastest
+                );
 
-                        using var es = entry.Open();
-                        es.Write(bytes, 0, bytes.Length);
-                    }
-                }
+                using var es = entry.Open();
+                es.Write(bytes, 0, bytes.Length);
+            }
+        }
 
         private static byte[] BuildAnchorsCsv(IEnumerable<ControlPoint> anchors)
         {
@@ -288,69 +290,69 @@ namespace TtdsWeb.Controllers
             ZipArchive zip,
             List<TripDataset> datasets,
             string zipBaseFolder)
-                {
-                    foreach (var d in datasets)
-                    {
-                        var info = ParseTripInfoFromFilename(d.FileName)
-                                   ?? ParseTripInfoFromFilename(d.Path);
-                        if (info == null) continue;
+        {
+            foreach (var d in datasets)
+            {
+                var info = ParseTripInfoFromFilename(d.FileName)
+                           ?? ParseTripInfoFromFilename(d.Path);
+                if (info == null) continue;
 
-                        var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
+                var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
 
-                        var peak = PeakFolder(ComputeDatasetPeak(d.Rows).ToString());
-                        var dir = ComputeDatasetDirection(d.Rows) ?? "UNK";
+                var peak = PeakFolder(ComputeDatasetPeak(d.Rows).ToString());
+                var dir = ComputeDatasetDirection(d.Rows) ?? "UNK";
 
-                        var anchors = GetActiveAnchorsForTrip(d.Rows);
-                        anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state.ManualCpKm);
-                        if (anchors.Count < 2) continue;
+                var anchors = GetActiveAnchorsForTrip(d.Rows);
+                anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state.ManualCpKm);
+                if (anchors.Count < 2) continue;
 
-                        var (results, _, _) = AnalyzeTrip(d.Rows, anchors);
-                        var csvBytes = BuildResultsCsv(results);
+                var (results, _, _) = AnalyzeTrip(d.Rows, anchors);
+                var csvBytes = BuildResultsCsv(results);
 
-                        var entry = zip.CreateEntry(
-                            $"{zipBaseFolder}/{peak}/{tripNo}_{dtToken}-{dir}.csv",
-                            CompressionLevel.Fastest
-                        );
+                var entry = zip.CreateEntry(
+                    $"{zipBaseFolder}/{peak}/{tripNo}_{dtToken}-{dir}.csv",
+                    CompressionLevel.Fastest
+                );
 
-                        using var es = entry.Open();
-                        es.Write(csvBytes, 0, csvBytes.Length);
-                    }
-                }
+                using var es = entry.Open();
+                es.Write(csvBytes, 0, csvBytes.Length);
+            }
+        }
 
         private void AddShapesToZip(
         ZipArchive zip,
         List<TripDataset> datasets,
         string zipBaseFolder)
+        {
+            foreach (var d in datasets)
             {
-                foreach (var d in datasets)
+                var info = ParseTripInfoFromFilename(d.FileName)
+                           ?? ParseTripInfoFromFilename(d.Path);
+                if (info == null) continue;
+
+                var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
+
+                var peak = PeakFolder(ComputeDatasetPeak(d.Rows).ToString());
+                var dir = ComputeDatasetDirection(d.Rows) ?? "UNK";
+
+                var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tmp);
+
+                try
                 {
-                    var info = ParseTripInfoFromFilename(d.FileName)
-                               ?? ParseTripInfoFromFilename(d.Path);
-                    if (info == null) continue;
+                    var baseName = $"{tripNo}_{dtToken}-{dir}";
+                    var del = WriteDelayLinesShapeFile(d, tmp, baseName + "_delays");
+                    var pts = WriteTripPointsShapeFile(d, tmp, baseName + "_points");
 
-                    var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
-
-                    var peak = PeakFolder(ComputeDatasetPeak(d.Rows).ToString());
-                    var dir = ComputeDatasetDirection(d.Rows) ?? "UNK";
-
-                    var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-                    Directory.CreateDirectory(tmp);
-
-                    try
-                    {
-                        var baseName = $"{tripNo}_{dtToken}-{dir}";
-                        var del = WriteDelayLinesShapeFile(d, tmp, baseName + "_delays");
-                        var pts = WriteTripPointsShapeFile(d, tmp, baseName + "_points");
-
-                        AddShapeSidecarsToZip(zip, del, $"{zipBaseFolder}/shp/{peak}");
-                        AddShapeSidecarsToZip(zip, pts, $"{zipBaseFolder}/shp/{peak}");
-                    }
-                    finally
-                    {
-                        try { Directory.Delete(tmp, true); } catch { }
-                    }
+                    AddShapeSidecarsToZip(zip, del, $"{zipBaseFolder}/shp/{peak}");
+                    AddShapeSidecarsToZip(zip, pts, $"{zipBaseFolder}/shp/{peak}");
+                }
+                finally
+                {
+                    try { Directory.Delete(tmp, true); } catch { }
                 }
             }
+        }
 
         private static byte[] BuildOriginalCsvFromRows(IEnumerable<IDictionary<string, object>> rows)
         {
@@ -786,12 +788,12 @@ namespace TtdsWeb.Controllers
                         Name = d.FileName,
                         Coords = d.Coords,
                         Direction = ComputeDatasetDirection(d.Rows),
-
-                        // ✅ add these fields in MultiMapViewModel.Item
                         PeakCode = peak.ToString(),
                         PeakLabel = PeakLabel(peak)
                     };
-                }).ToList()
+                }).ToList(),
+                ReportGenUrl = _services.ReportGen,
+                BatchId = _state.BatchId,
             };
 
             return View("MapMulti", vm);
@@ -2599,7 +2601,7 @@ namespace TtdsWeb.Controllers
             return Encoding.UTF8.GetBytes(sb.ToString());
         }
 
-        
+
 
 
         // Replace this with your real method/service that builds PeakGroups + DirectionSummaries

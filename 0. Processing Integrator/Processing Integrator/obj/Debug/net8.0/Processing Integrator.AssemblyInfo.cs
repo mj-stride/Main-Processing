@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Processing Integrator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+98b5b744c30a6d0af48a60d1aedf3f2bf11a5bd2")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8990a16c963db5e40a292ea7c2d9d2cc1bd7c7b5")]
 [assembly: System.Reflection.AssemblyProductAttribute("Processing Integrator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Processing Integrator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

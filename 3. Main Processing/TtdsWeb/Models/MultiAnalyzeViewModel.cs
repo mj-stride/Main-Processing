@@ -16,9 +16,10 @@ namespace TtdsWeb.Models
         public List<object> CpData { get; set; } = new();
         public List<string> RegionList { get; set; } = new();
         public Dictionary<string, List<string>> RoadsByRegion { get; set; } = new();
-
         public string? SelectedRegion { get; set; }
         public string? SelectedRoad { get; set; }
+        public string? ReportGenUrl { get; set; }
+        public string? BatchId { get; set; }
 
         public class DatasetAnalysis
         {

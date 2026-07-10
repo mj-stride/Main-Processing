@@ -4,6 +4,8 @@ namespace TtdsWeb.Models
 {
     public class MultiMapViewModel
     {
+        public string? ReportGenUrl { get; set; }
+        public string? BatchId { get; set; }
         public List<Item> Items { get; set; } = new();
 
         public class Item
