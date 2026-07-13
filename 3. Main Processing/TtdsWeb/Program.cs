@@ -1,4 +1,5 @@
 ﻿using Ttds.Shared;
+using TtdsWeb.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,8 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<AppStateStore>();
 builder.Services.AddScoped<IAppStateAccessor, AppStateAccessor>();
+builder.Services.AddScoped<ICsvExportService, CsvExportService>();
+builder.Services.AddScoped<IGisExportService, GisExportService>();
 builder.Services.AddHostedService<AppStateCleanupService>();
 
 builder.Services.Configure<ServiceOptions>(

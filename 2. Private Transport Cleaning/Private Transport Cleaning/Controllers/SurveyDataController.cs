@@ -230,8 +230,7 @@ namespace PrivateTransportCleaning.Controllers
             return Json(new
             {
                 success = true,
-                //redirect = "/SurveyData/Trips",
-                redirect = $"{_services.MainProc}/import/{runId}"
+                redirect = Url.Action("Trips", "SurveyData", new { runId })
             });
         }
 
@@ -363,7 +362,7 @@ namespace PrivateTransportCleaning.Controllers
         }
 
         [HttpGet]
-        public IActionResult Trips()
+        public IActionResult Trips(string? runId)
         {
             var files = Directory.Exists(OutputPath)
                 ? Directory.GetFiles(OutputPath, "*.csv")
