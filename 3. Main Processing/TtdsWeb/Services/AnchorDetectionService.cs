@@ -1,171 +1,239 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text;
-using CsvHelper;
-using CsvHelper.Configuration;
-using TtdsWeb.Models;
+﻿using TtdsWeb.Models;
+using TtdsWeb.Utils;
 
 namespace TtdsWeb.Services
 {
-    public class CsvExportService : ICsvExportService
+    public interface IAnchorDetectionService
     {
-        private readonly CsvConfiguration _config;
+        List<ControlPoint> BuildKmAnchorsForRows(List<TripRow> df);
+        List<ControlPoint> BuildKmAnchorsForTrip(List<TripRow> df, List<KmPostRow> kmPosts, double snapRadiusM = 300.0);
+        List<ControlPoint> FilterAnchorsToVisited(List<TripRow> df, List<ControlPoint> anchors, double enterRadiusM = 300.0, double exitRadiusM = 300.0);
+    }
 
-        private static readonly Dictionary<int, string> CAUSE_LABELS = new()
-        {
-            { 0, "Normal Moving" },
-            { 1, "Loading and Unloading" },
-            { 2, "Intersection" },
-            { 3, "Traffic Light" },
-            { 4, "Pedestrian Crossing" },
-            { 5, "Animal Crossing" },
-            { 6, "Vehicle Crossing" },
-            { 7, "Road Construction" },
-            { 8, "Blocked by Vehicle" },
-            { 9, "Others" }
-        };
+    public class AnchorDetectionService : IAnchorDetectionService
+    {
+        private readonly AppState _state;
+        private readonly IKmPostRepositoryService _kmPostRepository;
+        private const double CP_DETECT_RADIUS_M = 300.0;
 
-        public CsvExportService()
+        public AnchorDetectionService(IAppStateAccessor appState, IKmPostRepositoryService kmPostRepository)
         {
-            _config = new CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                ShouldQuote = args => true
-            };
+            _state = appState.Current;
+            _kmPostRepository = kmPostRepository;
         }
 
-        // Reverted: Explicitly maps original trip rows to ensure delay reasons and duration are preserved
-        public byte[] ExportOriginalTripRowsToCsv(IEnumerable<TripRow> rows)
+        public List<ControlPoint> BuildKmAnchorsForRows(List<TripRow> df)
         {
-            if (rows == null || !rows.Any())
-                return Encoding.UTF8.GetBytes("No rows.\n");
+            var dbPath = _kmPostRepository.ResolveKmDbPath();
+            if (!System.IO.File.Exists(dbPath)) return new List<ControlPoint>();
 
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
+            IEnumerable<string>? roads = null;
+            if (_state.KmRoads?.Count > 0) roads = _state.KmRoads;
+            else if (!string.IsNullOrWhiteSpace(_state.KmRoad)) roads = KmPostRepositoryService.SplitCsv(_state.KmRoad);
 
-            // Write exact original headers
-            csv.WriteField("Timestamp");
-            csv.WriteField("Latitude");
-            csv.WriteField("Longitude");
-            csv.WriteField("SpeedKph");
-            csv.WriteField("DistanceDiffMeters");
-            csv.WriteField("SecDiff");
-            csv.WriteField("Status");
-            csv.WriteField("CauseID");
-            csv.WriteField("CauseDescription");
-            csv.WriteField("DelayDurationSec");
-            csv.NextRecord();
+            // bbox-based query for THIS dataset
+            var kmPosts = _kmPostRepository.LoadKmPostsForTrip(df, dbPath, _state.KmRegion, roads, bufferMeters: 3000.0);
+            if (kmPosts.Count < 2) return new List<ControlPoint>();
 
-            foreach (var r in rows)
-            {
-                double speed = r.Speed ?? 0.0;
-                int causeId = r.CauseID ?? 0;
-                bool isDelay = speed < 5.0 || causeId > 0;
-                string status = isDelay ? "Delay" : "Moving";
-                string causeDesc = CAUSE_LABELS.TryGetValue(causeId, out var desc) ? desc : "Unknown Cause";
-                double delaySec = isDelay ? Math.Max(r.secDiff, 0.0) : 0.0;
+            var kmAnchors = BuildKmAnchorsForTrip(df, kmPosts);
+            if (kmAnchors.Count < 2) return new List<ControlPoint>();
 
-                csv.WriteField(r.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss") ?? "");
-                csv.WriteField(r.SnappedLat.ToString("F7", CultureInfo.InvariantCulture));
-                csv.WriteField(r.SnappedLon.ToString("F7", CultureInfo.InvariantCulture));
-                csv.WriteField(speed.ToString("F2", CultureInfo.InvariantCulture));
-                csv.WriteField(r.distanceDiff.ToString("F2", CultureInfo.InvariantCulture));
-                csv.WriteField(r.secDiff.ToString("F2", CultureInfo.InvariantCulture));
-                csv.WriteField(status);
-                csv.WriteField(causeId);
-                csv.WriteField(causeDesc);
-                csv.WriteField(delaySec.ToString("F2", CultureInfo.InvariantCulture));
-                csv.NextRecord();
-            }
-
-            writer.Flush();
-            return ms.ToArray();
+            // keep only those actually visited (fallback to full if too few)
+            var filtered = FilterAnchorsToVisited(df, kmAnchors, CP_DETECT_RADIUS_M, CP_DETECT_RADIUS_M);
+            return (filtered.Count >= 2) ? filtered : kmAnchors;
         }
 
-        public byte[] ExportToCsv<T>(IEnumerable<T> records)
+        public List<ControlPoint> BuildKmAnchorsForTrip(List<TripRow> df, List<KmPostRow> kmPosts, double snapRadiusM = 300.0)
         {
-            if (records == null || !records.Any())
-                return Encoding.UTF8.GetBytes("No rows.\n");
+            if (df == null || df.Count == 0) return new List<ControlPoint>();
+            if (kmPosts == null || kmPosts.Count == 0) return new List<ControlPoint>();
 
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
-
-            csv.WriteRecords(records);
-            writer.Flush();
-            return ms.ToArray();
-        }
-
-        public byte[] ExportDictionariesToCsv(IEnumerable<IDictionary<string, object>> rows)
-        {
-            var list = rows?.ToList() ?? new List<IDictionary<string, object>>();
-            if (list.Count == 0) return Encoding.UTF8.GetBytes("No rows.\n");
-
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
-
-            var headers = list.First().Keys.ToList();
-            foreach (var header in headers) csv.WriteField(header);
-            csv.NextRecord();
-
-            foreach (var row in list)
+            // For each KM post, find nearest index along trip
+            int NearestIdx(double lat, double lon)
             {
-                foreach (var header in headers)
+                int bestIdx = 0;
+                double best = double.MaxValue;
+                for (int i = 0; i < df.Count; i++)
                 {
-                    row.TryGetValue(header, out var val);
-                    csv.WriteField(val?.ToString() ?? "");
+                    var d = Geo.DistanceMeters(lat, lon, df[i].SnappedLat, df[i].SnappedLon);
+                    if (d < best) { best = d; bestIdx = i; }
                 }
-                csv.NextRecord();
+                return bestIdx;
             }
 
-            writer.Flush();
-            return ms.ToArray();
-        }
+            var candidates = new List<(KmPostRow km, int idx, double dist)>();
 
-        public byte[] ExportStringDictionariesToCsv(IEnumerable<Dictionary<string, string>> rows)
-        {
-            var list = rows?.ToList() ?? new List<Dictionary<string, string>>();
-            if (list.Count == 0) return Encoding.UTF8.GetBytes("No rows.\n");
-
-            var headerSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var headers = new List<string>();
-
-            foreach (var row in list)
+            foreach (var km in kmPosts)
             {
-                foreach (var key in row.Keys)
+                int idx = NearestIdx(km.Lat, km.Lon);
+                double dist = Geo.DistanceMeters(km.Lat, km.Lon, df[idx].SnappedLat, df[idx].SnappedLon);
+
+                // Only keep KM posts that are actually close to the traveled polyline
+                if (dist <= snapRadiusM)
+                    candidates.Add((km, idx, dist));
+            }
+
+            if (candidates.Count < 2)
+            {
+                // If too strict, fallback: take nearest ordering anyway (no radius filter)
+                candidates.Clear();
+                foreach (var km in kmPosts)
                 {
-                    if (headerSet.Add(key)) headers.Add(key);
+                    int idx = NearestIdx(km.Lat, km.Lon);
+                    double dist = Geo.DistanceMeters(km.Lat, km.Lon, df[idx].SnappedLat, df[idx].SnappedLon);
+                    candidates.Add((km, idx, dist));
                 }
             }
 
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
+            // Sort in travel order
+            var ordered = candidates
+                .OrderBy(x => x.idx)
+                .GroupBy(x => x.km.Id) // avoid duplicates by id
+                .Select(g => g.First())
+                .ToList();
 
-            foreach (var header in headers) csv.WriteField(header);
-            csv.NextRecord();
-
-            foreach (var row in list)
+            // Convert to ControlPoint anchors
+            var anchors = ordered.Select(x => new ControlPoint
             {
-                foreach (var header in headers)
+                ControlPointId = x.km.KilometerPost,  // label like "KM 12" or "12"
+                Lat = x.km.Lat,
+                Lng = x.km.Lon
+            }).ToList();
+
+            // If duplicate labels exist, make them unique
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var a in anchors)
+            {
+                var baseId = a.ControlPointId;
+                int k = 2;
+                while (!seen.Add(a.ControlPointId))
                 {
-                    row.TryGetValue(header, out var val);
-                    csv.WriteField(val ?? "");
+                    a.ControlPointId = $"{baseId}_{k}";
+                    k++;
                 }
-                csv.NextRecord();
             }
 
-            writer.Flush();
-            return ms.ToArray();
+            return anchors;
         }
 
-        public byte[] BuildDirectionalTableCsvForPeak(List<TripDataset> datasets, string peakCode)
+        public List<ControlPoint> FilterAnchorsToVisited(List<TripRow> df, List<ControlPoint> anchors, double enterRadiusM = 300.0, double exitRadiusM = 300.0)
         {
-            throw new NotImplementedException("Migrate existing domain calculation here, writing via CsvWriter.");
+            if (anchors == null || anchors.Count == 0) return new List<ControlPoint>();
+            var visits = DetectCpVisits(df, anchors, enterRadiusM, exitRadiusM);
+            if (visits.Count == 0) return new List<ControlPoint>();
+            var set = visits.Select(v => v.CpId).ToHashSet();
+            return anchors.Where(a => set.Contains(a.ControlPointId)).ToList();
         }
+
+        private static List<CpVisit> DetectCpVisits(List<TripRow> df, List<ControlPoint> cps, double enterRadiusM = 300.0, double exitRadiusM = 300.0)
+        {
+            var visits = new List<CpVisit>();
+
+            string? currentCp = null;
+            ControlPoint? activeCp = null;
+            double bestDist = double.MaxValue;
+            int bestIdx = -1;
+
+            // Track closest point per CP (fallback)
+            var nearestPerCp = new Dictionary<string, (double dist, int idx)>();
+
+            for (int i = 0; i < df.Count; i++)
+            {
+                var r = df[i];
+
+                foreach (var cp in cps)
+                {
+                    double d = Geo.DistanceMeters(r.SnappedLat, r.SnappedLon, cp.Lat, cp.Lng);
+
+                    // Always track nearest (fallback)
+                    if (!nearestPerCp.ContainsKey(cp.ControlPointId) || d < nearestPerCp[cp.ControlPointId].dist)
+                    {
+                        nearestPerCp[cp.ControlPointId] = (d, i);
+                    }
+
+                    // ENTER
+                    if (currentCp == null && d <= enterRadiusM)
+                    {
+                        currentCp = cp.ControlPointId;
+                        activeCp = cp;
+                        bestDist = d;
+                        bestIdx = i;
+                    }
+                    // INSIDE
+                    else if (currentCp == cp.ControlPointId && activeCp != null)
+                    {
+                        if (d <= exitRadiusM)
+                        {
+                            if (d < bestDist)
+                            {
+                                bestDist = d;
+                                bestIdx = i;
+                            }
+                        }
+                        else
+                        {
+                            // EXIT -> finalize
+                            visits.Add(new CpVisit
+                            {
+                                CpId = currentCp,
+                                Index = bestIdx,
+                                Lat = df[bestIdx].SnappedLat,
+                                Lon = df[bestIdx].SnappedLon
+                            });
+
+                            currentCp = null;
+                            activeCp = null;
+                            bestIdx = -1;
+                            bestDist = double.MaxValue;
+                        }
+                    }
+                }
+            }
+
+            // finalize if still inside
+            if (currentCp != null && bestIdx >= 0)
+            {
+                visits.Add(new CpVisit
+                {
+                    CpId = currentCp,
+                    Index = bestIdx,
+                    Lat = df[bestIdx].SnappedLat,
+                    Lon = df[bestIdx].SnappedLon
+                });
+            }
+
+            // FALLBACK: add missed CPs
+            foreach (var kv in nearestPerCp)
+            {
+                if (kv.Value.dist <= enterRadiusM)
+                {
+                    if (!visits.Any(v => v.CpId == kv.Key))
+                    {
+                        visits.Add(new CpVisit
+                        {
+                            CpId = kv.Key,
+                            Index = kv.Value.idx,
+                            Lat = df[kv.Value.idx].SnappedLat,
+                            Lon = df[kv.Value.idx].SnappedLon
+                        });
+                    }
+                }
+            }
+
+            // remove duplicates & sort
+            return visits
+                .OrderBy(v => v.Index)
+                .GroupBy(v => v.CpId)
+                .Select(g => g.First())
+                .ToList();
+        }
+    }
+
+    internal class CpVisit
+    {
+        public string CpId { get; set; } = "";
+        public int Index { get; set; }
+        public double Lat { get; set; }
+        public double Lon { get; set; }
     }
 }

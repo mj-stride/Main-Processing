@@ -1,171 +1,95 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text;
-using CsvHelper;
-using CsvHelper.Configuration;
+﻿using Ttds.Shared;
 using TtdsWeb.Models;
 
 namespace TtdsWeb.Services
 {
-    public class CsvExportService : ICsvExportService
+    public interface IPeakPeriodService
     {
-        private readonly CsvConfiguration _config;
+        PeakPeriod GetPeakPeriod(DateTime dt);
+        string PeakLabel(PeakPeriod p);
+        PeakPeriod ComputeDatasetPeak(List<TripRow> rows);
+        string PeakFolder(string? peakCode);
+        string FormatMinToHHMMSS(double minutes);
+        string FullDirName(string code);
+        double Round2(double v);
+    }
 
-        private static readonly Dictionary<int, string> CAUSE_LABELS = new()
+    public enum PeakPeriod
+    {
+        AM,
+        MID,
+        PM,
+        OFF
+    }
+
+    public class PeakPeriodService : IPeakPeriodService
+    {
+        public PeakPeriod GetPeakPeriod(DateTime dt)
         {
-            { 0, "Normal Moving" },
-            { 1, "Loading and Unloading" },
-            { 2, "Intersection" },
-            { 3, "Traffic Light" },
-            { 4, "Pedestrian Crossing" },
-            { 5, "Animal Crossing" },
-            { 6, "Vehicle Crossing" },
-            { 7, "Road Construction" },
-            { 8, "Blocked by Vehicle" },
-            { 9, "Others" }
+            var t = dt.TimeOfDay;
+
+            // AM peak: 06:00 onwards (interpret as 06:00–10:29:59)
+            var amStart = new TimeSpan(6, 0, 0);
+            var amEnd = new TimeSpan(10, 29, 59);
+
+            // MID peak: 10:30–15:00
+            var midStart = new TimeSpan(10, 30, 0);
+            var midEnd = new TimeSpan(15, 0, 0);
+
+            // PM peak: 15:30–19:30
+            var pmStart = new TimeSpan(15, 30, 0);
+            var pmEnd = new TimeSpan(19, 30, 0);
+
+            if (t >= amStart && t <= amEnd) return PeakPeriod.AM;
+            if (t >= midStart && t <= midEnd) return PeakPeriod.MID;
+            if (t >= pmStart && t <= pmEnd) return PeakPeriod.PM;
+
+            return PeakPeriod.OFF;
+        }
+
+        public string PeakLabel(PeakPeriod p) => p switch
+        {
+            PeakPeriod.AM => "AM Peak (07:00–10:00)",
+            PeakPeriod.MID => "Mid Peak (11:00–14:00)",
+            PeakPeriod.PM => "PM Peak (16:00–19:00)",
+            _ => "Off-Peak"
         };
 
-        public CsvExportService()
+        public PeakPeriod ComputeDatasetPeak(List<TripRow> rows)
         {
-            _config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            var t = rows.Select(r => r.Timestamp).FirstOrDefault(x => x.HasValue);
+            if (!t.HasValue) return PeakPeriod.OFF;
+            return GetPeakPeriod(t.Value);
+        }
+
+        public string PeakFolder(string? peakCode)
+        {
+            peakCode = (peakCode ?? "").Trim().ToUpperInvariant();
+            return peakCode switch
             {
-                ShouldQuote = args => true
+                "AM" => "AM",
+                "MID" => "MID",
+                "PM" => "PM",
+                _ => "OFF"
             };
         }
 
-        // Reverted: Explicitly maps original trip rows to ensure delay reasons and duration are preserved
-        public byte[] ExportOriginalTripRowsToCsv(IEnumerable<TripRow> rows)
+        public string FormatMinToHHMMSS(double minutes)
         {
-            if (rows == null || !rows.Any())
-                return Encoding.UTF8.GetBytes("No rows.\n");
-
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
-
-            // Write exact original headers
-            csv.WriteField("Timestamp");
-            csv.WriteField("Latitude");
-            csv.WriteField("Longitude");
-            csv.WriteField("SpeedKph");
-            csv.WriteField("DistanceDiffMeters");
-            csv.WriteField("SecDiff");
-            csv.WriteField("Status");
-            csv.WriteField("CauseID");
-            csv.WriteField("CauseDescription");
-            csv.WriteField("DelayDurationSec");
-            csv.NextRecord();
-
-            foreach (var r in rows)
-            {
-                double speed = r.Speed ?? 0.0;
-                int causeId = r.CauseID ?? 0;
-                bool isDelay = speed < 5.0 || causeId > 0;
-                string status = isDelay ? "Delay" : "Moving";
-                string causeDesc = CAUSE_LABELS.TryGetValue(causeId, out var desc) ? desc : "Unknown Cause";
-                double delaySec = isDelay ? Math.Max(r.secDiff, 0.0) : 0.0;
-
-                csv.WriteField(r.Timestamp?.ToString("yyyy-MM-dd HH:mm:ss") ?? "");
-                csv.WriteField(r.SnappedLat.ToString("F7", CultureInfo.InvariantCulture));
-                csv.WriteField(r.SnappedLon.ToString("F7", CultureInfo.InvariantCulture));
-                csv.WriteField(speed.ToString("F2", CultureInfo.InvariantCulture));
-                csv.WriteField(r.distanceDiff.ToString("F2", CultureInfo.InvariantCulture));
-                csv.WriteField(r.secDiff.ToString("F2", CultureInfo.InvariantCulture));
-                csv.WriteField(status);
-                csv.WriteField(causeId);
-                csv.WriteField(causeDesc);
-                csv.WriteField(delaySec.ToString("F2", CultureInfo.InvariantCulture));
-                csv.NextRecord();
-            }
-
-            writer.Flush();
-            return ms.ToArray();
+            if (minutes <= 0) return "00:00:00";
+            var ts = TimeSpan.FromMinutes(minutes);
+            return ts.ToString(@"hh\:mm\:ss");
         }
 
-        public byte[] ExportToCsv<T>(IEnumerable<T> records)
+        public string FullDirName(string code) => code switch
         {
-            if (records == null || !records.Any())
-                return Encoding.UTF8.GetBytes("No rows.\n");
+            "SB" => "Southbound",
+            "NB" => "Northbound",
+            "EB" => "Eastbound",
+            "WB" => "Westbound",
+            _ => "Unknown"
+        };
 
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
-
-            csv.WriteRecords(records);
-            writer.Flush();
-            return ms.ToArray();
-        }
-
-        public byte[] ExportDictionariesToCsv(IEnumerable<IDictionary<string, object>> rows)
-        {
-            var list = rows?.ToList() ?? new List<IDictionary<string, object>>();
-            if (list.Count == 0) return Encoding.UTF8.GetBytes("No rows.\n");
-
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
-
-            var headers = list.First().Keys.ToList();
-            foreach (var header in headers) csv.WriteField(header);
-            csv.NextRecord();
-
-            foreach (var row in list)
-            {
-                foreach (var header in headers)
-                {
-                    row.TryGetValue(header, out var val);
-                    csv.WriteField(val?.ToString() ?? "");
-                }
-                csv.NextRecord();
-            }
-
-            writer.Flush();
-            return ms.ToArray();
-        }
-
-        public byte[] ExportStringDictionariesToCsv(IEnumerable<Dictionary<string, string>> rows)
-        {
-            var list = rows?.ToList() ?? new List<Dictionary<string, string>>();
-            if (list.Count == 0) return Encoding.UTF8.GetBytes("No rows.\n");
-
-            var headerSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var headers = new List<string>();
-
-            foreach (var row in list)
-            {
-                foreach (var key in row.Keys)
-                {
-                    if (headerSet.Add(key)) headers.Add(key);
-                }
-            }
-
-            using var ms = new MemoryStream();
-            using var writer = new StreamWriter(ms, Encoding.UTF8);
-            using var csv = new CsvWriter(writer, _config);
-
-            foreach (var header in headers) csv.WriteField(header);
-            csv.NextRecord();
-
-            foreach (var row in list)
-            {
-                foreach (var header in headers)
-                {
-                    row.TryGetValue(header, out var val);
-                    csv.WriteField(val ?? "");
-                }
-                csv.NextRecord();
-            }
-
-            writer.Flush();
-            return ms.ToArray();
-        }
-
-        public byte[] BuildDirectionalTableCsvForPeak(List<TripDataset> datasets, string peakCode)
-        {
-            throw new NotImplementedException("Migrate existing domain calculation here, writing via CsvWriter.");
-        }
+        public double Round2(double v) => Math.Round(v, 2);
     }
 }
