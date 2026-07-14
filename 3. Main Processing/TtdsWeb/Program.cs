@@ -10,6 +10,11 @@ builder.Services.AddSingleton<AppStateStore>();
 builder.Services.AddScoped<IAppStateAccessor, AppStateAccessor>();
 builder.Services.AddScoped<ICsvExportService, CsvExportService>();
 builder.Services.AddScoped<IGisExportService, GisExportService>();
+builder.Services.AddScoped<ITripAnalysisService, TripAnalysisService>();
+builder.Services.AddScoped<IPeakPeriodService, PeakPeriodService>();
+builder.Services.AddScoped<IGeoDirectionService, GeoDirectionService>();
+builder.Services.AddScoped<IKmPostRepositoryService, KmPostRepositoryService>();
+builder.Services.AddScoped<IAnchorDetectionService, AnchorDetectionService>();
 builder.Services.AddHostedService<AppStateCleanupService>();
 
 builder.Services.Configure<ServiceOptions>(

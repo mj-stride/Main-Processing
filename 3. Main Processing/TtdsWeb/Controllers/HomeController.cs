@@ -29,13 +29,31 @@ namespace TtdsWeb.Controllers
         private readonly AppState _state;
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _env;
+        private readonly ITripAnalysisService _analysisService;
+        private readonly IPeakPeriodService _peakService;
+        private readonly IGeoDirectionService _geoService;
+        private readonly IKmPostRepositoryService _kmRepository;
+        private readonly IAnchorDetectionService _anchorService;
         private const double CP_DETECT_RADIUS_M = 300.0;
 
-        public HomeController(IAppStateAccessor stateAccessor, IConfiguration config, IWebHostEnvironment env)
+        public HomeController(
+            IAppStateAccessor stateAccessor,
+            IConfiguration config,
+            IWebHostEnvironment env,
+            ITripAnalysisService analysisService,
+            IPeakPeriodService peakService,
+            IGeoDirectionService geoService,
+            IKmPostRepositoryService kmRepository,
+            IAnchorDetectionService anchorService)
         {
             _state = stateAccessor.Current;
             _config = config;
             _env = env;
+            _analysisService = analysisService;
+            _peakService = peakService;
+            _geoService = geoService;
+            _kmRepository = kmRepository;
+            _anchorService = anchorService;
         }
 
         [HttpGet("/download_detected_cp")]
