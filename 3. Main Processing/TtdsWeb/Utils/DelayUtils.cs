@@ -14,8 +14,7 @@ namespace TtdsWeb.Utils
                 { 5, ("Animal Crossing", "brown") },
                 { 6, ("Vehicle Crossing", "maroon") },
                 { 7, ("Road Construction", "gray") },
-                { 8, ("Blocked by Vehicle", "black") },
-                { 9, ("Others", "green") }
+                { 8, ("Blocked by Vehicle", "black") }
             };
 
         public static bool IsValidCauseId(int id) => CauseMap.ContainsKey(id);

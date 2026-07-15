@@ -804,6 +804,24 @@ namespace TtdsWeb.Controllers
                 .Cast<object>()
                 .ToList();
 
+            vm.SelectedRegion = _state.KmRegion;
+
+            vm.SelectedRoad = _state.KmRoads?.FirstOrDefault()
+                              ?? _state.KmRoad;
+
+            vm.RegionList = string.IsNullOrWhiteSpace(_state.KmRegion)
+                ? new List<string>()
+                : new List<string> { _state.KmRegion };
+
+            vm.RoadsByRegion = new Dictionary<string, List<string>>();
+
+            if (!string.IsNullOrWhiteSpace(_state.KmRegion))
+            {
+                vm.RoadsByRegion[_state.KmRegion] =
+                    _state.KmRoads?.ToList()
+                    ?? new List<string>();
+            }
+
             return View("ResultMulti", vm);
         }
 
@@ -992,6 +1010,19 @@ namespace TtdsWeb.Controllers
             }
             return PhysicalFile(path, "text/csv", "control_points.csv");
         }
+
+        [HttpGet]
+        public IActionResult GoToDashboard()
+        {
+            var dashboardUrl = _config["Services:Dashboard"];
+
+            if (string.IsNullOrWhiteSpace(dashboardUrl))
+                return StatusCode(500, "Dashboard URL is not configured.");
+
+            return Redirect(dashboardUrl);
+        }
+
+
 
         [HttpPost("/set_anchor")]
         public IActionResult SetAnchor(string source = "cp", string? region = null, string? road = null)

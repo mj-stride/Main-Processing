@@ -66,6 +66,18 @@
         if (p.Contains("PM")) return "PM";
         return "OFF";
     }
+
+    string CleanDelayCauses(string? causes)
+    {
+        if (string.IsNullOrWhiteSpace(causes)) return "";
+        var list = causes.Split(',')
+            .Select(c => c.Trim())
+            .Where(c => !string.IsNullOrEmpty(c)
+                     && !string.Equals(c, "Others", StringComparison.OrdinalIgnoreCase)
+                     && !string.Equals(c, "Other", StringComparison.OrdinalIgnoreCase)
+                     && !string.Equals(c, "None", StringComparison.OrdinalIgnoreCase));
+        return string.Join(", ", list);
+    }
 }
 
 @section Styles {
@@ -728,7 +740,7 @@
                                             <td>@r.RunningSpeedKph</td>
                                             <td>@r.Delays</td>
                                             <td>@r.DelayLengthM</td>
-                                            <td>@r.DelayCauses</td>
+                                            <td>@CleanDelayCauses(r.DelayCauses)</td>
                                             <td>@r.Note</td>
                                         </tr>
                                     }
@@ -939,6 +951,13 @@
             return isFinite(v) ? v : 0;
         }
 
+        // Helper to filter out "Others", "Other", "None", etc.
+        function isValidCause(c) {
+            if (!c) return false;
+            const lower = c.trim().toLowerCase();
+            return lower !== '' && lower !== 'others' && lower !== 'other' && lower !== 'none' && lower !== 'n/a';
+        }
+
         function getFilters() {
             return {
                 reg:    document.getElementById('regionSelect')?.value  || 'UnknownRegion',
@@ -1015,11 +1034,17 @@
                 const color   = seg.color || DS_COLORS[i % DS_COLORS.length];
                 const latlngs = seg.path.map(p => [p[0], p[1]]);
                 latlngs.forEach(ll => bounds.extend(ll));
+
+                const cleanCause = (seg.cause || '').split(',')
+                    .map(s => s.trim())
+                    .filter(isValidCause)
+                    .join(', ') || 'None';
+
                 L.polyline(latlngs, { color, weight: 5, opacity: 0.9 })
                     .bindPopup(`<b>${seg.fromCp ?? ''} → ${seg.toCp ?? ''}</b><br>
                                 Direction: ${seg.direction ?? 'N/A'}<br>
                                 Speed: ${seg.speed ?? 'N/A'} km/h<br>
-                                Cause: ${seg.cause ?? 'None'}<br>
+                                Cause: ${cleanCause}<br>
                                 Status: ${seg.status ?? 'Unknown'}`)
                     .addTo(g);
             });
@@ -1043,8 +1068,7 @@
             "Animal Crossing":       { color: "brown" },
             "Vehicle Crossing":      { color: "maroon" },
             "Road Construction":     { color: "gray" },
-            "Blocked by Vehicle":    { color: "black" },
-            "Others":                { color: "pink" }
+            "Blocked by Vehicle":    { color: "black" }
         };
 
         function buildStepSeries(rows, speedKey) {
@@ -1091,7 +1115,10 @@
 
                 resLite.forEach(row => {
                     const cpPair = `${row['From']} - ${row['To']}`;
-                    const causes = (row['Delay Causes'] || '').split(',').map(s => s.trim()).filter(Boolean);
+                    const causes = (row['Delay Causes'] || '')
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(isValidCause);
                     if (!causes.length) return;
                     causes.forEach(c => { delayCauseCounts[c] = (delayCauseCounts[c] || 0) + 1; });
                     if (!delayCPCounts[cpPair]) delayCPCounts[cpPair] = {};
