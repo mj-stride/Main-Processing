@@ -161,6 +161,16 @@
             let lastLogCount   = 0;
             let pollTimer      = null;
 
+        const existingJobId = @Html.Raw(ViewBag.JobId != null ? $"\"{ViewBag.JobId}\"" : "null");
+        if (existingJobId) {
+            if (overlay) { overlay.setAttribute('aria-hidden', 'false'); overlay.style.display = 'flex'; }
+            if (logPanel) logPanel.style.display = 'none';
+            setProgress(30, 'Resuming compilation…', 'Picking up an in-progress job…');
+            const btn = document.getElementById('btnGenerate');
+            if (btn) btn.disabled = true;
+            startPolling(existingJobId);
+        }
+
             // 1. Mandatory UI Scrubber on BFCache Page Restore
             window.addEventListener('pageshow', function () {
                 if (folderInput) folderInput.value = '';

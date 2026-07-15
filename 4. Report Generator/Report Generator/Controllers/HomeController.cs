@@ -37,13 +37,18 @@ namespace Report_Generator.Controllers
                 return BadRequest("No files found in batch.");
 
             var jobId = await jobs.EnqueueAsync(files);
-            return RedirectToAction("ReportGenerator", new { jobId }); // page can auto-poll this jobId
+
+            try { Directory.Delete(Path.Combine(_services.BatchStorageRoot, batchId), recursive: true); }
+            catch { /* best-effort */ }
+
+            return RedirectToAction("ReportGenerator", new { jobId });
         }
 
         // GET /Home/ReportGenerator  (also GET / via the default route in Program.cs)
         [HttpGet]
-        public IActionResult ReportGenerator()
+        public IActionResult ReportGenerator(Guid? jobId)
         {
+            ViewBag.JobId = jobId;
             return View();
         }
 

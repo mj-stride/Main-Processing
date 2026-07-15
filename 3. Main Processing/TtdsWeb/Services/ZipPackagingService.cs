@@ -37,7 +37,7 @@ namespace TtdsWeb.Services
             using var ms = new MemoryStream();
             using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
             {
-                // Packages original cleaned/snapped files directly into CleanedData folder
+                // Packages original cleaned/snapped files directly into Snapped-Cleaned folder
                 AddCleanedDatasetsToZip(zip, datasets, "Snapped-Cleaned");
                 AddDirectionalAveragesToZip_ByDate(zip, datasets, "DirectionalAverages");
                 AddSegmentAnalysisToZip(zip, datasets, "SegmentAnalysis");

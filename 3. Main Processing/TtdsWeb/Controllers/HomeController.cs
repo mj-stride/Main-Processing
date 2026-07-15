@@ -591,6 +591,34 @@ namespace TtdsWeb.Controllers
 
             return _state.ControlPoints.ToList();
         }
+        private void AddCleanedDatasetsToZip(ZipArchive zip, List<TripDataset> datasets, string zipBaseFolder)
+        {
+            foreach (var d in datasets)
+            {
+                if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                    continue;
+
+                var info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path);
+                string entryName;
+
+                if (info != null)
+                {
+                    var (tripNo, dtToken, _, _, _) = info.Value;
+                    var dir = _geoService.ComputeDatasetDirection(d.Rows) ?? "UNK";
+                    entryName = $"{zipBaseFolder}/{tripNo}_{dtToken}-{dir}.csv";
+                }
+                else
+                {
+                    var safeFileName = SafeZipFile(Path.GetFileName(d.FileName));
+                    entryName = $"{zipBaseFolder}/{safeFileName}";
+                }
+
+                var entry = zip.CreateEntry(entryName, CompressionLevel.Fastest);
+                using var es = entry.Open();
+                using var fs = System.IO.File.OpenRead(d.Path);
+                fs.CopyTo(es);
+            }
+        }
 
         private void SyncControlPointsFromKmSelection()
         {
@@ -1593,6 +1621,7 @@ namespace TtdsWeb.Controllers
 
                     var root = $"{ZipRoot(regionSafe, roadSafe, date)}/{vehicle}";
 
+                    AddCleanedDatasetsToZip(zip, list, $"{root}/Snapped-Cleaned");
                     AddSegmentAnalysisToZip(zip, list, $"{root}/SegmentAnalysis");
                     AddShapesToZip(zip, list, $"{root}/Shapes");
 
@@ -1768,6 +1797,17 @@ namespace TtdsWeb.Controllers
                 (string.Equals(roadNameOrSections, "UnknownRoad", StringComparison.OrdinalIgnoreCase) ? null : roadNameOrSections)
             );
 
+            var ms = BuildAllZipStream(chosen, regionSafe, roadSafe);
+
+            return File(
+                ms.ToArray(),
+                "application/zip",
+                $"{regionSafe}_{roadSafe}_{DateTime.Now:yyyyMMdd_HHmmss}.zip"
+            );
+        }
+
+        private MemoryStream BuildAllZipStream(List<TripDataset> chosen, string regionSafe, string roadSafe)
+        {
             var byDateVehicle = chosen
                 .Select(d => new { ds = d, info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path) })
                 .Where(x => x.info != null)
@@ -1778,7 +1818,7 @@ namespace TtdsWeb.Controllers
                 })
                 .ToDictionary(g => g.Key, g => g.Select(x => x.ds).ToList());
 
-            using var ms = new MemoryStream();
+            var ms = new MemoryStream();
             using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
             {
                 foreach (var kv in byDateVehicle)
@@ -1788,6 +1828,7 @@ namespace TtdsWeb.Controllers
                     var list = kv.Value;
 
                     var root = $"{ZipRoot(regionSafe, roadSafe, date)}/{vehicle}";
+                    AddCleanedDatasetsToZip(zip, list, $"{root}/Snapped-Cleaned");
                     AddSegmentAnalysisToZip(zip, list, $"{root}/SegmentAnalysis");
                     AddShapesToZip(zip, list, $"{root}/Shapes");
                 }
@@ -1803,11 +1844,57 @@ namespace TtdsWeb.Controllers
                 }
             }
 
-            return File(
-                ms.ToArray(),
-                "application/zip",
-                $"{regionSafe}_{roadSafe}_{DateTime.Now:yyyyMMdd_HHmmss}.zip"
+            ms.Position = 0;
+            return ms;
+        }
+
+        [HttpPost("/continue_to_reportgen")]
+        public IActionResult ContinueToReportGen(string region = "UnknownRegion", string roadNameOrSections = "UnknownRoad")
+        {
+            if (!_state.Datasets.Any())
+                return BadRequest("Upload files first.");
+
+            var selectedIds = (Request.HasFormContentType
+                    ? Request.Form["selected_files"].ToArray()
+                    : Array.Empty<string>())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var chosen = selectedIds.Count > 0
+                ? _state.Datasets.Where(d => selectedIds.Contains(d.Id)).ToList()
+                : _state.Datasets.ToList();
+
+            if (!chosen.Any())
+                return BadRequest("No dataset selected.");
+
+            var (regionSafe, roadSafe) = ResolveRegionRoad(
+                (string.Equals(region, "UnknownRegion", StringComparison.OrdinalIgnoreCase) ? null : region),
+                (string.Equals(roadNameOrSections, "UnknownRoad", StringComparison.OrdinalIgnoreCase) ? null : roadNameOrSections)
             );
+
+            using var zipStream = BuildAllZipStream(chosen, regionSafe, roadSafe);
+
+            var batchId = Guid.NewGuid().ToString("N");
+            var baseStorageRoot = _config["Services:BatchStorageRoot"] ?? Path.Combine(Path.GetTempPath(), "ttds_batches");
+            var destDir = Path.Combine(baseStorageRoot, batchId, "ttdsweb");
+            Directory.CreateDirectory(destDir);
+
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (string.IsNullOrEmpty(entry.Name)) continue; // folder entry
+
+                    var destPath = Path.Combine(destDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+                    entry.ExtractToFile(destPath, overwrite: true);
+                }
+            }
+
+            var reportGenUrl = _config["Services:ReportGen"];
+            if (string.IsNullOrWhiteSpace(reportGenUrl))
+                return StatusCode(500, "ReportGen URL is not configured.");
+
+            return Redirect($"{reportGenUrl}/import/{batchId}");
         }
 
         [IgnoreAntiforgeryToken]

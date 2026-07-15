@@ -899,6 +899,18 @@
                 }
         }
     </form>
+    <form id="continueReportGenForm" method="post" action="/continue_to_reportgen" style="display:none;">
+        <input type="hidden" name="region" id="continueRegion" />
+        <input type="hidden" name="roadNameOrSections" id="continueRoad" />
+        @if (Model.PeakGroups != null)
+        {
+            foreach (var g in Model.PeakGroups)
+                foreach (var ds in (g.Datasets ?? Enumerable.Empty<dynamic>()))
+                {
+                    <input type="hidden" name="selected_files" value="@ds.Id" />
+                }
+        }
+    </form>
     <form id="dirZipForm" style="display:none;"><input type="hidden" name="region" id="dirZipRegion" /><input type="hidden" name="roadNameOrSections" id="dirZipRoad" /></form>
     <form id="segZipForm" style="display:none;"><input type="hidden" name="region" id="segZipRegion" /><input type="hidden" name="roadNameOrSections" id="segZipRoad" /></form>
     <form id="shapesZipForm" style="display:none;"><input type="hidden" name="region" id="shapesZipRegion" /><input type="hidden" name="roadNameOrSections" id="shapesZipRoad" /></form>
@@ -908,7 +920,11 @@
     <button type="button" id="btnDownloadAllWithGraphsBar" class="btn-ttds w-auto px-4">
         <i class="bi bi-download"></i> Download ALL (Tables + Shapes + Graphs)
     </button>
-    <a asp-action="GoToReportGen" class="btn-ttds w-auto px-4" style="background: var(--color-accent); text-decoration: none;">
+    <button type="button" id="btnContinueNoUpload" class="btn-ttds w-auto px-4" style="background: #16a34a;">
+        <i class="bi bi-lightning-charge-fill"></i> Generate Report
+    </button>
+    <a id="btnNext" asp-action="GoToReportGen" class="btn-ttds w-auto px-4"
+       style="background: var(--color-accent); text-decoration: none; opacity: 0.4; pointer-events: none; cursor: not-allowed;">
         Next: Generate Report <i class="bi bi-arrow-right ms-1"></i>
     </a>
 </div>
@@ -982,6 +998,7 @@
         wireForm('segZipForm',    'segZipRegion',    'segZipRoad');
         wireForm('shapesZipForm', 'shapesZipRegion', 'shapesZipRoad');
         wireForm('allZipForm',    'allZipRegion',    'allZipRoad');
+        wireForm('continueReportGenForm', 'continueRegion', 'continueRoad');
 
         // ── Region → Road cascade ──
         document.getElementById('regionSelect')?.addEventListener('change', function () {
@@ -1089,6 +1106,11 @@
             });
             return pts;
         }
+
+        document.getElementById('btnContinueNoUpload')?.addEventListener('click', () => {
+            document.getElementById('continueReportGenForm')?.submit();
+        });
+
 
         (peakGroups || []).forEach((pg, pgIndex) => {
             (pg?.datasets || []).forEach((ds, dsIndex) => {
@@ -1249,25 +1271,35 @@
         // ── Download ALL ──
         async function doDownloadAll() {
             const { reg, road } = getFilters();
-            const selectedIds   = Array.from(document.querySelectorAll('input[name="selected_files"]')).map(x => x.value);
+            const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]')).map(x => x.value);
 
             try {
                 const res = await fetch('/export_all_with_graphs_zip', {
-                    method:  'POST',
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body:    JSON.stringify({ region: reg, roadNameOrSections: road, selectedIds, graphs: collectGraphs(reg, road) })
+                    body: JSON.stringify({ region: reg, roadNameOrSections: road, selectedIds, graphs: collectGraphs(reg, road) })
                 });
 
                 if (!res.ok) { alert('Download failed: ' + await res.text()); return; }
 
                 const url = URL.createObjectURL(await res.blob());
-                const a   = document.createElement('a');
+                const a = document.createElement('a');
                 a.href = url; a.download = `${safePart(reg)}_${safePart(road)}.zip`;
                 document.body.appendChild(a); a.click(); a.remove();
                 URL.revokeObjectURL(url);
+
+                enableNext(); // <-- unlock the report-gen button only after a successful download
             } catch (err) {
                 alert('Download error: ' + err.message);
             }
+        }
+
+        function enableNext() {
+            const btn = document.getElementById("btnNext");
+            if (!btn) return;
+            btn.style.opacity = "1";
+            btn.style.pointerEvents = "auto";
+            btn.style.cursor = "pointer";
         }
 
         document.getElementById('btnDownloadAllWithGraphsBar')?.addEventListener('click', doDownloadAll);
