@@ -30,6 +30,9 @@ namespace TtdsWeb.Services
         private readonly CsvConfiguration _config;
         private readonly AppState? _state;
         private readonly ITripAnalysisService _analysisService;
+        private readonly IGeoDirectionService _geoService;
+        private readonly IPeakPeriodService _peakService;
+        private readonly IAnchorDetectionService? _anchorService;
 
         private static readonly Dictionary<int, string> CAUSE_LABELS = new()
         {
@@ -45,10 +48,18 @@ namespace TtdsWeb.Services
             { 9, "Others" }
         };
 
-        public CsvExportService(IAppStateAccessor? appState = null, ITripAnalysisService? analysisService = null)
+        public CsvExportService(
+            IAppStateAccessor? appState = null,
+            ITripAnalysisService? analysisService = null,
+            IGeoDirectionService? geoService = null,
+            IPeakPeriodService? peakService = null,
+            IAnchorDetectionService? anchorService = null)
         {
             _state = appState?.Current;
-            _analysisService = analysisService;
+            _analysisService = analysisService!;
+            _geoService = geoService!;
+            _peakService = peakService!;
+            _anchorService = anchorService;
             _config = new CsvConfiguration(CultureInfo.InvariantCulture)
             {
                 ShouldQuote = args => true
@@ -270,14 +281,14 @@ namespace TtdsWeb.Services
             csv.WriteField("AvgDelayLength(km)");
             csv.NextRecord();
 
-            foreach (var grp in datasets.GroupBy(d => _analysisService!.ComputeDatasetDirection(d.Rows)))
+            foreach (var grp in datasets.GroupBy(d => _geoService.ComputeDatasetDirection(d.Rows)))
             {
                 var allSegs = new List<SegmentResult>();
 
                 foreach (var d in grp)
                 {
-                    var anchors = _analysisService!.GetActiveAnchorsForTrip(d.Rows);
-                    anchors = _analysisService.MergeAnchorsInTripOrder(d.Rows, anchors, _state?.ManualCpKm);
+                    var anchors = GetActiveAnchorsForTrip(d.Rows);
+                    anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state?.ManualCpKm);
 
                     if (anchors.Count < 2) continue;
 
@@ -325,7 +336,7 @@ namespace TtdsWeb.Services
             foreach (var peak in peakOrder)
             {
                 var peakDatasets = dsList
-                    .Where(d => (_analysisService!.ComputeDatasetPeak(d.Rows)?.ToString() ?? "").Equals(peak, StringComparison.OrdinalIgnoreCase))
+                    .Where(d => _peakService.ComputeDatasetPeak(d.Rows).ToString().Equals(peak, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
                 if (!peakDatasets.Any()) continue;
@@ -344,7 +355,7 @@ namespace TtdsWeb.Services
                 foreach (var dir in dirOrder)
                 {
                     var dirDatasets = peakDatasets
-                        .Where(d => (_analysisService!.ComputeDatasetDirection(d.Rows) ?? "Unknown")
+                        .Where(d => (_geoService.ComputeDatasetDirection(d.Rows) ?? "Unknown")
                         .Equals(dir, StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
@@ -354,8 +365,8 @@ namespace TtdsWeb.Services
 
                     foreach (var d in dirDatasets)
                     {
-                        var anchors = _analysisService!.GetActiveAnchorsForTrip(d.Rows);
-                        anchors = _analysisService.MergeAnchorsInTripOrder(d.Rows, anchors, _state?.ManualCpKm);
+                        var anchors = GetActiveAnchorsForTrip(d.Rows);
+                        anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state?.ManualCpKm);
 
                         if (anchors.Count < 2) continue;
 
@@ -390,7 +401,7 @@ namespace TtdsWeb.Services
                 return Array.Empty<byte>();
 
             var dsPeak = datasets
-                .Where(d => (_analysisService!.ComputeDatasetPeak(d.Rows)?.ToString() ?? "").Equals(peakCode, StringComparison.OrdinalIgnoreCase))
+                .Where(d => _peakService.ComputeDatasetPeak(d.Rows).ToString().Equals(peakCode, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (!dsPeak.Any())
@@ -401,12 +412,12 @@ namespace TtdsWeb.Services
 
             foreach (var d in dsPeak)
             {
-                var dir = (_analysisService!.ComputeDatasetDirection(d.Rows) ?? "Unknown").Trim().ToUpperInvariant();
+                var dir = (_geoService.ComputeDatasetDirection(d.Rows) ?? "Unknown").Trim().ToUpperInvariant();
                 if (dir == "") dir = "UNKNOWN";
                 if (!dirOrder.Contains(dir)) dir = "UNKNOWN";
 
-                var anchors = _analysisService.GetActiveAnchorsForTrip(d.Rows);
-                anchors = _analysisService.MergeAnchorsInTripOrder(d.Rows, anchors, _state?.ManualCpKm);
+                var anchors = GetActiveAnchorsForTrip(d.Rows);
+                anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state?.ManualCpKm);
                 if (anchors.Count < 2) continue;
 
                 var (_, _, sum) = _analysisService.AnalyzeTrip(d.Rows, anchors);
@@ -446,7 +457,7 @@ namespace TtdsWeb.Services
                 csv.WriteField(metric);
                 foreach (var d in presentDirs)
                 {
-                    var avg = _analysisService!.Aggregate_MethodA(perDir[d]);
+                    var avg = _analysisService.Aggregate_MethodA(perDir[d]);
                     csv.WriteField(avg != null ? selector(avg) : "");
                 }
                 csv.WriteField(units);
@@ -464,10 +475,66 @@ namespace TtdsWeb.Services
             return ms.ToArray();
         }
 
+        // ---------------------------------------------------------------
+        // Anchor resolution helpers.
+        // These mirror the private logic in HomeController / ZipPackagingService
+        // (there is no shared service for them yet — see ITripAnalysisService,
+        // which does NOT own these methods despite earlier code assuming it did).
+        // ---------------------------------------------------------------
+        private List<ControlPoint> GetActiveAnchorsForTrip(List<TripRow> df)
+        {
+            var mode = _state?.AnchorSource ?? "cp";
+
+            if (mode == "km")
+            {
+                var kmAnchors = _anchorService?.BuildKmAnchorsForRows(df) ?? new List<ControlPoint>();
+
+                return kmAnchors
+                    .Concat(_state?.ManualCpKm ?? new List<ControlPoint>())
+                    .GroupBy(a => a.ControlPointId, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+            }
+
+            return _state?.ControlPoints?.ToList() ?? new List<ControlPoint>();
+        }
+
+        private static List<ControlPoint> MergeAnchorsInTripOrder(List<TripRow> df, List<ControlPoint> baseAnchors, List<ControlPoint>? extra)
+        {
+            if (extra == null || extra.Count == 0) return baseAnchors;
+
+            var tripPts = df.Select((r, i) => (r.SnappedLat, r.SnappedLon, i)).ToList();
+
+            int NearestIdx(ControlPoint cp)
+            {
+                int bestIdx = 0;
+                double best = double.MaxValue;
+                for (int i = 0; i < tripPts.Count; i++)
+                {
+                    var d = Geo.DistanceMeters(cp.Lat, cp.Lng, tripPts[i].SnappedLat, tripPts[i].SnappedLon);
+                    if (d < best) { best = d; bestIdx = i; }
+                }
+                return bestIdx;
+            }
+
+            return baseAnchors
+                .Concat(extra)
+                .GroupBy(a => a.ControlPointId)
+                .Select(g => g.First())
+                .Select(a => new { a, idx = NearestIdx(a) })
+                .OrderBy(x => x.idx)
+                .Select(x => x.a)
+                .ToList();
+        }
+
         private void EnsureAnalysisServiceAvailable()
         {
             if (_analysisService == null)
                 throw new InvalidOperationException("ITripAnalysisService must be injected into CsvExportService to generate analytical directional CSV tables.");
+            if (_geoService == null)
+                throw new InvalidOperationException("IGeoDirectionService must be injected into CsvExportService to generate analytical directional CSV tables.");
+            if (_peakService == null)
+                throw new InvalidOperationException("IPeakPeriodService must be injected into CsvExportService to generate analytical directional CSV tables.");
         }
 
         private static string DirFull(string d) => d switch

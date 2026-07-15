@@ -177,6 +177,8 @@ namespace TtdsWeb.Controllers
         public IActionResult Index() => View();
 
         [HttpPost("/upload")]
+        [DisableRequestSizeLimit]
+        [RequestFormLimits(MultipartBodyLengthLimit = long.MaxValue)]
         public async Task<IActionResult> Upload(List<IFormFile> files)
         {
             _state.KmRoad = Request.HasFormContentType ? Request.Form["kmRoad"].ToString() : null;
@@ -186,66 +188,198 @@ namespace TtdsWeb.Controllers
             _state.ManualCpKm.Clear();
             _state.KmGeneratedPoints.Clear();
             _state.LastTripPath = null;
+            _state.AnchorSource = "cp";
+            _state.KmRegion = null;
+            _state.KmRoads = new List<string>();
 
             var uploadRoot = UploadRoot;
 
-            foreach (var f in files)
+            if (files != null)
             {
-                if (f == null || !f.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                var safeName = Path.GetFileName(f.FileName);
-                var path = Path.Combine(uploadRoot, safeName);
-
-                await using (var fs = System.IO.File.Create(path))
-                    await f.CopyToAsync(fs);
-
-                var rows = _analysisService.ReadTripCsv(path);
-                if (!rows.Any()) continue;
-
-                _state.Datasets.Add(new TripDataset
+                foreach (var f in files)
                 {
-                    FileName = f.FileName,
-                    Path = path,
-                    Rows = rows,
-                    Coords = rows.Select(r => new[] { r.SnappedLat, r.SnappedLon }).ToList()
-                });
+                    if (f == null || f.Length == 0)
+                        continue;
 
-                _state.LastTripPath = path;
+                    var ext = Path.GetExtension(f.FileName);
+
+                    if (ext.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+                        await ProcessCsvUploadAsync(f, uploadRoot);
+                    else if (ext.Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                        await ProcessZipUploadAsync(f, uploadRoot);
+                }
             }
 
             if (!_state.Datasets.Any())
-                return BadRequest("No valid CSV files uploaded.");
+                return BadRequest("No valid CSV files uploaded (checked direct .csv uploads and .csv entries inside .zip packages).");
 
-            var vm = new MultiMapViewModel
+            // ---- Auto-apply the KM preview filter ----
+            // Instead of requiring the user to open the Anchor Filter panel, switch
+            // to KM, pick Region/Road, and click Apply, detect the best-matching
+            // Region/Road straight from the uploaded trip's coordinates and pre-load it.
+            var (detectedRegion, detectedRoads) = AutoDetectRegionRoad(_state.Datasets);
+            if (!string.IsNullOrWhiteSpace(detectedRegion) && detectedRoads.Any())
             {
-                Items = _state.Datasets.Select(d =>
-                {
-                    var peak = _peakService.ComputeDatasetPeak(d.Rows);
-                    return new MultiMapViewModel.Item
-                    {
-                        Id = d.Id,
-                        Name = d.FileName,
-                        Coords = d.Coords,
-                        Direction = _geoService.ComputeDatasetDirection(d.Rows),
-                        PeakCode = peak.ToString(),
-                        PeakLabel = _peakService.PeakLabel(peak)
-                    };
-                }).ToList()
-            };
+                _state.AnchorSource = "km";
+                _state.KmRegion = detectedRegion;
+                _state.KmRoads = detectedRoads;
+                _state.KmRoad = string.Join(",", detectedRoads);
 
-            return View("MapMulti", vm);
+                SyncControlPointsFromKmSelection();
+            }
+            // else: no confident KM match within range of the trip — stays in CP
+            // mode (previous default behavior) so manual control points still work.
+
+            return RenderMapMulti();
         }
 
-        private sealed class KmPostRow
+        // ---------------------------------------------------------------
+        // Upload helpers: accepts both loose .csv files and .zip packages.
+        // ---------------------------------------------------------------
+        private async Task ProcessCsvUploadAsync(IFormFile f, string uploadRoot)
         {
-            public string Id { get; set; } = "";
-            public string KilometerPost { get; set; } = "";
-            public double Km { get; set; }
-            public double Lat { get; set; }
-            public double Lon { get; set; }
-            public string? Region { get; set; }
-            public string? Road { get; set; }
+            var safeName = EnsureUniqueFileName(uploadRoot, Path.GetFileName(f.FileName));
+            var path = Path.Combine(uploadRoot, safeName);
+
+            await using (var fs = System.IO.File.Create(path))
+                await f.CopyToAsync(fs);
+
+            AddDatasetFromCsvFile(path, f.FileName);
+        }
+
+        private async Task ProcessZipUploadAsync(IFormFile f, string uploadRoot)
+        {
+            var tempZipPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + "_" + Path.GetFileName(f.FileName));
+
+            await using (var fs = System.IO.File.Create(tempZipPath))
+                await f.CopyToAsync(fs);
+
+            try
+            {
+                using var archive = ZipFile.OpenRead(tempZipPath);
+
+                foreach (var entry in archive.Entries)
+                {
+                    if (string.IsNullOrEmpty(entry.Name)) continue;
+                    if (!entry.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var safeName = EnsureUniqueFileName(uploadRoot, entry.Name);
+                    var destPath = Path.Combine(uploadRoot, safeName);
+
+                    entry.ExtractToFile(destPath, overwrite: true);
+                    AddDatasetFromCsvFile(destPath, entry.FullName);
+                }
+            }
+            finally
+            {
+                try { System.IO.File.Delete(tempZipPath); } catch { /* best-effort cleanup */ }
+            }
+        }
+
+        private void AddDatasetFromCsvFile(string path, string originalFileName)
+        {
+            var rows = _analysisService.ReadTripCsv(path);
+            if (!rows.Any()) return;
+
+            _state.Datasets.Add(new TripDataset
+            {
+                FileName = originalFileName,
+                Path = path,
+                Rows = rows,
+                Coords = rows.Select(r => new[] { r.SnappedLat, r.SnappedLon }).ToList()
+            });
+
+            _state.LastTripPath = path;
+        }
+
+        private static string EnsureUniqueFileName(string folder, string fileName)
+        {
+            fileName = Path.GetFileName(fileName);
+            var candidate = fileName;
+            var nameNoExt = Path.GetFileNameWithoutExtension(fileName);
+            var ext = Path.GetExtension(fileName);
+            var counter = 2;
+
+            while (System.IO.File.Exists(Path.Combine(folder, candidate)))
+            {
+                candidate = $"{nameNoExt}_{counter}{ext}";
+                counter++;
+            }
+
+            return candidate;
+        }
+
+        // ---------------------------------------------------------------
+        // Auto-detects the (Region, Road) that best matches the uploaded trip(s),
+        // by nearest-KM-post voting — same approach used in GPXClean's
+        // DetectRegionRoad / RegionRoadDetectionService, adapted for TtdsWeb's
+        // KmPostRepositoryService-backed KM post table.
+        // ---------------------------------------------------------------
+        private (string? region, List<string> roads) AutoDetectRegionRoad(List<TripDataset> datasets)
+        {
+            const int SAMPLE_EVERY = 10;
+            const double MAX_MATCH_METERS = 300.0; // matches CP_DETECT_RADIUS_M used elsewhere
+
+            string dbPath;
+            try
+            {
+                dbPath = _kmRepository.ResolveKmDbPath();
+            }
+            catch (FileNotFoundException)
+            {
+                return (null, new List<string>());
+            }
+
+            if (string.IsNullOrWhiteSpace(dbPath) || !System.IO.File.Exists(dbPath))
+                return (null, new List<string>());
+
+            var votes = new Dictionary<(string region, string road), int>();
+
+            foreach (var ds in datasets)
+            {
+                var kmPosts = _kmRepository.LoadKmPostsForTrip(ds.Rows, dbPath, region: null, roads: null, bufferMeters: 3000.0);
+                if (kmPosts.Count == 0) continue;
+
+                for (int i = 0; i < ds.Rows.Count; i += SAMPLE_EVERY)
+                {
+                    var r = ds.Rows[i];
+
+                    KmPostRow? best = null;
+                    double bestDist = double.MaxValue;
+
+                    foreach (var km in kmPosts)
+                    {
+                        var d = Geo.DistanceMeters(r.SnappedLat, r.SnappedLon, km.Lat, km.Lon);
+                        if (d < bestDist) { bestDist = d; best = km; }
+                    }
+
+                    if (best != null && bestDist <= MAX_MATCH_METERS &&
+                        !string.IsNullOrWhiteSpace(best.Region) && !string.IsNullOrWhiteSpace(best.Road))
+                    {
+                        var key = (best.Region!, best.Road!);
+                        votes[key] = votes.TryGetValue(key, out var c) ? c + 1 : 1;
+                    }
+                }
+            }
+
+            if (votes.Count == 0) return (null, new List<string>());
+
+            // Winning region = whichever region collected the most matched samples overall.
+            var topRegion = votes
+                .GroupBy(v => v.Key.region)
+                .OrderByDescending(g => g.Sum(x => x.Value))
+                .First().Key;
+
+            // Every road within that region that got votes — covers corridors made
+            // of multiple road segments/names.
+            var roadsForRegion = votes
+                .Where(v => v.Key.region == topRegion)
+                .OrderByDescending(v => v.Value)
+                .Select(v => v.Key.road)
+                .Distinct()
+                .ToList();
+
+            return (topRegion, roadsForRegion);
         }
 
         private IActionResult RenderMapMulti()
