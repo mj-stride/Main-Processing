@@ -37,12 +37,49 @@ namespace TtdsWeb.Services
             using var ms = new MemoryStream();
             using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
             {
+                // Packages original cleaned/snapped files directly into CleanedData folder
+                AddCleanedDatasetsToZip(zip, datasets, "Snapped-Cleaned");
                 AddDirectionalAveragesToZip_ByDate(zip, datasets, "DirectionalAverages");
                 AddSegmentAnalysisToZip(zip, datasets, "SegmentAnalysis");
                 AddShapesToZip(zip, datasets, "Shapes");
             }
 
             System.IO.File.WriteAllBytes(zipFilePath, ms.ToArray());
+        }
+
+        private void AddCleanedDatasetsToZip(
+            ZipArchive zip,
+            List<TripDataset> datasets,
+            string zipBaseFolder)
+        {
+            foreach (var d in datasets)
+            {
+                if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                    continue;
+
+                var info = ParseTripInfoFromFilename(d.FileName)
+                           ?? ParseTripInfoFromFilename(d.Path);
+                string entryName;
+
+                if (info != null)
+                {
+                    var (tripNo, dtToken, _, _, _) = info.Value;
+                    var dir = _geoService.ComputeDatasetDirection(d.Rows) ?? "UNK";
+
+                    // Placed directly under the base folder (No AM/MID/PM segregation)
+                    entryName = $"{zipBaseFolder}/{tripNo}_{dtToken}-{dir}.csv";
+                }
+                else
+                {
+                    var safeFileName = SafeZipFile(Path.GetFileName(d.FileName));
+                    entryName = $"{zipBaseFolder}/{safeFileName}";
+                }
+
+                var entry = zip.CreateEntry(entryName, CompressionLevel.Fastest);
+                using var es = entry.Open();
+                using var fs = System.IO.File.OpenRead(d.Path);
+                fs.CopyTo(es);
+            }
         }
 
         private void AddDirectionalAveragesToZip_ByDate(
@@ -384,6 +421,7 @@ namespace TtdsWeb.Services
         {
             if (string.IsNullOrWhiteSpace(name)) return null;
 
+            // Restored the missing backslash \b in \bGPX_
             var mv = System.Text.RegularExpressions.Regex.Match(
                 name,
                 @"\bGPX_(\d+)_",
@@ -416,5 +454,3 @@ namespace TtdsWeb.Services
         };
     }
 }
-
-

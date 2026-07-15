@@ -92,7 +92,7 @@ namespace Report_Generator.Services
                     }
 
                     bool shouldCopy = entryPath.Contains("/KM-CP Detected/", StringComparison.OrdinalIgnoreCase) ||
-                                      entryPath.Contains("/Snapped/", StringComparison.OrdinalIgnoreCase) ||
+                                      entryPath.Contains("/Snapped-Cleaned/", StringComparison.OrdinalIgnoreCase) ||
                                       entryPath.Contains("/SegmentAnalysis/", StringComparison.OrdinalIgnoreCase) ||
                                       entryPath.Contains("/Graphs/AM/", StringComparison.OrdinalIgnoreCase) ||
                                       entryPath.Contains("/Graphs/MID/", StringComparison.OrdinalIgnoreCase) ||

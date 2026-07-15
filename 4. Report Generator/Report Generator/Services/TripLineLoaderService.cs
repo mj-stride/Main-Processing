@@ -49,7 +49,7 @@ namespace Report_Generator.Services
             var all = vehicleScopedFiles.ToList();
 
             var snapped = all.Where(f =>
-                    f.FileName.Contains("/Snapped/", StringComparison.OrdinalIgnoreCase) &&
+                    f.FileName.Contains("/Snapped-Cleaned/", StringComparison.OrdinalIgnoreCase) &&
                     f.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) &&
                     IsTripFile(f.FileName))
                 .OrderBy(f => f.FileName, StringComparer.OrdinalIgnoreCase)
