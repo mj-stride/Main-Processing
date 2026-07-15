@@ -1064,9 +1064,20 @@ namespace TtdsWeb.Controllers
                         .Equals(dir, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
-                if (dirDatasets.Any())
+                var summaries = new List<AnalysisSummary>();
+                foreach (var d in dirDatasets)
                 {
-                    var avg = dirDatasets.Average(x => x.TotalTravelTimeMin ?? 0);
+                    var anchors = GetActiveAnchorsForTrip(d.Rows);
+                    anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state.ManualCpKm);
+                    if (anchors.Count < 2) continue;
+
+                    var (_, _, summary) = _analysisService.AnalyzeTrip(d.Rows, anchors);
+                    if (summary != null) summaries.Add(summary);
+                }
+
+                if (summaries.Any())
+                {
+                    var avg = summaries.Average(s => s.TotalTravelTimeMin);
                     sb.Append(',').Append(_peakService.FormatMinToHHMMSS(avg));
                 }
                 else
