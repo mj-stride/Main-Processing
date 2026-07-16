@@ -393,10 +393,10 @@ namespace PrivateTransportCleaning.Controllers
             if (baseForNaming.EndsWith("_snapped", StringComparison.OrdinalIgnoreCase))
                 baseForNaming = baseForNaming[..^"_snapped".Length];
 
-            // Automatically prepend 'Merged_' to distinguish it as a multi-source file
             var sourceNameForNaming = string.IsNullOrWhiteSpace(mergedName)
-                ? $"Merged_{baseForNaming}"
+                ? Path.GetFileNameWithoutExtension(earliestFile)
                 : mergedName;
+
 
             var filename = _fileNamingService.BuildName(KmDbPath, sample, sourceNameForNaming);
 

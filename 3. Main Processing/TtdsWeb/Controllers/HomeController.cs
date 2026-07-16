@@ -1851,15 +1851,54 @@ namespace TtdsWeb.Controllers
             return ms;
         }
 
+        private void AddKmCpDetectedToFolder(string destBaseFolder, List<TripDataset> datasets)
+        {
+            foreach (var d in datasets)
+            {
+                var info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path);
+                if (info == null) continue;
+
+                var (tripNo, dtToken, _, _, _) = info.Value;
+
+                var peakCode = _peakService.ComputeDatasetPeak(d.Rows).ToString();
+                var period = _peakService.PeakFolder(peakCode);
+
+                var dir = _geoService.ComputeDatasetDirection(d.Rows);
+                dir = string.IsNullOrWhiteSpace(dir) ? "UNK" : dir.Trim().ToUpperInvariant();
+
+                var anchors = GetActiveAnchorsForTrip(d.Rows);
+                anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state.ManualCpKm);
+
+                if (anchors.Count < 1) continue;
+
+                // Create directory paths:
+                // .../KM-CP Detected/[AM|MID|PM]/tables/
+                // .../KM-CP Detected/[AM|MID|PM]/GIS/
+                var tablesDir = Path.Combine(destBaseFolder, period, "tables");
+                var gisDir = Path.Combine(destBaseFolder, period, "GIS");
+                Directory.CreateDirectory(tablesDir);
+                Directory.CreateDirectory(gisDir);
+
+                // Write CSV table
+                var anchorsCsv = BuildAnchorsCsv(anchors);
+                var csvPath = Path.Combine(tablesDir, $"anchors_{tripNo}_{dtToken}-{dir}.csv");
+                System.IO.File.WriteAllBytes(csvPath, anchorsCsv);
+
+                // Write GeoJSON file
+                var anchorsGeo = BuildAnchorsGeoJson(anchors);
+                var geoPath = Path.Combine(gisDir, $"anchors_{tripNo}_{dtToken}-{dir}.geojson");
+                System.IO.File.WriteAllBytes(geoPath, anchorsGeo);
+            }
+        }
+
         [HttpPost("/continue_to_reportgen")]
-        public IActionResult ContinueToReportGen(string region = "UnknownRegion", string roadNameOrSections = "UnknownRoad")
+        public IActionResult ContinueToReportGen([FromBody] ExportAllWithGraphsRequest req)
         {
             if (!_state.Datasets.Any())
                 return BadRequest("Upload files first.");
 
-            var selectedIds = (Request.HasFormContentType
-                    ? Request.Form["selected_files"].ToArray()
-                    : Array.Empty<string>())
+            var selectedIds = (req.SelectedIds ?? new List<string>())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var chosen = selectedIds.Count > 0
@@ -1870,8 +1909,8 @@ namespace TtdsWeb.Controllers
                 return BadRequest("No dataset selected.");
 
             var (regionSafe, roadSafe) = ResolveRegionRoad(
-                (string.Equals(region, "UnknownRegion", StringComparison.OrdinalIgnoreCase) ? null : region),
-                (string.Equals(roadNameOrSections, "UnknownRoad", StringComparison.OrdinalIgnoreCase) ? null : roadNameOrSections)
+                (string.Equals(req.Region, "UnknownRegion", StringComparison.OrdinalIgnoreCase) ? null : req.Region),
+                (string.Equals(req.RoadNameOrSections, "UnknownRoad", StringComparison.OrdinalIgnoreCase) ? null : req.RoadNameOrSections)
             );
 
             var batchId = Guid.NewGuid().ToString("N");
@@ -1879,6 +1918,7 @@ namespace TtdsWeb.Controllers
             var destDir = Path.Combine(baseStorageRoot, batchId, "ttdsweb");
             Directory.CreateDirectory(destDir);
 
+            // Group datasets by Date and Vehicle
             var byDateVehicle = chosen
                 .Select(d => new { ds = d, info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path) })
                 .Where(x => x.info != null)
@@ -1889,6 +1929,7 @@ namespace TtdsWeb.Controllers
                 })
                 .ToDictionary(g => g.Key, g => g.Select(x => x.ds).ToList());
 
+            // 1. Write structured dataset files (Snapped-Cleaned, Segment Analysis, Shapes, KM-CP Detected)
             foreach (var kv in byDateVehicle)
             {
                 var date = kv.Key.date;
@@ -1898,15 +1939,50 @@ namespace TtdsWeb.Controllers
                 var root = Path.Combine(destDir, ZipRoot(regionSafe, roadSafe, date), vehicle);
 
                 AddCleanedDatasetsToFolder(Path.Combine(root, "Snapped-Cleaned"), list);
-                AddSegmentAnalysisToFolder(Path.Combine(root, "SegmentAnalysis"), list);
+                AddSegmentAnalysisToFolder(Path.Combine(root, "Segment Analysis"), list);
                 AddShapesToFolder(Path.Combine(root, "Shapes"), list);
+
+                // NEW: Output the GIS GeoJSON and Anchor tables grouped by Peak period
+                AddKmCpDetectedToFolder(Path.Combine(root, "KM-CP Detected"), list);
             }
 
-            if (byDateVehicle.Count == 0)
+            // 2. Write Graph JPEG files (sent from frontend canvas)
+            foreach (var it in req.Graphs ?? new List<GraphUploadItem>())
+            {
+                if (string.IsNullOrWhiteSpace(it.DataUrl)) continue;
+
+                var comma = it.DataUrl.IndexOf(',');
+                if (comma <= 0) continue;
+
+                byte[] bytes;
+                try { bytes = Convert.FromBase64String(it.DataUrl.Substring(comma + 1)); }
+                catch { continue; }
+
+                var folderIn = SafeZipPath(it.Folder);
+                var file = SafeZipFile(it.FileName);
+
+                // Rebase folder structure to match Region/Road safely
+                var folder = RebaseGraphFolder(folderIn, regionSafe, roadSafe);
+                folder = folder.Replace("/UnknownRegion/UnknownRoad/", "/");
+                if (folder.EndsWith("/UnknownRegion/UnknownRoad", StringComparison.OrdinalIgnoreCase))
+                    folder = folder[..^("/UnknownRegion/UnknownRoad".Length)];
+                if (folder.Equals("UnknownRegion/UnknownRoad", StringComparison.OrdinalIgnoreCase))
+                    folder = $"{regionSafe}/{roadSafe}";
+
+                // If the frontend sends "Graphs/AM/chart.jpeg", map it directly into disk structure
+                var targetPath = string.IsNullOrWhiteSpace(folder)
+                    ? Path.Combine(destDir, file)
+                    : Path.Combine(destDir, folder.Replace("/", Path.DirectorySeparatorChar.ToString()), file);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                System.IO.File.WriteAllBytes(targetPath, bytes);
+            }
+
+            if (byDateVehicle.Count == 0 && (req.Graphs == null || !req.Graphs.Any()))
             {
                 var readmePath = Path.Combine(destDir, "README_NO_FILES_EXPORTED.txt");
                 System.IO.File.WriteAllText(readmePath,
-                    "No datasets matched expected patterns (GPX_<veh>_... and -<trip>_YYYYMMDD-HHMMSS).\n");
+                    "No datasets matched expected patterns (GPX_<veh>_... and -<trip>_YYYYMMDD-HHMMSS) and no graphs were sent.\n");
             }
 
             var reportGenUrl = _config["Services:ReportGen"];

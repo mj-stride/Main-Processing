@@ -1107,25 +1107,99 @@
             return pts;
         }
 
-        document.getElementById('btnContinueNoUpload')?.addEventListener('click', () => {
-            const form = document.getElementById('continueReportGenForm');
-            if (!form) return;
 
-            if (typeof form.requestSubmit === 'function') {
-                // requestSubmit() fires the 'submit' event, so wireForm's
-                // region/road population actually runs before the POST.
-                form.requestSubmit();
-            } else {
-                // Fallback for browsers without requestSubmit (Safari < 16, old Edge)
-                const { reg, road } = getFilters();
-                const r  = document.getElementById('continueRegion');
-                const rd = document.getElementById('continueRoad');
-                if (r)  r.value  = reg;
-                if (rd) rd.value = road;
-                form.submit();
+        document.getElementById('btnContinueNoUpload')?.addEventListener('click', async (e) => {
+            e.preventDefault(); // Stop native HTML form submit
+
+            const btn = document.getElementById('btnContinueNoUpload');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Packaging Reports & Graphs...';
+
+            try {
+                // 1. Get Region and Road using your existing fallback helper
+                let reg = document.getElementById('continueRegion')?.value || "";
+                let road = document.getElementById('continueRoad')?.value || "";
+                if (!reg || !road) {
+                    const filters = typeof getFilters === 'function' ? getFilters() : {};
+                    reg = reg || filters.reg || "UnknownRegion";
+                    road = road || filters.road || "UnknownRoad";
+                }
+
+                // 2. Collect selected dataset IDs (checkboxes usually named "selected_files")
+                const selectedIds = Array.from(document.querySelectorAll('input[name="selected_files"]:checked'))
+                    .map(cb => cb.value)
+                    .filter(Boolean);
+
+                // 3. Extract generated Chart.js canvases and convert them to Base64 JPEGs
+                const graphs = [];
+                const canvasList = document.querySelectorAll('canvas[id^="pieChart-"], canvas[id^="barChart-"], canvas[id^="speedChart-"]');
+
+                canvasList.forEach(canvas => {
+                    // Only capture if Chart.js actually drew something
+                    if (canvas && canvas.width > 0 && canvas.height > 0) {
+                        // Find the peak code (AM, MID, PM) from the closest section header
+                        let peakCode = "ALL";
+                        const datasetSection = canvas.closest('.dataset-section') || canvas.closest('.card');
+                        if (datasetSection) {
+                            const headerText = datasetSection.textContent || "";
+                            if (headerText.includes("AM")) peakCode = "AM";
+                            else if (headerText.includes("MID")) peakCode = "MID";
+                            else if (headerText.includes("PM")) peakCode = "PM";
+                        }
+
+                        // Give the JPEG a descriptive name based on the canvas ID
+                        const chartType = canvas.id.split('-')[0]; // e.g., 'pieChart'
+                        const fileName = `${chartType}_${canvas.id.replace('Chart-', '')}.jpeg`;
+
+                        // Convert canvas to white-background JPEG (Chart.js defaults to transparent PNGs otherwise)
+                        const dataUrl = getCanvasJpegDataUrl(canvas);
+                        if (dataUrl) {
+                            graphs.push({
+                                Folder: `${reg}/${road}/Graphs/${peakCode}`,
+                                FileName: fileName,
+                                DataUrl: dataUrl
+                            });
+                        }
+                    }
+                });
+
+                // 4. Construct the JSON payload matching C#'s ExportAllWithGraphsRequest
+                const payload = {
+                    Region: reg,
+                    RoadNameOrSections: road,
+                    SelectedIds: selectedIds,
+                    Graphs: graphs
+                };
+
+                // 5. Send POST via fetch with application/json
+                const response = await fetch('/continue_to_reportgen', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                // 6. Handle C#'s 302 Redirect to ReportGen manually
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else if (response.ok) {
+                    // Fallback just in case browser followed redirect seamlessly
+                    window.location.href = response.url;
+                } else {
+                    const errText = await response.text();
+                    alert("Error preparing ReportGen batch: " + (errText || response.statusText));
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (err) {
+                console.error("Failed to send data to ReportGen:", err);
+                alert("A network or script error occurred while packaging data.");
+                btn.disabled = false;
+                btn.innerHTML = originalText;
             }
         });
-
 
         (peakGroups || []).forEach((pg, pgIndex) => {
             (pg?.datasets || []).forEach((ds, dsIndex) => {
@@ -1273,6 +1347,32 @@
                     : 'translateY(-50%) rotate(180deg)';
             });
         });
+
+                /**
+         * Captures a Chart.js canvas as a clean, white-background JPEG base64 string.
+         */
+        function getCanvasJpegDataUrl(sourceCanvas) {
+            try {
+                // Create a temporary off-screen canvas of the exact same dimensions
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = sourceCanvas.width;
+                tempCanvas.height = sourceCanvas.height;
+                const ctx = tempCanvas.getContext('2d');
+
+                // Fill background with solid white
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+                // Draw the original chart over the white background
+                ctx.drawImage(sourceCanvas, 0, 0);
+
+                // Return JPEG at 90% quality
+                return tempCanvas.toDataURL('image/jpeg', 0.9);
+            } catch (e) {
+                console.warn("Could not capture canvas JPEG:", e);
+                return null;
+            }
+        }
 
         // ── Graph collection ──
         function collectGraphs(reg, road) {

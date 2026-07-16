@@ -5,3 +5,4 @@ C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\Ttds.Shared\obj\Debug\net8.
 C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\Ttds.Shared\obj\Debug\net8.0\staticwebassets.build.json
 C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\Ttds.Shared\obj\Debug\net8.0\staticwebassets.build.json
 C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\Ttds.Shared\obj\Debug\net8.0\staticwebassets.build.json
+C:\Users\Ivan Obias\Documents\GitHub\Main-Processing\Ttds.Shared\obj\Debug\net8.0\staticwebassets.build.json
