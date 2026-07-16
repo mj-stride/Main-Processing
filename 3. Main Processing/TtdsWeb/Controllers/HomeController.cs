@@ -34,6 +34,7 @@ namespace TtdsWeb.Controllers
         private readonly IGeoDirectionService _geoService;
         private readonly IKmPostRepositoryService _kmRepository;
         private readonly IAnchorDetectionService _anchorService;
+        private readonly IZipPackagingService _zipPackagingService;
         private const double CP_DETECT_RADIUS_M = 300.0;
 
         public HomeController(
@@ -44,7 +45,8 @@ namespace TtdsWeb.Controllers
             IPeakPeriodService peakService,
             IGeoDirectionService geoService,
             IKmPostRepositoryService kmRepository,
-            IAnchorDetectionService anchorService)
+            IAnchorDetectionService anchorService,
+            IZipPackagingService zipPackagingService)
         {
             _state = stateAccessor.Current;
             _config = config;
@@ -54,6 +56,7 @@ namespace TtdsWeb.Controllers
             _geoService = geoService;
             _kmRepository = kmRepository;
             _anchorService = anchorService;
+            _zipPackagingService = zipPackagingService;
         }
 
         [HttpGet("/download_detected_cp")]
@@ -1871,23 +1874,39 @@ namespace TtdsWeb.Controllers
                 (string.Equals(roadNameOrSections, "UnknownRoad", StringComparison.OrdinalIgnoreCase) ? null : roadNameOrSections)
             );
 
-            using var zipStream = BuildAllZipStream(chosen, regionSafe, roadSafe);
-
             var batchId = Guid.NewGuid().ToString("N");
             var baseStorageRoot = _config["Services:BatchStorageRoot"] ?? Path.Combine(Path.GetTempPath(), "ttds_batches");
             var destDir = Path.Combine(baseStorageRoot, batchId, "ttdsweb");
             Directory.CreateDirectory(destDir);
 
-            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true))
-            {
-                foreach (var entry in archive.Entries)
+            var byDateVehicle = chosen
+                .Select(d => new { ds = d, info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path) })
+                .Where(x => x.info != null)
+                .GroupBy(x => new
                 {
-                    if (string.IsNullOrEmpty(entry.Name)) continue; // folder entry
+                    date = x.info!.Value.date,
+                    vehicle = CanonVehicleFolder(x.info!.Value.vehName)
+                })
+                .ToDictionary(g => g.Key, g => g.Select(x => x.ds).ToList());
 
-                    var destPath = Path.Combine(destDir, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
-                    Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-                    entry.ExtractToFile(destPath, overwrite: true);
-                }
+            foreach (var kv in byDateVehicle)
+            {
+                var date = kv.Key.date;
+                var vehicle = kv.Key.vehicle;
+                var list = kv.Value;
+
+                var root = Path.Combine(destDir, ZipRoot(regionSafe, roadSafe, date), vehicle);
+
+                AddCleanedDatasetsToFolder(Path.Combine(root, "Snapped-Cleaned"), list);
+                AddSegmentAnalysisToFolder(Path.Combine(root, "SegmentAnalysis"), list);
+                AddShapesToFolder(Path.Combine(root, "Shapes"), list);
+            }
+
+            if (byDateVehicle.Count == 0)
+            {
+                var readmePath = Path.Combine(destDir, "README_NO_FILES_EXPORTED.txt");
+                System.IO.File.WriteAllText(readmePath,
+                    "No datasets matched expected patterns (GPX_<veh>_... and -<trip>_YYYYMMDD-HHMMSS).\n");
             }
 
             var reportGenUrl = _config["Services:ReportGen"];
@@ -2087,6 +2106,113 @@ namespace TtdsWeb.Controllers
             }
 
             return $"{regionSafe}/{roadSafe}/{parts[0]}";
+        }
+
+        private void AddCleanedDatasetsToFolder(string destBaseFolder, List<TripDataset> datasets)
+        {
+            foreach (var d in datasets)
+            {
+                if (string.IsNullOrWhiteSpace(d.Path) || !System.IO.File.Exists(d.Path))
+                    continue;
+
+                var info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path);
+                string fileName;
+
+                if (info != null)
+                {
+                    var (tripNo, dtToken, _, _, _) = info.Value;
+                    var dir = _geoService.ComputeDatasetDirection(d.Rows) ?? "UNK";
+                    fileName = $"{tripNo}_{dtToken}-{dir}.csv";
+                }
+                else
+                {
+                    fileName = SafeZipFile(Path.GetFileName(d.FileName));
+                }
+
+                Directory.CreateDirectory(destBaseFolder);
+                var destPath = Path.Combine(destBaseFolder, fileName);
+
+                using var fs = System.IO.File.OpenRead(d.Path);
+                using var outFs = System.IO.File.Create(destPath);
+                fs.CopyTo(outFs);
+            }
+        }
+
+        private void AddSegmentAnalysisToFolder(string destBaseFolder, List<TripDataset> datasets)
+        {
+            foreach (var d in datasets)
+            {
+                var info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path);
+                if (info == null) continue;
+
+                var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
+                var peak = _peakService.PeakFolder(_peakService.ComputeDatasetPeak(d.Rows).ToString());
+                var dir = _geoService.ComputeDatasetDirection(d.Rows) ?? "UNK";
+
+                var anchors = GetActiveAnchorsForTrip(d.Rows);
+                anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state.ManualCpKm);
+                if (anchors.Count < 2) continue;
+
+                var (results, _, _) = _analysisService.AnalyzeTrip(d.Rows, anchors);
+                var csvBytes = BuildResultsCsv(results);
+
+                var destDir = Path.Combine(destBaseFolder, peak);
+                Directory.CreateDirectory(destDir);
+                var destPath = Path.Combine(destDir, $"{tripNo}_{dtToken}-{dir}.csv");
+
+                System.IO.File.WriteAllBytes(destPath, csvBytes);
+            }
+        }
+
+        private void AddShapesToFolder(string destBaseFolder, List<TripDataset> datasets)
+        {
+            foreach (var d in datasets)
+            {
+                var info = ParseTripInfoFromFilename(d.FileName) ?? ParseTripInfoFromFilename(d.Path);
+                if (info == null) continue;
+
+                var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
+                var peak = _peakService.PeakFolder(_peakService.ComputeDatasetPeak(d.Rows).ToString());
+                var dir = _geoService.ComputeDatasetDirection(d.Rows) ?? "UNK";
+
+                var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tmp);
+
+                try
+                {
+                    var baseName = $"{tripNo}_{dtToken}-{dir}";
+                    var del = WriteDelayLinesShapeFile(d, tmp, baseName + "_delays");
+                    var pts = WriteTripPointsShapeFile(d, tmp, baseName + "_points");
+
+                    var shapesDestDir = Path.Combine(destBaseFolder, "shp", peak);
+                    AddShapeSidecarsToFolder(del, shapesDestDir);
+                    AddShapeSidecarsToFolder(pts, shapesDestDir);
+                }
+                finally
+                {
+                    try { Directory.Delete(tmp, true); } catch { }
+                }
+            }
+        }
+
+        private static void AddShapeSidecarsToFolder(string shpFile, string destFolder)
+        {
+            if (string.IsNullOrWhiteSpace(shpFile) || !System.IO.File.Exists(shpFile))
+                return;
+
+            Directory.CreateDirectory(destFolder);
+
+            var baseNoExt = Path.Combine(Path.GetDirectoryName(shpFile)!, Path.GetFileNameWithoutExtension(shpFile));
+            var exts = new[] { ".shp", ".shx", ".dbf", ".prj", ".cpg" };
+
+            foreach (var ext in exts)
+            {
+                var fp = baseNoExt + ext;
+                if (!System.IO.File.Exists(fp)) continue;
+
+                var destPath = Path.Combine(destFolder, Path.GetFileName(fp));
+                System.IO.File.Copy(fp, destPath, overwrite: true);
+            }
         }
 
         private static string CanonVehicleFolder(string? vehName)

@@ -361,6 +361,43 @@ namespace PrivateTransportCleaning.Controllers
             return Json(new { success = true, redirect = "/SurveyData/Trips", mergedFile = filename });
         }
 
+        [HttpPost]
+        public IActionResult ContinueToProcessing(List<string> files, string? runId)
+        {
+            if (files == null || files.Count == 0)
+                return Json(new { success = false, message = "Select at least one file to continue." });
+
+            // Reuse the runId if the caller has one (keeps it consistent with the
+            // OutputPath produced during Index()); otherwise mint a fresh batch id.
+            var batchId = string.IsNullOrWhiteSpace(runId) ? Guid.NewGuid().ToString("N") : runId;
+
+            var shareDir = Path.Combine(_services.BatchStorageRoot, batchId, "gpxclean");
+            Directory.CreateDirectory(shareDir);
+
+            int copied = 0;
+            foreach (var file in files)
+            {
+                var safeFile = Path.GetFileName(file);
+                var path = Path.Combine(OutputPath, safeFile);
+                if (!System.IO.File.Exists(path))
+                    continue;
+
+                System.IO.File.Copy(path, Path.Combine(shareDir, safeFile), overwrite: true);
+                copied++;
+            }
+
+            if (copied == 0)
+                return Json(new { success = false, message = "None of the selected files could be found on disk." });
+
+            // Main Processing (TtdsWeb) reads this batch folder directly via its
+            // /import/{batchId} endpoint — same handoff mechanism GPXClean uses.
+            return Json(new
+            {
+                success = true,
+                redirect = $"{_services.MainProc}/import/{batchId}"
+            });
+        }
+
         [HttpGet]
         public IActionResult Trips(string? runId)
         {

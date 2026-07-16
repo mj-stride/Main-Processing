@@ -454,6 +454,9 @@
                             type="submit">
                         <i class="bi bi-download"></i> Download CSV ZIP
                     </button>
+                    <button type="button" id="btnContinueProcessing" class="btn-ttds btn-ttds-success">
+                        <i class="bi bi-arrow-right-circle-fill me-2"></i> Continue to Processing
+                    </button>
                 </div>
             </form>
         </div>
@@ -736,5 +739,32 @@
         getBoxes().forEach(c => {
             if (c.checked) toggleTripOnMap(c);
         });
+    });
+
+        document.getElementById('btnContinueProcessing')?.addEventListener('click', async () => {
+        const selected = Array.from(document.querySelectorAll('.trip-checkbox:checked'))
+            .map(cb => cb.value);
+
+        if (selected.length === 0) {
+            alert('Select at least one file to continue.');
+            return;
+        }
+
+        const formData = new FormData();
+        selected.forEach(f => formData.append('files', f));
+
+        try {
+            const res = await fetch('/SurveyData/ContinueToProcessing', { method: 'POST', body: formData });
+            const result = await res.json();
+
+            if (!result.success) {
+                alert(result.message || 'Failed to continue to processing.');
+                return;
+            }
+
+            window.location.href = result.redirect;
+        } catch (err) {
+            alert('Network error: ' + err.message);
+        }
     });
 </script>

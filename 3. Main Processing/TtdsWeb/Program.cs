@@ -16,6 +16,7 @@ builder.Services.AddScoped<IGeoDirectionService, GeoDirectionService>();
 builder.Services.AddScoped<IKmPostRepositoryService, KmPostRepositoryService>();
 builder.Services.AddScoped<IAnchorDetectionService, AnchorDetectionService>();
 builder.Services.AddHostedService<AppStateCleanupService>();
+builder.Services.AddScoped<IZipPackagingService, ZipPackagingService>();
 
 builder.Services.Configure<ServiceOptions>(
     builder.Configuration.GetSection(ServiceOptions.SectionName)

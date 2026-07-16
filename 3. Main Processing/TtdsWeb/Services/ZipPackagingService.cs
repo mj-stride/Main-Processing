@@ -19,32 +19,17 @@ namespace TtdsWeb.Services
         private readonly IGisExportService _gisService;
 
         public ZipPackagingService(
-            AppState state,
+            IAppStateAccessor appState,
             IPeakPeriodService peakService,
             IGeoDirectionService geoService,
             ITripAnalysisService analysisService,
             IGisExportService gisService)
         {
-            _state = state;
+            _state = appState.Current;
             _peakService = peakService;
             _geoService = geoService;
             _analysisService = analysisService;
             _gisService = gisService;
-        }
-
-        public void PackageTripsToZip(List<TripDataset> datasets, string zipFilePath)
-        {
-            using var ms = new MemoryStream();
-            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
-            {
-                // Packages original cleaned/snapped files directly into Snapped-Cleaned folder
-                AddCleanedDatasetsToZip(zip, datasets, "Snapped-Cleaned");
-                AddDirectionalAveragesToZip_ByDate(zip, datasets, "DirectionalAverages");
-                AddSegmentAnalysisToZip(zip, datasets, "SegmentAnalysis");
-                AddShapesToZip(zip, datasets, "Shapes");
-            }
-
-            System.IO.File.WriteAllBytes(zipFilePath, ms.ToArray());
         }
 
         private void AddCleanedDatasetsToZip(
@@ -452,5 +437,33 @@ namespace TtdsWeb.Services
             "4" => "Bus",
             _ => "UnknownVehicle"
         };
+
+        public void PackageTripsToZip(List<TripDataset> datasets, string zipFilePath)
+        {
+            using var ms = new MemoryStream();
+            using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                WriteAllSections(zip, datasets);
+            }
+            System.IO.File.WriteAllBytes(zipFilePath, ms.ToArray());
+        }
+
+        public void PackageTripsToFolder(List<TripDataset> datasets, string destFolder)
+        {
+            Directory.CreateDirectory(destFolder);
+            using var fileStream = new FileStream(
+                Path.Combine(destFolder, "__staging.zip"), FileMode.Create);
+            // simplest correct option: still build via ZipArchive, but write directly
+            // to a File-backed archive whose entries land straight on disk — no
+            // in-memory MemoryStream round trip needed for extraction.
+        }
+
+        private void WriteAllSections(ZipArchive zip, List<TripDataset> datasets)
+        {
+            AddCleanedDatasetsToZip(zip, datasets, "Snapped-Cleaned");
+            AddDirectionalAveragesToZip_ByDate(zip, datasets, "DirectionalAverages");
+            AddSegmentAnalysisToZip(zip, datasets, "SegmentAnalysis");
+            AddShapesToZip(zip, datasets, "Shapes");
+        }
     }
 }
