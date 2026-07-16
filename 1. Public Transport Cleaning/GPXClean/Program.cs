@@ -1,11 +1,9 @@
 using Ttds.Shared;
 using Microsoft.AspNetCore.Http.Features;
-using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var url = "http://127.0.0.1:5050";
-var openUrl = "http://127.0.0.1:5050/gpx/upload";
 
 builder.WebHost.UseUrls(url);
 
@@ -24,17 +22,6 @@ builder.Services.Configure<ServiceOptions>(
     builder.Configuration.GetSection(ServiceOptions.SectionName)
 );
 var app = builder.Build();
-
-app.Lifetime.ApplicationStarted.Register(() =>
-{
-    Process.Start(new ProcessStartInfo
-    {
-        FileName = openUrl,
-        UseShellExecute = true
-    });
-});
-
-
 
 if (!app.Environment.IsDevelopment())
 {

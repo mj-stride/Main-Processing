@@ -145,6 +145,7 @@
 </div>
 @section Scripts {
     <script>
+
         (function () {
             let selectedFiles = []; // [{ file, relativePath }]
 
@@ -171,21 +172,25 @@
             startPolling(existingJobId);
         }
 
-            // 1. Mandatory UI Scrubber on BFCache Page Restore
-            window.addEventListener('pageshow', function () {
-                if (folderInput) folderInput.value = '';
-                if (zipInput) zipInput.value = '';
-                selectedFiles = [];
-                const label = document.getElementById('fileLabel');
-                if (label) label.innerHTML = '';
-                if (overlay) {
-                    overlay.style.display = 'none';
-                    overlay.setAttribute('aria-hidden', 'true');
-                }
-                const btn = document.getElementById('btnGenerate');
-                if (btn) btn.disabled = false;
-                if (pollTimer) clearInterval(pollTimer);
-            });
+        window.addEventListener('pageshow', function (event) {
+            // pageshow also fires on normal/fresh loads (right after load), not just
+            // bfcache restores. Only scrub the UI on an actual bfcache restore —
+            // otherwise this wipes out a job we just started resuming on this exact load.
+            if (!event.persisted) return;
+
+            if (folderInput) folderInput.value = '';
+            if (zipInput) zipInput.value = '';
+            selectedFiles = [];
+            const label = document.getElementById('fileLabel');
+            if (label) label.innerHTML = '';
+            if (overlay) {
+                overlay.style.display = 'none';
+                overlay.setAttribute('aria-hidden', 'true');
+            }
+            const btn = document.getElementById('btnGenerate');
+            if (btn) btn.disabled = false;
+            if (pollTimer) clearInterval(pollTimer);
+        });
 
             // Folder Browse Listener
             folderInput.addEventListener('change', () => {

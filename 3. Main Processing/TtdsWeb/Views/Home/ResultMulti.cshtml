@@ -1108,7 +1108,22 @@
         }
 
         document.getElementById('btnContinueNoUpload')?.addEventListener('click', () => {
-            document.getElementById('continueReportGenForm')?.submit();
+            const form = document.getElementById('continueReportGenForm');
+            if (!form) return;
+
+            if (typeof form.requestSubmit === 'function') {
+                // requestSubmit() fires the 'submit' event, so wireForm's
+                // region/road population actually runs before the POST.
+                form.requestSubmit();
+            } else {
+                // Fallback for browsers without requestSubmit (Safari < 16, old Edge)
+                const { reg, road } = getFilters();
+                const r  = document.getElementById('continueRegion');
+                const rd = document.getElementById('continueRoad');
+                if (r)  r.value  = reg;
+                if (rd) rd.value = road;
+                form.submit();
+            }
         });
 
 

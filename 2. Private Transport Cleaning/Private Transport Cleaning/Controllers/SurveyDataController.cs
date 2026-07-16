@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using PrivateTransportCleaning.Models;
 using PrivateTransportCleaning.Services;
+using System.Collections.Concurrent;
 
 namespace PrivateTransportCleaning.Controllers
 {
@@ -73,48 +74,60 @@ namespace PrivateTransportCleaning.Controllers
         }
 
         [HttpPost]
-        public IActionResult Index(IFormFile csvFile, List<IFormFile> zipFiles)
+        public IActionResult Index(IFormFile csvFile, List<IFormFile> zipFiles, string? sessionId)
         {
-            Console.WriteLine("🔥 INDEX POST HIT");
-            Console.WriteLine("REQUEST FILE COUNT: " + Request.Form.Files.Count);
+            bool track = !string.IsNullOrWhiteSpace(sessionId);
+
+            if (track) SetProgress(sessionId!, 5, "Validating…", "Checking uploaded files.");
 
             if (csvFile == null)
-                return Content("CSV IS NULL");
+            {
+                var msg = "CSV file is missing.";
+                if (track) { SetProgress(sessionId!, 0, "Error", "", error: msg); return Ok(); }
+                return Json(new { success = false, message = msg });
+            }
 
-            if (zipFiles == null)
-                return Content("ZIPFILES IS NULL");
-
-            if (zipFiles.Count == 0)
-                return Content("ZIPFILES EMPTY");
+            if (zipFiles == null || zipFiles.Count == 0)
+            {
+                var msg = "Please select at least one ZIP package.";
+                if (track) { SetProgress(sessionId!, 0, "Error", "", error: msg); return Ok(); }
+                return Json(new { success = false, message = msg });
+            }
 
             var csvDate = ExtractDate(csvFile.FileName);
             if (csvDate == null)
-                return Content("Could not determine CSV date.");
+            {
+                var msg = "Could not determine CSV date.";
+                if (track) { SetProgress(sessionId!, 0, "Error", "", error: msg); return Ok(); }
+                return Json(new { success = false, message = msg });
+            }
 
             foreach (var zip in zipFiles)
             {
                 var zipDate = ExtractDate(zip.FileName);
                 if (zipDate == null)
-                    return Content($"Could not determine ZIP date: {zip.FileName}");
+                {
+                    var msg = $"Could not determine ZIP date: {zip.FileName}";
+                    if (track) { SetProgress(sessionId!, 0, "Error", "", error: msg); return Ok(); }
+                    return Json(new { success = false, message = msg });
+                }
 
                 if (zipDate != csvDate)
                 {
-                    return Json(new
-                    {
-                        success = false,
-                        code = "DATE_MISMATCH",
-                        message = "Process Error: Dates do not match."
-                    });
+                    var msg = "Process Error: Dates do not match.";
+                    if (track) { SetProgress(sessionId!, 0, "Error", "", error: msg); return Ok(); }
+                    return Json(new { success = false, code = "DATE_MISMATCH", message = msg });
                 }
             }
 
             Directory.CreateDirectory(OutputPath);
-
             foreach (var f in Directory.GetFiles(OutputPath))
                 System.IO.File.Delete(f);
 
             var runId = Guid.NewGuid().ToString("N");
             var producedFiles = new List<string>();
+
+            if (track) SetProgress(sessionId!, 10, "Saving CSV log…", "Writing Geotab centerline file to disk.");
 
             // ================= 1. PARSE CSV FIRST =================
             var csvPath = Path.Combine(UploadPath, runId + "_" + csvFile.FileName);
@@ -122,6 +135,8 @@ namespace PrivateTransportCleaning.Controllers
 
             using (var fs = new FileStream(csvPath, FileMode.Create))
                 csvFile.CopyTo(fs);
+
+            if (track) SetProgress(sessionId!, 15, "Parsing centerline…", "Reading latitude/longitude points from CSV.");
 
             var centerline = new List<(double lat, double lon)>();
 
@@ -144,15 +159,24 @@ namespace PrivateTransportCleaning.Controllers
             }
 
             // ================= 2. PROCESS ZIPS (MEMORY STREAMING) =================
+            int totalZips = zipFiles.Count(z => z != null && z.Length > 0);
+            int zipIndex = 0;
+
             foreach (var zip in zipFiles)
             {
                 if (zip == null || zip.Length == 0)
                     continue;
 
+                zipIndex++;
+                if (track)
+                {
+                    int pct = 20 + (int)(70.0 * zipIndex / Math.Max(totalZips, 1));
+                    SetProgress(sessionId!, pct, $"Cleaning package {zipIndex} of {totalZips}…", $"Snapping GPS points in {zip.FileName}.");
+                }
+
                 var zipRunId = Guid.NewGuid().ToString("N");
                 var zipPath = Path.Combine(UploadPath, zipRunId + "_" + zip.FileName);
 
-                // Save the uploaded zip file temporarily
                 using (var fs = new FileStream(zipPath, FileMode.Create))
                 {
                     zip.CopyTo(fs);
@@ -160,22 +184,18 @@ namespace PrivateTransportCleaning.Controllers
 
                 var allPoints = new List<GpxPoint>();
 
-                // Open the ZIP archive directly without dumping all files to disk
                 using (var archive = ZipFile.OpenRead(zipPath))
                 {
-                    // Loop through entries and ONLY process .gpx files
                     foreach (var entry in archive.Entries)
                     {
                         if (entry.FullName.EndsWith(".gpx", StringComparison.OrdinalIgnoreCase))
                         {
-                            // Open the GPX entry stream directly into memory
                             using var entryStream = entry.Open();
                             allPoints.AddRange(ParseGpxStream(entryStream));
                         }
                     }
                 }
 
-                // Clean up the temporary uploaded ZIP file right after reading it
                 if (System.IO.File.Exists(zipPath))
                 {
                     System.IO.File.Delete(zipPath);
@@ -222,16 +242,82 @@ namespace PrivateTransportCleaning.Controllers
                 producedFiles.Add(outputFile);
             }
 
+            if (track) SetProgress(sessionId!, 95, "Finalizing batch…", "Copying cleaned files to shared storage.");
+
             var shareDir = Path.Combine(_services.BatchStorageRoot, runId, "gpxclean");
             Directory.CreateDirectory(shareDir);
             foreach (var f in producedFiles)
                 System.IO.File.Copy(f, Path.Combine(shareDir, Path.GetFileName(f)), overwrite: true);
 
-            return Json(new
+            var redirectUrl = Url.Action("Trips", "SurveyData", new { runId });
+
+            if (track)
             {
-                success = true,
-                redirect = Url.Action("Trips", "SurveyData", new { runId })
-            });
+                SetProgress(sessionId!, 100, "Ready!", "Launching results…", redirect: redirectUrl);
+                return Ok();
+            }
+
+            return Json(new { success = true, redirect = redirectUrl });
+        }
+
+        private static readonly ConcurrentDictionary<string, ProgressUpdate> _progress = new();
+
+        public class ProgressUpdate
+        {
+            public int Percent { get; set; }
+            public string Title { get; set; } = "";
+            public string Message { get; set; } = "";
+            public string? Redirect { get; set; }
+            public string? Error { get; set; }
+        }
+
+        private static void SetProgress(string sessionId, int percent, string title, string message,
+            string? redirect = null, string? error = null)
+        {
+            _progress[sessionId] = new ProgressUpdate
+            {
+                Percent = percent,
+                Title = title,
+                Message = message,
+                Redirect = redirect,
+                Error = error
+            };
+        }
+
+        [HttpGet("/SurveyData/Progress/{sessionId}")]
+        public async Task ProgressStream(string sessionId)
+        {
+            Response.Headers["Content-Type"] = "text/event-stream";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["X-Accel-Buffering"] = "no";
+
+            var timeout = DateTime.UtcNow.AddMinutes(10);
+
+            while (DateTime.UtcNow < timeout)
+            {
+                if (_progress.TryGetValue(sessionId, out var update))
+                {
+                    var json = JsonSerializer.Serialize(new
+                    {
+                        percent = update.Percent,
+                        title = update.Title,
+                        message = update.Message,
+                        redirect = update.Redirect,
+                        error = update.Error
+                    });
+
+                    await Response.WriteAsync($"data: {json}\n\n");
+                    await Response.Body.FlushAsync();
+
+                    if (update.Redirect != null || update.Error != null)
+                    {
+                        _progress.TryRemove(sessionId, out _);
+                        break;
+                    }
+                }
+
+                await Task.Delay(300);
+            }
         }
 
         [HttpPost]
