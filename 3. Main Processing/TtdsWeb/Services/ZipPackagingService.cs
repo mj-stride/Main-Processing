@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+﻿using System.Globalization;
+using System.IO.Compression;
 using System.Text;
 using TtdsWeb.Models;
 using TtdsWeb.Utils;
@@ -458,11 +459,63 @@ namespace TtdsWeb.Services
             // in-memory MemoryStream round trip needed for extraction.
         }
 
+        private void AddAnchorTablesToZip(
+        ZipArchive zip,
+        List<TripDataset> datasets,
+        string zipBaseFolder)
+        {
+            foreach (var d in datasets)
+            {
+                var info = ParseTripInfoFromFilename(d.FileName)
+                           ?? ParseTripInfoFromFilename(d.Path);
+                if (info == null) continue;
+
+                var (tripNo, dtToken, date, vehCode, vehName) = info.Value;
+
+                var peak = _peakService.PeakFolder(_peakService.ComputeDatasetPeak(d.Rows).ToString());
+                var dir = _geoService.ComputeDatasetDirection(d.Rows) ?? "UNK";
+
+                var anchors = GetActiveAnchorsForTrip(d.Rows);
+                anchors = MergeAnchorsInTripOrder(d.Rows, anchors, _state.ManualCpKm);
+                if (anchors.Count < 2) continue; // same guard as AddSegmentAnalysisToZip
+
+                var csvBytes = BuildAnchorsCsv(anchors);
+                if (csvBytes.Length == 0) continue;
+
+                var entry = zip.CreateEntry(
+                    $"{zipBaseFolder}/{peak}/tables/{tripNo}_{dtToken}-{dir}.csv",
+                    CompressionLevel.Fastest
+                );
+
+                using var es = entry.Open();
+                es.Write(csvBytes, 0, csvBytes.Length);
+            }
+        }
+
+        private byte[] BuildAnchorsCsv(List<ControlPoint> anchors)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("ControlPoint,Latitude,Longitude");
+
+            foreach (var cp in anchors)
+            {
+                sb.AppendLine(string.Join(",",
+                    cp.ControlPointId,
+                    cp.Lat.ToString(CultureInfo.InvariantCulture),
+                    cp.Lng.ToString(CultureInfo.InvariantCulture)
+                ));
+            }
+
+            return Encoding.UTF8.GetBytes(sb.ToString());
+        }
+
+
         private void WriteAllSections(ZipArchive zip, List<TripDataset> datasets)
         {
             AddCleanedDatasetsToZip(zip, datasets, "Snapped-Cleaned");
             AddDirectionalAveragesToZip_ByDate(zip, datasets, "DirectionalAverages");
             AddSegmentAnalysisToZip(zip, datasets, "SegmentAnalysis");
+            AddAnchorTablesToZip(zip, datasets, "KM-CP Detected");
             AddShapesToZip(zip, datasets, "Shapes");
         }
     }
